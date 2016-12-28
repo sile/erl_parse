@@ -4,6 +4,14 @@ use num::bigint::BigUint;
 pub struct Ast;
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Module {
+    pub forms: Vec<Form>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Form;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal(Literal),
     Var(Var),

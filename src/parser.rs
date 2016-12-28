@@ -24,6 +24,9 @@ impl<T> Parser<T>
             tokens: tokens.peekable(),
         }
     }
+    pub fn parse_module(&mut self) -> ParseResult<ast::Module> {
+        panic!()
+    }
     pub fn parse_expr(&mut self) -> ParseResult<ast::Expr> {
         match self.read_token()? {
             Token::Symbol(x) => self.parse_expr_symbol(x),
