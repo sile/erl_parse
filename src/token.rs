@@ -15,6 +15,18 @@ pub enum Token {
     Comment(String),
     LineNum(usize),
 }
+macro_rules! impl_from_for_token {
+    ($from:ident, $conv:ident) => {
+        impl From<$from> for Token {
+            fn from(f: $from) -> Self {
+                Token::$conv(f)
+            }
+        }
+    }
+}
+impl_from_for_token!(Symbol, Symbol);
+impl_from_for_token!(Keyword, Keyword);
+impl_from_for_token!(char, Char);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Symbol {

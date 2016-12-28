@@ -9,7 +9,37 @@ pub struct Module {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Form;
+pub enum Form {
+    ModuleDecl(ModuleDecl),
+    ExportAttr(ExportAttr),
+}
+macro_rules! impl_from_for_form {
+    ($from:ident) => {
+        impl From<$from> for Form {
+            fn from(f: $from) -> Self {
+                Form::$from(f)
+            }
+        }
+    }
+}
+impl_from_for_form!(ModuleDecl);
+impl_from_for_form!(ExportAttr);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModuleDecl {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportAttr {
+    pub exports: Vec<FA>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FA {
+    pub fun_name: String,
+    pub arity: usize,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {

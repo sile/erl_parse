@@ -1,4 +1,5 @@
 use std::iter::Peekable;
+use num::traits::ToPrimitive;
 
 use token::{Token, Keyword, Symbol};
 use ast;
@@ -25,7 +26,104 @@ impl<T> Parser<T>
         }
     }
     pub fn parse_module(&mut self) -> ParseResult<ast::Module> {
-        panic!()
+        let mut forms = Vec::new();
+        while let Some(token) = self.read_token_if_exists() {
+            match token {
+                Token::Symbol(Symbol::Hyphen) => {
+                    match self.read_token()? {
+                        Token::Atom(name) => {
+                            // See: http://erlang.org/doc/reference_manual/modules.html
+                            let form = match name.as_str() {
+                                "module" => self.parse_module_decl()?,
+                                "export" => self.parse_export_attr()?,
+                                "export_type" => self.parse_export_attr()?,                                
+                                "import" => unimplemented!(),
+                                "compile" => unimplemented!(),
+                                "vsn" => unimplemented!(),
+                                "on_load" => unimplemented!(),
+                                "include" => unimplemented!(),
+                                "include_lib" => unimplemented!(),
+                                "behaviour" | "behavior" => unimplemented!(),
+                                "spec" => unimplemented!(),
+                                "type" => unimplemented!(),
+                                "callback" => unimplemented!(),
+                                "record" => unimplemented!(),
+                                "file" => unimplemented!(),
+                                name => panic!("# user defined: {}", name),
+                            };
+                            forms.push(form);
+                        }
+                        token => Err(ParseError::UnexpectedToken(token))?,
+                    }
+                }
+                Token::Atom(function_name) => {
+                    //
+                    unimplemented!()
+                }
+                Token::Comment(_) => {
+                    // TODO:
+                }
+                Token::LineNum(_) => unreachable!(),
+                _ => Err(ParseError::UnexpectedToken(token))?,
+            }
+        }
+        Ok(ast::Module { forms: forms })
+    }
+    fn parse_export_attr(&mut self) -> ParseResult<ast::Form> {
+        self.expect_token(Symbol::OpenParen)?;
+        let exports = self.parse_list_of(|mut this| this.parse_fa())?;
+        self.expect_token(Symbol::CloseParen)?;
+        self.expect_token(Symbol::Dot)?;
+        Ok(From::from(ast::ExportAttr { exports: exports }))
+    }
+    fn parse_module_decl(&mut self) -> ParseResult<ast::Form> {
+        self.expect_token(Symbol::OpenParen)?;
+        let name = match self.read_token()? {
+            Token::Atom(name) => name,
+            other => Err(ParseError::UnexpectedToken(other))?,
+        };
+        self.expect_token(Symbol::CloseParen)?;
+        self.expect_token(Symbol::Dot)?;
+        Ok(From::from(ast::ModuleDecl { name: name }))
+    }
+
+    fn parse_list_of<F, U: ::std::fmt::Debug>(&mut self, f: F) -> ParseResult<Vec<U>>
+        where F: Fn(&mut Self) -> ParseResult<U>
+    {
+        let mut elements = Vec::new();
+        self.expect_token(Symbol::OpenSquare)?;
+        loop {
+            match self.peek_token()? {
+                &Token::Symbol(Symbol::CloseSquare) => {
+                    self.consume_token()?;
+                    return Ok(elements);
+                }
+                _ => {}
+            }
+            if !elements.is_empty() {
+                self.expect_token(Symbol::Comma)?;
+            }
+
+            elements.push(f(self)?);
+        }
+    }
+    fn parse_fa(&mut self) -> ParseResult<ast::FA> {
+        let name = match self.read_token()? {
+            Token::Atom(name) => name,
+            other => Err(self.unexpected_token(other))?,
+        };
+        self.expect_token(Symbol::Slash)?;
+        let arity = match self.read_token()? {
+            Token::Integer(arity) => arity.to_usize().expect("TODO"),
+            other => Err(self.unexpected_token(other))?,
+        };
+        Ok(ast::FA {
+            fun_name: name,
+            arity: arity,
+        })
+    }
+    fn unexpected_token(&self, token: Token) -> ParseError {
+        ParseError::UnexpectedToken(token)
     }
     pub fn parse_expr(&mut self) -> ParseResult<ast::Expr> {
         match self.read_token()? {
@@ -202,35 +300,43 @@ impl<T> Parser<T>
         }
     }
 
+    fn expect_token<U>(&mut self, expected: U) -> ParseResult<()>
+        where Token: From<U>
+    {
+        let token = self.read_token()?;
+        if token == Token::from(expected) {
+            Ok(())
+        } else {
+            Err(ParseError::UnexpectedToken(token))
+        }
+    }
+    fn read_token_if_exists(&mut self) -> Option<Token> {
+        match self.tokens.next() {
+            None => None,
+            Some(Token::LineNum(n)) => {
+                self.line = n;
+                self.read_token_if_exists()
+            }
+            Some(token) => Some(token),
+        }
+    }
     fn peek_token_if_exists(&mut self) -> Option<&Token> {
         while let Some(&Token::LineNum(n)) = self.tokens.peek() {
             self.line = n;
+            self.tokens.next();
         }
         self.tokens.peek()
     }
 
     fn peek_token(&mut self) -> ParseResult<&Token> {
-        while let Some(&Token::LineNum(n)) = self.tokens.peek() {
-            self.line = n;
-        }
-        match self.tokens.peek() {
-            None => Err(ParseError::UnexpectedEos),
-            Some(token) => Ok(token),
-        }
+        self.peek_token_if_exists().ok_or(ParseError::UnexpectedEos)
     }
     fn consume_token(&mut self) -> ParseResult<()> {
         self.read_token()?;
         Ok(())
     }
     fn read_token(&mut self) -> ParseResult<Token> {
-        match self.tokens.next() {
-            None => Err(ParseError::UnexpectedEos),
-            Some(Token::LineNum(n)) => {
-                self.line = n;
-                self.read_token()
-            }
-            Some(token) => Ok(token),
-        }
+        self.read_token_if_exists().ok_or(ParseError::UnexpectedEos)
     }
 }
 
@@ -264,5 +370,15 @@ mod test {
                    Expr::from(Cons::cons(1, Cons::cons(2, 3))));
         // assert_eq!(parse_expr("[X || X <- Y]").unwrap(),
         //            Expr::from(ast::Tuple::from((1, 2, 3))));
+    }
+
+    #[test]
+    fn parse_module_works() {
+        let source = include_str!("../testdata/jsone.erl");
+        let lexer = Lexer::new(&source);
+        let tokens = lexer.tokenize().expect("Failed to tokenize");
+        let _module = Parser::new(tokens.into_iter())
+            .parse_module()
+            .expect("Failed to parse module");
     }
 }
