@@ -8,6 +8,8 @@ pub enum Expr {
     Literal(Literal),
     Var(Var),
     Tuple(Tuple<Expr>),
+    Nil(Nil),
+    Cons(Cons<Expr>),
     Op(Op<Expr>),
 }
 impl From<Literal> for Expr {
@@ -38,6 +40,63 @@ impl From<Tuple<Expr>> for Expr {
 impl From<Var> for Expr {
     fn from(f: Var) -> Self {
         Expr::Var(f)
+    }
+}
+impl From<Nil> for Expr {
+    fn from(f: Nil) -> Self {
+        Expr::Nil(f)
+    }
+}
+impl From<Cons<Expr>> for Expr {
+    fn from(f: Cons<Expr>) -> Self {
+        Expr::Cons(f)
+    }
+}
+
+pub trait TryAsMut<T> {
+    fn try_as_mut(&mut self) -> Option<&mut T>;
+}
+impl TryAsMut<Cons<Expr>> for Expr {
+    fn try_as_mut(&mut self) -> Option<&mut Cons<Expr>> {
+        if let Expr::Cons(ref mut c) = *self {
+            Some(c)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Nil;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Cons<T> {
+    pub head: Box<T>,
+    pub tail: Box<T>,
+}
+impl<T> Cons<T>
+    where T: From<Nil>
+{
+    pub fn cons<U, V>(head: U, tail: V) -> Self
+        where T: From<U> + From<V>
+    {
+        Cons {
+            head: Box::new(T::from(head)),
+            tail: Box::new(T::from(tail)),
+        }
+    }
+    pub fn last<U>(head: U) -> Self
+        where T: From<U>
+    {
+        Cons {
+            head: Box::new(T::from(head)),
+            tail: Box::new(T::from(Nil)),
+        }
+    }
+    pub fn set_tail<U>(&mut self, tail: U)
+        where T: From<U>
+    {
+        self.tail = Box::new(T::from(tail));
     }
 }
 

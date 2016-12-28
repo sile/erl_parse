@@ -63,7 +63,51 @@ impl<T> Parser<T>
     fn parse_expr_symbol(&mut self, s: Symbol) -> ParseResult<ast::Expr> {
         match s {
             Symbol::OpenBrace => self.parse_expr_tuple(),
+            Symbol::OpenSquare => self.parse_expr_open_square(),
             _ => panic!("[unimplemented] Symbol: {:?}", s),
+        }
+    }
+    fn parse_expr_open_square(&mut self) -> ParseResult<ast::Expr> {
+        if *self.peek_token()? == Token::Symbol(Symbol::CloseSquare) {
+            self.consume_token()?;
+            Ok(From::from(ast::Nil))
+        } else {
+            let expr0 = self.parse_expr()?;
+            if *self.peek_token()? == Token::Symbol(Symbol::DoubleVerticalBar) {
+                // list comprehension
+                unimplemented!();
+            } else {
+                let mut head = ast::Cons::last(expr0);
+                {
+                    let mut cons: &mut ast::Cons<ast::Expr> = &mut head;
+                    loop {
+                        match self.read_token()? {
+                            Token::Symbol(Symbol::CloseSquare) => {
+                                break;
+                            }
+                            Token::Symbol(Symbol::Comma) => {
+                                use ast::TryAsMut; // TODO
+                                let next = self.parse_expr()?;
+                                cons.set_tail(ast::Cons::last(next));
+                                cons = {
+                                    let temp = cons;
+                                    temp.tail.try_as_mut().unwrap()
+                                };
+                            }
+                            Token::Symbol(Symbol::VerticalBar) => {
+                                let tail = self.parse_expr()?;
+                                cons.set_tail(tail);
+                                match self.read_token()? {
+                                    Token::Symbol(Symbol::CloseSquare) => break,
+                                    token => Err(ParseError::UnexpectedToken(token))?,
+                                }
+                            }
+                            token => Err(ParseError::UnexpectedToken(token))?,
+                        }
+                    }
+                }
+                Ok(From::from(head))
+            }
         }
     }
     fn parse_expr_tuple(&mut self) -> ParseResult<ast::Expr> {
@@ -189,7 +233,7 @@ impl<T> Parser<T>
 
 #[cfg(test)]
 mod test {
-    use ast::{self, Expr, Var};
+    use ast::{self, Expr, Var, Cons};
     use lexer::Lexer;
     use super::*;
 
@@ -210,12 +254,11 @@ mod test {
                    Expr::from(ast::Div::new(Var("A".to_string()), 2)));
         assert_eq!(parse_expr("{1, 2, 3}").unwrap(),
                    Expr::from(ast::Tuple::from((1, 2, 3))));
-        assert_eq!(parse_expr("[]").unwrap(),
-                   Expr::from(ast::Tuple::from((1, 2, 3))));
+        assert_eq!(parse_expr("[]").unwrap(), Expr::from(ast::Nil));
         assert_eq!(parse_expr("[1, 2, 3]").unwrap(),
-                   Expr::from(ast::Tuple::from((1, 2, 3))));
+                   Expr::from(Cons::cons(1, Cons::cons(2, Cons::last(3)))));
         assert_eq!(parse_expr("[1, 2 | 3]").unwrap(),
-                   Expr::from(ast::Tuple::from((1, 2, 3))));
+                   Expr::from(Cons::cons(1, Cons::cons(2, 3))));
         // assert_eq!(parse_expr("[X || X <- Y]").unwrap(),
         //            Expr::from(ast::Tuple::from((1, 2, 3))));
     }
