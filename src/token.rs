@@ -16,7 +16,7 @@ pub enum Token {
     LineNum(usize),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Symbol {
     OpenSquare, // [
     CloseSquare, // ]
@@ -61,7 +61,7 @@ pub enum Symbol {
 pub struct NotKeyword;
 
 // http://erlang.org/doc/reference_manual/introduction.html
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Keyword {
     After,
     And,
