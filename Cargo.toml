@@ -7,4 +7,4 @@ authors = ["Takeru Ohta <phjgt308@gmail.com>"]
 num = "0.1"
 
 [dev-dependencies]
-clap = "2.19"
+clap = "2"
