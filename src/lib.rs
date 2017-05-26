@@ -1,12 +1,9 @@
+extern crate erl_tokenize;
 extern crate num;
+extern crate trackable;
 
-pub mod token;
-pub mod lexer;
-pub mod parser;
-pub mod ast;
+pub use parser::Parser;
+pub use parse_tree::ParseTree;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {}
-}
+mod parser;
+mod parse_tree;
