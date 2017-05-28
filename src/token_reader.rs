@@ -8,10 +8,52 @@ use {Result, ErrorKind};
 #[derive(Debug)]
 pub struct TokenReader2<'token, 'text: 'token> {
     tokens: &'token [Token<'text>],
+    position: usize,
 }
 impl<'token, 'text: 'token> TokenReader2<'token, 'text> {
     pub fn new(tokens: &'token [Token<'text>]) -> Self {
-        TokenReader2 { tokens }
+        TokenReader2 {
+            tokens,
+            position: 0,
+        }
+    }
+    pub fn read_hidden_tokens(&mut self) -> &'token [Token<'text>] {
+        let start = self.position;
+        let end = self.tokens
+            .iter()
+            .skip(start)
+            .position(|t| !is_hidden_token(t))
+            .unwrap_or(self.tokens.len());
+        self.position = end;
+        &self.tokens[start..self.position]
+    }
+    pub fn read(&mut self) -> Result<&'token Token<'text>> {
+        if let Some(token) = self.tokens.get(self.position) {
+            self.position += 1;
+            Ok(token)
+        } else {
+            track_panic!(ErrorKind::UnexpectedEos);
+        }
+    }
+    pub fn read_atom(&mut self) -> Result<&'token AtomToken<'text>> {
+        let token = track_try!(self.read());
+        if let Token::Atom(ref token) = *token {
+            Ok(token)
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "expected=AtomToken, actual={:?}",
+                         token);
+        }
+    }
+    pub fn read_integer(&mut self) -> Result<&'token IntegerToken<'text>> {
+        let token = track_try!(self.read());
+        if let Token::Integer(ref token) = *token {
+            Ok(token)
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "expected=IntegerToken, actual={:?}",
+                         token);
+        }
     }
 }
 

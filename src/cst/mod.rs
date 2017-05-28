@@ -1,14 +1,13 @@
 use erl_tokenize::Token;
 
-use self::primitives::HiddenToken;
-
 pub mod forms;
 pub mod primitives;
+pub mod symbols;
 
 #[derive(Debug)]
 pub struct ModuleDecl<'token, 'text: 'token> {
     pub forms: Vec<Form<'token, 'text>>,
-    pub trailings: &'token [HiddenToken<'text>],
+    pub trailings: &'token [Token<'text>],
 }
 impl<'token, 'text: 'token> ModuleDecl<'token, 'text> {}
 
