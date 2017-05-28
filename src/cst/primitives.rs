@@ -5,6 +5,69 @@ use {Result, TokenReader2, Parse, TokenRange};
 use super::symbols;
 
 #[derive(Debug)]
+pub struct List<T> {
+    pub open: symbols::OpenSquare,
+    pub elements: Vec<ListElement<T>>,
+    pub close: symbols::CloseSquare,
+}
+impl<'token, 'text: 'token, T> Parse<'token, 'text> for List<T>
+    where T: Parse<'token, 'text>
+{
+    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+        let open = track_try!(symbols::OpenSquare::parse(reader));
+        let mut elements = Vec::new();
+        loop {
+            let e = track_try!(ListElement::parse(reader));
+            let is_last = e.delimiter.is_none();
+            elements.push(e);
+            if is_last {
+                break;
+            }
+        }
+        let close = track_try!(symbols::CloseSquare::parse(reader));
+        Ok(List {
+               open,
+               elements,
+               close,
+           })
+    }
+}
+impl<T> TokenRange for List<T> {
+    fn token_start(&self) -> usize {
+        self.open.token_start()
+    }
+    fn token_end(&self) -> usize {
+        self.close.token_end()
+    }
+}
+
+#[derive(Debug)]
+pub struct ListElement<T> {
+    pub value: T,
+    pub delimiter: Option<symbols::Comma>,
+}
+impl<'token, 'text: 'token, T> Parse<'token, 'text> for ListElement<T>
+    where T: Parse<'token, 'text>
+{
+    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+        let value = track_try!(T::parse(reader));
+        let delimiter = symbols::Comma::try_parse(reader);
+        Ok(ListElement { value, delimiter })
+    }
+}
+impl<T> TokenRange for ListElement<T>
+    where T: TokenRange
+{
+    fn token_start(&self) -> usize {
+        self.value.token_start()
+    }
+    fn token_end(&self) -> usize {
+        self.delimiter
+            .map_or(self.value.token_end(), |d| d.token_end())
+    }
+}
+
+#[derive(Debug)]
 pub struct Atom<'token, 'text: 'token> {
     position: usize,
     value: &'token AtomToken<'text>,

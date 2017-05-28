@@ -20,6 +20,9 @@ impl<'token, 'text: 'token> TokenReader2<'token, 'text> {
     pub fn position(&self) -> usize {
         self.position
     }
+    pub fn set_position(&mut self, position: usize) {
+        self.position = position;
+    }
     pub fn read_hidden_tokens(&mut self) -> &'token [Token<'text>] {
         let start = self.position;
         let end = self.tokens
@@ -70,6 +73,11 @@ impl<'token, 'text: 'token> TokenReader2<'token, 'text> {
     pub fn expect_symbol(&mut self, expected: Symbol) -> Result<()> {
         let symbol = track_try!(self.read_symbol());
         track_assert_eq!(symbol.value(), expected, ErrorKind::InvalidInput);
+        Ok(())
+    }
+    pub fn expect_atom(&mut self, expected: &str) -> Result<()> {
+        let atom = track_try!(self.read_atom());
+        track_assert_eq!(atom.value(), expected, ErrorKind::InvalidInput);
         Ok(())
     }
     pub fn read_integer(&mut self) -> Result<&'token IntegerToken<'text>> {

@@ -1,10 +1,8 @@
-use erl_tokenize::values::Symbol;
-
 use {Result, TokenReader2, Parse, TokenRange};
 
-macro_rules! define_symbol {
-    ($name:ident) => {
-        #[derive(Debug, Clone, Copy)]
+macro_rules! define_atom {
+    ($name:ident, $value:expr) => {
+        #[derive(Debug)]
         pub struct $name {
             position: usize,
         }
@@ -12,7 +10,7 @@ macro_rules! define_symbol {
             fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
                 reader.skip_hidden_tokens();
                 let position = reader.position();
-                track_try!(reader.expect_symbol(Symbol::$name));
+                track_try!(reader.expect_atom($value));
                 Ok($name { position })
             }
         }
@@ -27,11 +25,5 @@ macro_rules! define_symbol {
     }
 }
 
-define_symbol!(Slash);
-define_symbol!(Hyphen);
-define_symbol!(OpenParen);
-define_symbol!(CloseParen);
-define_symbol!(OpenSquare);
-define_symbol!(CloseSquare);
-define_symbol!(Dot);
-define_symbol!(Comma);
+define_atom!(Module, "module");
+define_atom!(Export, "export");
