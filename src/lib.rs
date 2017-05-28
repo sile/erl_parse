@@ -5,10 +5,11 @@ extern crate trackable;
 
 pub use error::{Error, ErrorKind};
 pub use parser::Parser;
-pub use parse_tree::ParseTree;
+
+pub mod parse_tree;
 
 mod error;
 mod parser;
-mod parse_tree;
+mod token_reader;
 
 pub type Result<T> = ::std::result::Result<T, Error>;

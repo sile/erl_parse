@@ -1,17 +1,19 @@
-use erl_tokenize::{Token, Tokenizer, Error as TokenizeError};
+use erl_tokenize::{Token, Result as TokenizeResult};
 
-use {Result, ParseTree};
+use Result;
+use parse_tree::ModuleDecl;
+use token_reader::TokenReader;
 
-type TokenizeResult<'a> = ::std::result::Result<Token<'a>, TokenizeError>;
-
-pub struct Parser;
-impl Parser {
-    pub fn parse_str<'a>(self, text: &'a str) -> Result<ParseTree> {
-        track!(self.parse_tokens(Tokenizer::new(text)))
+pub struct Parser<'a, I> {
+    tokens: TokenReader<'a, I>,
+}
+impl<'a, I> Parser<'a, I>
+    where I: Iterator<Item = TokenizeResult<Token<'a>>>
+{
+    pub fn new(tokens: I) -> Self {
+        Parser { tokens: TokenReader::new(tokens) }
     }
-    pub fn parse_tokens<'a, I>(self, _tokens: I) -> Result<ParseTree>
-        where I: Iterator<Item = TokenizeResult<'a>>
-    {
-        unimplemented!()
+    pub fn parse_module(self) -> Result<ModuleDecl> {
+        panic!()
     }
 }
