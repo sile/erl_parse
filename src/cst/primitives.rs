@@ -1,13 +1,12 @@
 use std::ops::Deref;
-use erl_tokenize::Token;
 use erl_tokenize::tokens::{AtomToken, IntegerToken};
 
-use {Result, TokenReader2, Parse};
+use {Result, TokenReader2, Parse, TokenRange};
 use super::symbols;
 
 #[derive(Debug)]
 pub struct Atom<'token, 'text: 'token> {
-    pub leadings: &'token [Token<'text>],
+    position: usize,
     value: &'token AtomToken<'text>,
 }
 impl<'token, 'text: 'token> Deref for Atom<'token, 'text> {
@@ -18,15 +17,24 @@ impl<'token, 'text: 'token> Deref for Atom<'token, 'text> {
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Atom<'token, 'text> {
     fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
-        let leadings = reader.read_hidden_tokens();
+        reader.skip_hidden_tokens();
+        let position = reader.position();
         let value = track_try!(reader.read_atom());
-        Ok(Atom { leadings, value })
+        Ok(Atom { position, value })
+    }
+}
+impl<'token, 'text: 'token> TokenRange for Atom<'token, 'text> {
+    fn token_start(&self) -> usize {
+        self.position
+    }
+    fn token_end(&self) -> usize {
+        self.position + 1
     }
 }
 
 #[derive(Debug)]
 pub struct Integer<'token, 'text: 'token> {
-    pub leadings: &'token [Token<'text>],
+    position: usize,
     value: &'token IntegerToken<'text>,
 }
 impl<'token, 'text: 'token> Deref for Integer<'token, 'text> {
@@ -37,16 +45,25 @@ impl<'token, 'text: 'token> Deref for Integer<'token, 'text> {
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Integer<'token, 'text> {
     fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
-        let leadings = reader.read_hidden_tokens();
+        reader.skip_hidden_tokens();
+        let position = reader.position();
         let value = track_try!(reader.read_integer());
-        Ok(Integer { leadings, value })
+        Ok(Integer { position, value })
+    }
+}
+impl<'token, 'text: 'token> TokenRange for Integer<'token, 'text> {
+    fn token_start(&self) -> usize {
+        self.position
+    }
+    fn token_end(&self) -> usize {
+        self.position + 1
     }
 }
 
 #[derive(Debug)]
 pub struct Export<'token, 'text: 'token> {
     pub name: Atom<'token, 'text>,
-    pub delimiter: symbols::Slash<'token, 'text>,
+    pub delimiter: symbols::Slash,
     pub arity: Integer<'token, 'text>,
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Export<'token, 'text> {
@@ -59,5 +76,13 @@ impl<'token, 'text: 'token> Parse<'token, 'text> for Export<'token, 'text> {
                delimiter,
                arity,
            })
+    }
+}
+impl<'token, 'text: 'token> TokenRange for Export<'token, 'text> {
+    fn token_start(&self) -> usize {
+        self.name.token_start()
+    }
+    fn token_end(&self) -> usize {
+        self.arity.token_end()
     }
 }

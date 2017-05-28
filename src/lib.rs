@@ -17,3 +17,8 @@ mod parser;
 mod token_reader;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
+
+pub trait TokenRange {
+    fn token_start(&self) -> usize;
+    fn token_end(&self) -> usize;
+}

@@ -17,6 +17,9 @@ impl<'token, 'text: 'token> TokenReader2<'token, 'text> {
             position: 0,
         }
     }
+    pub fn position(&self) -> usize {
+        self.position
+    }
     pub fn read_hidden_tokens(&mut self) -> &'token [Token<'text>] {
         let start = self.position;
         let end = self.tokens
@@ -26,6 +29,15 @@ impl<'token, 'text: 'token> TokenReader2<'token, 'text> {
             .unwrap_or(self.tokens.len());
         self.position = end;
         &self.tokens[start..self.position]
+    }
+    pub fn skip_hidden_tokens(&mut self) {
+        let start = self.position;
+        let end = self.tokens
+            .iter()
+            .skip(start)
+            .position(|t| !is_hidden_token(t))
+            .unwrap_or(self.tokens.len());
+        self.position = end;
     }
     pub fn read(&mut self) -> Result<&'token Token<'text>> {
         if let Some(token) = self.tokens.get(self.position) {
@@ -44,6 +56,21 @@ impl<'token, 'text: 'token> TokenReader2<'token, 'text> {
                          "expected=AtomToken, actual={:?}",
                          token);
         }
+    }
+    pub fn read_symbol(&mut self) -> Result<&'token SymbolToken<'text>> {
+        let token = track_try!(self.read());
+        if let Token::Symbol(ref token) = *token {
+            Ok(token)
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "expected=SymbolToken, actual={:?}",
+                         token);
+        }
+    }
+    pub fn expect_symbol(&mut self, expected: Symbol) -> Result<()> {
+        let symbol = track_try!(self.read_symbol());
+        track_assert_eq!(symbol.value(), expected, ErrorKind::InvalidInput);
+        Ok(())
     }
     pub fn read_integer(&mut self) -> Result<&'token IntegerToken<'text>> {
         let token = track_try!(self.read());
