@@ -9,6 +9,8 @@ pub type Error = TrackableError<ErrorKind>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorKind {
     TokenizationFailed,
+    InvalidInput,
+    UnexpectedEos,
     Other,
 }
 
