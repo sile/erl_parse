@@ -6,6 +6,7 @@ extern crate trackable;
 pub use error::{Error, ErrorKind};
 pub use parser::Parser;
 
+pub mod cst;
 pub mod parse_tree;
 
 mod error;

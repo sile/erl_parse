@@ -36,6 +36,7 @@ impl<'a, 'text: 'a, I: 'a> FormParser<'a, 'text, I>
         match name.value() {
             "module" => track!(self.parse_module_attr()),
             "export" => track!(self.parse_export_attr()),
+            "spec" => panic!(),
             _ => panic!("{:?}", name),
         }
     }

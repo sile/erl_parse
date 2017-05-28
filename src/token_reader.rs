@@ -5,6 +5,16 @@ use erl_tokenize::values::Symbol;
 
 use {Result, ErrorKind};
 
+#[derive(Debug)]
+pub struct TokenReader2<'token, 'text: 'token> {
+    tokens: &'token [Token<'text>],
+}
+impl<'token, 'text: 'token> TokenReader2<'token, 'text> {
+    pub fn new(tokens: &'token [Token<'text>]) -> Self {
+        TokenReader2 { tokens }
+    }
+}
+
 // TODO: Track line number for debugging
 #[derive(Debug)]
 pub struct TokenReader<'a, I> {

@@ -2,7 +2,7 @@ use erl_tokenize::{Token, Result as TokenizeResult};
 
 use Result;
 use parse_tree::ModuleDecl;
-use token_reader::TokenReader;
+use token_reader::{TokenReader, TokenReader2};
 
 mod form_parser;
 
