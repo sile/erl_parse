@@ -1,5 +1,4 @@
-use std::mem;
-use erl_tokenize::{Token, Result as TokenizeResult};
+use erl_tokenize::Token;
 use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken};
 use erl_tokenize::values::Symbol;
 
@@ -17,30 +16,26 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
             position: 0,
         }
     }
+    pub fn remaining_tokens(&self) -> &'token [Token<'text>] {
+        &self.tokens[self.position..]
+    }
     pub fn position(&self) -> usize {
         self.position
     }
     pub fn set_position(&mut self, position: usize) {
         self.position = position;
     }
-    pub fn read_hidden_tokens(&mut self) -> &'token [Token<'text>] {
-        let start = self.position;
-        let end = self.tokens
-            .iter()
-            .skip(start)
-            .position(|t| !is_hidden_token(t))
-            .unwrap_or(self.tokens.len());
-        self.position = end;
-        &self.tokens[start..self.position]
-    }
     pub fn skip_hidden_tokens(&mut self) {
-        let start = self.position;
-        let end = self.tokens
+        let count = self.tokens
             .iter()
-            .skip(start)
-            .position(|t| !is_hidden_token(t))
-            .unwrap_or(self.tokens.len());
-        self.position = end;
+            .skip(self.position)
+            .take_while(|&t| match *t {
+                            Token::Comment(_) |
+                            Token::Whitespace(_) => true,
+                            _ => false,
+                        })
+            .count();
+        self.position += count;
     }
     pub fn read(&mut self) -> Result<&'token Token<'text>> {
         if let Some(token) = self.tokens.get(self.position) {
