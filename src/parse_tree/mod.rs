@@ -1,6 +1,7 @@
 use erl_tokenize::Token;
 
 pub mod forms;
+pub mod primitives;
 
 #[derive(Debug)]
 pub struct ModuleDecl<'a> {
@@ -18,12 +19,19 @@ impl<'a> ModuleDecl<'a> {
 
 #[derive(Debug)]
 pub enum Form<'a> {
-    Module(forms::ModuleAttr<'a>),
-    Foo,
+    ModuleAttr(forms::ModuleAttr<'a>),
+    ExportAttr(forms::ExportAttr<'a>),
 }
 impl<'a> Form<'a> {
     pub fn as_module_attr(&self) -> Option<&forms::ModuleAttr<'a>> {
-        if let Form::Module(ref f) = *self {
+        if let Form::ModuleAttr(ref f) = *self {
+            Some(f)
+        } else {
+            None
+        }
+    }
+    pub fn as_export_attr(&self) -> Option<&forms::ExportAttr<'a>> {
+        if let Form::ExportAttr(ref f) = *self {
             Some(f)
         } else {
             None
@@ -32,6 +40,11 @@ impl<'a> Form<'a> {
 }
 impl<'a> From<forms::ModuleAttr<'a>> for Form<'a> {
     fn from(f: forms::ModuleAttr<'a>) -> Self {
-        Form::Module(f)
+        Form::ModuleAttr(f)
+    }
+}
+impl<'a> From<forms::ExportAttr<'a>> for Form<'a> {
+    fn from(f: forms::ExportAttr<'a>) -> Self {
+        Form::ExportAttr(f)
     }
 }

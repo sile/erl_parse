@@ -1,6 +1,6 @@
 use std::mem;
 use erl_tokenize::{Token, Result as TokenizeResult};
-use erl_tokenize::tokens::{AtomToken, SymbolToken};
+use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken};
 use erl_tokenize::values::Symbol;
 
 use {Result, ErrorKind};
@@ -76,6 +76,17 @@ impl<'a, I> TokenReader<'a, I>
                          token);
         }
     }
+    pub fn read_integer(&mut self) -> Result<&IntegerToken<'a>> {
+        let token = track_try!(self.read());
+        let token = track_try!(token.ok_or(ErrorKind::UnexpectedEos));
+        if let Token::Integer(ref token) = *token {
+            Ok(token)
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "expected=IntegerToken, actual={:?}",
+                         token);
+        }
+    }
     pub fn read_symbol(&mut self) -> Result<SymbolToken<'a>> {
         let token = track_try!(self.read());
         let token = track_try!(token.ok_or(ErrorKind::UnexpectedEos));
@@ -91,6 +102,23 @@ impl<'a, I> TokenReader<'a, I>
         let symbol = track_try!(self.read_symbol());
         track_assert_eq!(symbol.value(), expected, ErrorKind::InvalidInput);
         Ok(())
+    }
+    pub fn read_list<F, T>(&mut self, f: F) -> Result<Vec<T>>
+        where F: Fn(&mut Self) -> Result<T>
+    {
+        let mut list = Vec::new();
+        track_try!(self.expect_symbol(Symbol::OpenSquare));
+        loop {
+            let value = track_try!(f(self));
+            list.push(value);
+            let symbol = track_try!(self.read_symbol());
+            match symbol.value() {
+                Symbol::Comma => {}
+                Symbol::CloseSquare => break,
+                _ => track_panic!(ErrorKind::InvalidInput, "Unexpected symbol: {:?}", symbol),
+            }
+        }
+        Ok(list)
     }
 }
 

@@ -4,6 +4,7 @@ use erl_tokenize::values::Symbol;
 use {Result, ErrorKind};
 use parse_tree::Form;
 use parse_tree::forms;
+use parse_tree::primitives::{Arity, Export};
 use token_reader::TokenReader;
 
 #[derive(Debug)]
@@ -33,17 +34,37 @@ impl<'a, 'text: 'a, I: 'a> FormParser<'a, 'text, I>
 
         let name = track_try!(self.reader.read_atom()).clone();
         match name.value() {
-            "module" => track!(self.parse_module_decl()),
+            "module" => track!(self.parse_module_attr()),
+            "export" => track!(self.parse_export_attr()),
             _ => panic!("{:?}", name),
         }
     }
-    fn parse_module_decl(&mut self) -> Result<Form<'text>> {
+    fn parse_module_attr(&mut self) -> Result<Form<'text>> {
         track_try!(self.reader.expect_symbol(Symbol::OpenParen));
         let name = track_try!(self.reader.read_atom()).clone();
         track_try!(self.reader.expect_symbol(Symbol::CloseParen));
         track_try!(self.reader.expect_symbol(Symbol::Dot));
         let form = forms::ModuleAttr {
             module_name: name,
+            tokens: self.reader.take_read_tokens(),
+        };
+        Ok(form.into())
+    }
+    fn parse_export_attr(&mut self) -> Result<Form<'text>> {
+        track_try!(self.reader.expect_symbol(Symbol::OpenParen));
+        let result = self.reader
+            .read_list(|r| {
+                           let name = track_try!(r.read_atom()).clone();
+                           track_try!(r.expect_symbol(Symbol::Slash));
+                           let arity = track_try!(r.read_integer());
+                           let arity = track_try!(Arity::from_integer(arity));
+                           Ok(Export::new(name, arity))
+                       });
+        let list = track_try!(result);
+        track_try!(self.reader.expect_symbol(Symbol::CloseParen));
+        track_try!(self.reader.expect_symbol(Symbol::Dot));
+        let form = forms::ExportAttr {
+            exports: list,
             tokens: self.reader.take_read_tokens(),
         };
         Ok(form.into())
