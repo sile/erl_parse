@@ -1,4 +1,4 @@
-use {Result, TokenReader2, Parse, TokenRange};
+use {Result, TokenReader, Parse, TokenRange};
 
 macro_rules! define_atom {
     ($name:ident, $value:expr) => {
@@ -7,7 +7,7 @@ macro_rules! define_atom {
             position: usize,
         }
         impl<'token, 'text: 'token> Parse<'token, 'text> for $name {
-            fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+            fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
                 reader.skip_hidden_tokens();
                 let position = reader.position();
                 track_try!(reader.expect_atom($value));

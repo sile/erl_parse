@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use erl_tokenize::tokens::{AtomToken, IntegerToken};
 
-use {Result, TokenReader2, Parse, TokenRange};
+use {Result, TokenReader, Parse, TokenRange};
 use super::symbols;
 
 #[derive(Debug)]
@@ -13,7 +13,7 @@ pub struct List<T> {
 impl<'token, 'text: 'token, T> Parse<'token, 'text> for List<T>
     where T: Parse<'token, 'text>
 {
-    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         let open = track_try!(symbols::OpenSquare::parse(reader));
         let mut elements = Vec::new();
         loop {
@@ -49,7 +49,7 @@ pub struct ListElement<T> {
 impl<'token, 'text: 'token, T> Parse<'token, 'text> for ListElement<T>
     where T: Parse<'token, 'text>
 {
-    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         let value = track_try!(T::parse(reader));
         let delimiter = symbols::Comma::try_parse(reader);
         Ok(ListElement { value, delimiter })
@@ -79,7 +79,7 @@ impl<'token, 'text: 'token> Deref for Atom<'token, 'text> {
     }
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Atom<'token, 'text> {
-    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         reader.skip_hidden_tokens();
         let position = reader.position();
         let value = track_try!(reader.read_atom());
@@ -107,7 +107,7 @@ impl<'token, 'text: 'token> Deref for Integer<'token, 'text> {
     }
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Integer<'token, 'text> {
-    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         reader.skip_hidden_tokens();
         let position = reader.position();
         let value = track_try!(reader.read_integer());
@@ -130,7 +130,7 @@ pub struct Export<'token, 'text: 'token> {
     pub arity: Integer<'token, 'text>,
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Export<'token, 'text> {
-    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         let name = track_try!(Atom::parse(reader));
         let delimiter = track_try!(symbols::Slash::parse(reader));
         let arity = track_try!(Integer::parse(reader));

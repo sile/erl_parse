@@ -1,4 +1,4 @@
-use {Result, TokenReader2, Parse, TokenRange};
+use {Result, TokenReader, Parse, TokenRange};
 use super::atoms;
 use super::primitives::{Atom, List, Export};
 use super::symbols;
@@ -16,7 +16,7 @@ impl<'token, 'text: 'token, N, V> Parse<'token, 'text> for Attribute<N, V>
     where N: Parse<'token, 'text>,
           V: Parse<'token, 'text>
 {
-    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         Ok(Attribute {
                hyphen: track_try!(Parse::parse(reader)),
                attr_name: track_try!(Parse::parse(reader)),
@@ -47,7 +47,7 @@ impl<'token, 'text: 'token> ModuleAttr<'token, 'text> {
     }
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for ModuleAttr<'token, 'text> {
-    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         let inner = track_try!(Parse::parse(reader));
         Ok(ModuleAttr(inner))
     }
@@ -74,7 +74,7 @@ impl<'token, 'text: 'token> ExportAttr<'token, 'text> {
     }
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for ExportAttr<'token, 'text> {
-    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         let inner = track_try!(Parse::parse(reader));
         Ok(ExportAttr { inner })
     }

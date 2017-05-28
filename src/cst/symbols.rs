@@ -1,6 +1,6 @@
 use erl_tokenize::values::Symbol;
 
-use {Result, TokenReader2, Parse, TokenRange};
+use {Result, TokenReader, Parse, TokenRange};
 
 macro_rules! define_symbol {
     ($name:ident) => {
@@ -9,7 +9,7 @@ macro_rules! define_symbol {
             position: usize,
         }
         impl<'token, 'text: 'token> Parse<'token, 'text> for $name {
-            fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self> {
+            fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
                 reader.skip_hidden_tokens();
                 let position = reader.position();
                 track_try!(reader.expect_symbol(Symbol::$name));

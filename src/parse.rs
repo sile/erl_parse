@@ -1,8 +1,8 @@
-use {Result, TokenReader2};
+use {Result, TokenReader};
 
 pub trait Parse<'token, 'text: 'token>: Sized {
-    fn parse(reader: &mut TokenReader2<'token, 'text>) -> Result<Self>;
-    fn try_parse(reader: &mut TokenReader2<'token, 'text>) -> Option<Self> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self>;
+    fn try_parse(reader: &mut TokenReader<'token, 'text>) -> Option<Self> {
         let position = reader.position();
         if let Ok(value) = Self::parse(reader) {
             Some(value)
