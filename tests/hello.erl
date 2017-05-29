@@ -5,8 +5,7 @@
 
 -export([world/0]).
 
-%% @doc Prints "Hello World!" to the standard output.
--spec world() -> ok.
+%% @doc Returns the `hello_world' atom.
+-spec world() -> hello_world.
 world() ->
-    io:format("Hello World!"),
-    ok.
+    hello_world.

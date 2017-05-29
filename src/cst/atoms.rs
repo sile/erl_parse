@@ -27,3 +27,4 @@ macro_rules! define_atom {
 
 define_atom!(Module, "module");
 define_atom!(Export, "export");
+define_atom!(Spec, "spec");

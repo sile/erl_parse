@@ -2,7 +2,7 @@ use erl_tokenize::Token;
 use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, ErrorKind};
+use {Result, ErrorKind, Parse};
 
 #[derive(Debug)]
 pub struct TokenReader<'token, 'text: 'token> {
@@ -16,6 +16,13 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
             position: 0,
         }
     }
+    pub fn parse_next<T: Parse<'token, 'text>>(&mut self) -> Result<T> {
+        track!(T::parse(self))
+    }
+    pub fn try_parse_next<T: Parse<'token, 'text>>(&mut self) -> Option<T> {
+        T::try_parse(self)
+    }
+
     pub fn remaining_tokens(&self) -> &'token [Token<'text>] {
         &self.tokens[self.position..]
     }

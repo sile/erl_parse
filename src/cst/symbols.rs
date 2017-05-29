@@ -35,3 +35,6 @@ define_symbol!(OpenSquare);
 define_symbol!(CloseSquare);
 define_symbol!(Dot);
 define_symbol!(Comma);
+define_symbol!(Colon);
+define_symbol!(Semicolon);
+define_symbol!(RightAllow);

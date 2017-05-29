@@ -1,7 +1,9 @@
 use {Result, TokenReader, Parse, TokenRange};
 use super::atoms;
-use super::primitives::{Atom, List, Export};
+use super::clauses;
+use super::primitives::{Atom, List, Export, ModuleAtom, Clauses};
 use super::symbols;
+use super::types;
 
 #[derive(Debug)]
 pub struct Attribute<N, V> {
@@ -85,5 +87,59 @@ impl<'token, 'text: 'token> TokenRange for ExportAttr<'token, 'text> {
     }
     fn token_end(&self) -> usize {
         self.inner.token_end()
+    }
+}
+
+#[derive(Debug)]
+pub struct FunctionSpec<'token, 'text: 'token> {
+    pub hyphen: symbols::Hyphen,
+    pub spec: atoms::Spec,
+    pub module_name: Option<ModuleAtom<'token, 'text>>,
+    pub function_name: Atom<'token, 'text>,
+    pub function_types: Clauses<types::Function<'token, 'text>>,
+    pub dot: symbols::Dot,
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for FunctionSpec<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        Ok(FunctionSpec {
+               hyphen: track_try!(reader.parse_next()),
+               spec: track_try!(reader.parse_next()),
+               module_name: reader.try_parse_next(),
+               function_name: track_try!(reader.parse_next()),
+               function_types: track_try!(reader.parse_next()),
+               dot: track_try!(reader.parse_next()),
+           })
+    }
+}
+impl<'token, 'text: 'token> TokenRange for FunctionSpec<'token, 'text> {
+    fn token_start(&self) -> usize {
+        self.hyphen.token_start()
+    }
+    fn token_end(&self) -> usize {
+        self.dot.token_end()
+    }
+}
+
+#[derive(Debug)]
+pub struct FunctionDecl<'token, 'text: 'token> {
+    pub name: Atom<'token, 'text>,
+    pub clauses: Clauses<clauses::FunctionClause<'token, 'text>>,
+    pub dot: symbols::Dot,
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for FunctionDecl<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        Ok(FunctionDecl {
+               name: track_try!(reader.parse_next()),
+               clauses: track_try!(reader.parse_next()),
+               dot: track_try!(reader.parse_next()),
+           })
+    }
+}
+impl<'token, 'text: 'token> TokenRange for FunctionDecl<'token, 'text> {
+    fn token_start(&self) -> usize {
+        self.name.token_start()
+    }
+    fn token_end(&self) -> usize {
+        self.dot.token_end()
     }
 }
