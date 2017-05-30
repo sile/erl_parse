@@ -1,3 +1,4 @@
+use std::ops::Range;
 use erl_tokenize::Token;
 
 use {Result, TokenReader, Parse, TokenRange, ErrorKind};
@@ -56,45 +57,36 @@ impl<'token, 'text: 'token> TokenRange for ModuleDecl<'token, 'text> {
 #[derive(Debug)]
 pub enum Form<'token, 'text: 'token> {
     ModuleAttr(forms::ModuleAttr<'token, 'text>),
+    //    BehaviourAttr(forms::BehaviourAttr<'token, 'text>),
     ExportAttr(forms::ExportAttr<'token, 'text>),
-    FunctionSpec(forms::FunctionSpec<'token, 'text>),
-    FunctionDecl(forms::FunctionDecl<'token, 'text>),
+    FunSpec(forms::FunctionSpec<'token, 'text>),
+    FunDecl(forms::FunctionDecl<'token, 'text>),
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Form<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        let position = reader.position();
-        if primitives::Atom::try_parse(reader).is_some() {
-            reader.set_position(position);
-            track!(reader.parse_next()).map(Form::FunctionDecl)
+        use self::symbols::Hyphen;
+        use self::primitives::Atom; // TODO
+        if reader.peek::<Atom>().is_ok() {
+            parse!(reader).map(Form::FunDecl)
         } else {
-            track_try!(symbols::Hyphen::parse(reader));
-            let atom = track_try!(primitives::Atom::parse(reader));
-            reader.set_position(position);
-
+            let (_, atom): (Hyphen, Atom) = track_try!(reader.peek());
             match atom.value() {
-                "module" => track!(Parse::parse(reader)).map(Form::ModuleAttr),
-                "export" => track!(Parse::parse(reader)).map(Form::ExportAttr),
-                "spec" => track!(Parse::parse(reader)).map(Form::FunctionSpec),
+                "module" => parse!(reader).map(Form::ModuleAttr),
+                //"behaviour" | "behavior" => try_parse!(reader),
+                "export" => parse!(reader).map(Form::ExportAttr),
+                "spec" => parse!(reader).map(Form::FunSpec),
                 a => panic!("{:?}", a),
             }
         }
     }
 }
 impl<'token, 'text: 'token> TokenRange for Form<'token, 'text> {
-    fn token_start(&self) -> usize {
+    fn token_range(&self) -> Range<usize> {
         match *self {
-            Form::ModuleAttr(ref f) => f.token_start(),
-            Form::ExportAttr(ref f) => f.token_start(),
-            Form::FunctionSpec(ref f) => f.token_start(),
-            Form::FunctionDecl(ref f) => f.token_start(),
-        }
-    }
-    fn token_end(&self) -> usize {
-        match *self {
-            Form::ModuleAttr(ref f) => f.token_end(),
-            Form::ExportAttr(ref f) => f.token_end(),
-            Form::FunctionSpec(ref f) => f.token_end(),
-            Form::FunctionDecl(ref f) => f.token_end(),
+            Form::ModuleAttr(ref f) => f.token_range(),
+            Form::ExportAttr(ref f) => f.token_range(),
+            Form::FunSpec(ref f) => f.token_range(),
+            Form::FunDecl(ref f) => f.token_range(),
         }
     }
 }

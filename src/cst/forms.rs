@@ -6,6 +6,66 @@ use super::symbols;
 use super::types;
 
 #[derive(Debug)]
+pub struct ModuleAttr<'token, 'text: 'token> {
+    pub hyphen: symbols::Hyphen,
+    pub attr_name: atoms::Module,
+    pub open: symbols::OpenParen,
+    pub module_name: Atom<'token, 'text>,
+    pub close: symbols::CloseParen,
+    pub dot: symbols::Dot,
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for ModuleAttr<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        Ok(ModuleAttr {
+               hyphen: try_parse!(reader),
+               attr_name: try_parse!(reader),
+               open: try_parse!(reader),
+               module_name: try_parse!(reader),
+               close: try_parse!(reader),
+               dot: try_parse!(reader),
+           })
+    }
+}
+impl<'token, 'text: 'token> TokenRange for ModuleAttr<'token, 'text> {
+    fn token_start(&self) -> usize {
+        self.hyphen.token_start()
+    }
+    fn token_end(&self) -> usize {
+        self.dot.token_end()
+    }
+}
+
+// #[derive(Debug)]
+// pub struct BehaviourAttr<'token, 'text: 'token> {
+//     pub hyphen: symbols::Hyphen,
+//     pub attr_name: atoms::Module,
+//     pub open: symbols::OpenParen,
+//     pub behaviour_name: Atom<'token, 'text>,
+//     pub close: symbols::CloseParen,
+//     pub dot: symbols::Dot,
+// }
+// impl<'token, 'text: 'token> Parse<'token, 'text> for BehaviourAttr<'token, 'text> {
+//     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+//         Ok(BehaviourAttr {
+//                hyphen: try_parse!(reader),
+//                attr_name: try_parse!(reader),
+//                open: try_parse!(reader),
+//                behaviour_name: try_parse!(reader),
+//                close: try_parse!(reader),
+//                dot: try_parse!(reader),
+//            })
+//     }
+// }
+// impl<'token, 'text: 'token> TokenRange for BehaviourAttr<'token, 'text> {
+//     fn token_start(&self) -> usize {
+//         self.hyphen.token_start()
+//     }
+//     fn token_end(&self) -> usize {
+//         self.dot.token_end()
+//     }
+// }
+
+#[derive(Debug)]
 pub struct Attribute<N, V> {
     pub hyphen: symbols::Hyphen,
     pub attr_name: N,
@@ -35,31 +95,6 @@ impl<N, V> TokenRange for Attribute<N, V> {
     }
     fn token_end(&self) -> usize {
         self.dot.token_end()
-    }
-}
-
-#[derive(Debug)]
-pub struct ModuleAttr<'token, 'text: 'token>(Attribute<atoms::Module, Atom<'token, 'text>>);
-impl<'token, 'text: 'token> ModuleAttr<'token, 'text> {
-    pub fn module_name(&self) -> &str {
-        self.0.attr_value.value()
-    }
-    pub fn as_attribute(&self) -> &Attribute<atoms::Module, Atom<'token, 'text>> {
-        &self.0
-    }
-}
-impl<'token, 'text: 'token> Parse<'token, 'text> for ModuleAttr<'token, 'text> {
-    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        let inner = track_try!(Parse::parse(reader));
-        Ok(ModuleAttr(inner))
-    }
-}
-impl<'token, 'text: 'token> TokenRange for ModuleAttr<'token, 'text> {
-    fn token_start(&self) -> usize {
-        self.0.token_start()
-    }
-    fn token_end(&self) -> usize {
-        self.0.token_end()
     }
 }
 

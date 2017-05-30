@@ -34,6 +34,18 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
     pub fn set_position(&mut self, position: usize) {
         self.position = position;
     }
+    pub fn peek<T: Parse<'token, 'text>>(&mut self) -> Result<T> {
+        self.look_ahead(T::parse)
+    }
+    pub fn look_ahead<F, T>(&mut self, f: F) -> T
+        where F: FnOnce(&mut Self) -> T
+    {
+        let position = self.position;
+        let value = f(self);
+        self.position = position;
+        value
+    }
+
     fn skip_hidden_tokens(&mut self) {
         let count = self.tokens
             .iter()

@@ -12,3 +12,14 @@ pub trait Parse<'token, 'text: 'token>: Sized {
         }
     }
 }
+
+impl<'token, 'text: 'token, P0, P1> Parse<'token, 'text> for (P0, P1)
+    where P0: Parse<'token, 'text>,
+          P1: Parse<'token, 'text>
+{
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        let v0 = try_parse!(reader);
+        let v1 = try_parse!(reader);
+        Ok((v0, v1))
+    }
+}
