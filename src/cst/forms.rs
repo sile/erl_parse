@@ -122,14 +122,12 @@ impl<'token, 'text: 'token> TokenRange for FunctionSpec<'token, 'text> {
 
 #[derive(Debug)]
 pub struct FunctionDecl<'token, 'text: 'token> {
-    pub name: Atom<'token, 'text>,
     pub clauses: Clauses<clauses::FunctionClause<'token, 'text>>,
     pub dot: symbols::Dot,
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for FunctionDecl<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         Ok(FunctionDecl {
-               name: track_try!(reader.parse_next()),
                clauses: track_try!(reader.parse_next()),
                dot: track_try!(reader.parse_next()),
            })
@@ -137,7 +135,7 @@ impl<'token, 'text: 'token> Parse<'token, 'text> for FunctionDecl<'token, 'text>
 }
 impl<'token, 'text: 'token> TokenRange for FunctionDecl<'token, 'text> {
     fn token_start(&self) -> usize {
-        self.name.token_start()
+        self.clauses.token_start()
     }
     fn token_end(&self) -> usize {
         self.dot.token_end()

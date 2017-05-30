@@ -94,84 +94,136 @@ impl<'token, 'text: 'token> TokenRange for Form<'token, 'text> {
             Form::ModuleAttr(ref f) => f.token_end(),
             Form::ExportAttr(ref f) => f.token_end(),
             Form::FunctionSpec(ref f) => f.token_end(),
-            Form::FunctionDecl(ref f) => f.token_end(),            
+            Form::FunctionDecl(ref f) => f.token_end(),
         }
     }
 }
 
 #[derive(Debug)]
 pub enum Pattern<'token, 'text: 'token> {
+    Integer(primitives::Integer<'token, 'text>),
     Atom(primitives::Atom<'token, 'text>),
+    Variable(primitives::Variable<'token, 'text>),
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Pattern<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         // TODO: improve
-        if let Some(t) = primitives::Atom::try_parse(reader) {
-            return Ok(Pattern::Atom(t));
+        if let Some(t) = reader.try_parse_next() {
+            Ok(Pattern::Integer(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Pattern::Atom(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Pattern::Variable(t))
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "Unrecognized pattern: next={:?}",
+                         reader.read());
         }
-        track_panic!(ErrorKind::InvalidInput, "Unrecognized pattern");
     }
 }
 impl<'token, 'text: 'token> TokenRange for Pattern<'token, 'text> {
     fn token_start(&self) -> usize {
         match *self {
+            Pattern::Integer(ref t) => t.token_start(),
             Pattern::Atom(ref t) => t.token_start(),
+            Pattern::Variable(ref t) => t.token_start(),
         }
     }
     fn token_end(&self) -> usize {
         match *self {
+            Pattern::Integer(ref t) => t.token_end(),
             Pattern::Atom(ref t) => t.token_end(),
+            Pattern::Variable(ref t) => t.token_end(),
         }
     }
 }
 
 #[derive(Debug)]
 pub enum Expression<'token, 'text: 'token> {
+    Integer(primitives::Integer<'token, 'text>),
     Atom(primitives::Atom<'token, 'text>),
+    Variable(primitives::Variable<'token, 'text>),
+    LocalCall(exprs::LocalCall<'token, 'text>),
+    BinaryOpCall(Box<exprs::BinaryOpCall<'token, 'text>>),
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Expression<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         // TODO: improve
-        if let Some(t) = primitives::Atom::try_parse(reader) {
-            return Ok(Expression::Atom(t));
+        let expr = if let Some(t) = reader.try_parse_next() {
+            Expression::Integer(t)
+        } else if let Some(t) = reader.try_parse_next() {
+            Expression::LocalCall(t)
+        } else if let Some(t) = reader.try_parse_next() {
+            Expression::Variable(t)
+        } else if let Some(t) = reader.try_parse_next() {
+            Expression::Atom(t)
+        } else {
+            // reader.skip_hidden_tokens();
+            track_panic!(ErrorKind::InvalidInput,
+                         "Unrecognized expression: next={:?}",
+                         reader.read());
+        };
+        if let Some(op) = exprs::BinaryOp::try_parse(reader) {
+            let right = track_try!(reader.parse_next());
+            let expr = exprs::BinaryOpCall {
+                left: expr,
+                op,
+                right,
+            };
+            Ok(Expression::BinaryOpCall(Box::new(expr)))
+        } else {
+            Ok(expr)
         }
-        track_panic!(ErrorKind::InvalidInput, "Unrecognized expression: next={:?}", reader.read());
     }
 }
 impl<'token, 'text: 'token> TokenRange for Expression<'token, 'text> {
     fn token_start(&self) -> usize {
         match *self {
+            Expression::Integer(ref t) => t.token_start(),
             Expression::Atom(ref t) => t.token_start(),
+            Expression::Variable(ref t) => t.token_start(),
+            Expression::LocalCall(ref t) => t.token_start(),
+            Expression::BinaryOpCall(ref t) => t.token_start(),
         }
     }
     fn token_end(&self) -> usize {
         match *self {
+            Expression::Integer(ref t) => t.token_end(),
             Expression::Atom(ref t) => t.token_end(),
+            Expression::Variable(ref t) => t.token_end(),
+            Expression::LocalCall(ref t) => t.token_end(),
+            Expression::BinaryOpCall(ref t) => t.token_end(),
         }
     }
 }
 
 #[derive(Debug)]
 pub enum Type<'token, 'text: 'token> {
+    Local(types::LocalType<'token, 'text>),
     Atom(primitives::Atom<'token, 'text>),
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Type<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         // TODO: improve
-        if let Some(t) = primitives::Atom::try_parse(reader) {
-            return Ok(Type::Atom(t));
+        if let Some(t) = types::LocalType::try_parse(reader) {
+            Ok(Type::Local(t))
+        } else if let Some(t) = primitives::Atom::try_parse(reader) {
+            Ok(Type::Atom(t))
+        } else {
+            track_panic!(ErrorKind::InvalidInput, "Unrecognized type");
         }
-        track_panic!(ErrorKind::InvalidInput, "Unrecognized type");
     }
 }
 impl<'token, 'text: 'token> TokenRange for Type<'token, 'text> {
     fn token_start(&self) -> usize {
         match *self {
+            Type::Local(ref t) => t.token_start(),
             Type::Atom(ref t) => t.token_start(),
         }
     }
     fn token_end(&self) -> usize {
         match *self {
+            Type::Local(ref t) => t.token_end(),
             Type::Atom(ref t) => t.token_end(),
         }
     }

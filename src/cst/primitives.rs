@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use erl_tokenize::tokens::{AtomToken, IntegerToken};
+use erl_tokenize::tokens::{AtomToken, IntegerToken, VariableToken};
 
 use {Result, TokenReader, Parse, TokenRange};
 use super::symbols;
@@ -270,13 +270,41 @@ impl<'token, 'text: 'token> Deref for Atom<'token, 'text> {
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Atom<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        reader.skip_hidden_tokens();
+        // reader.skip_hidden_tokens();
         let position = reader.position();
         let value = track_try!(reader.read_atom());
         Ok(Atom { position, value })
     }
 }
 impl<'token, 'text: 'token> TokenRange for Atom<'token, 'text> {
+    fn token_start(&self) -> usize {
+        self.position
+    }
+    fn token_end(&self) -> usize {
+        self.position + 1
+    }
+}
+
+#[derive(Debug)]
+pub struct Variable<'token, 'text: 'token> {
+    position: usize,
+    value: &'token VariableToken<'text>,
+}
+impl<'token, 'text: 'token> Deref for Variable<'token, 'text> {
+    type Target = VariableToken<'text>;
+    fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for Variable<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        // reader.skip_hidden_tokens();
+        let position = reader.position();
+        let value = track_try!(reader.read_variable());
+        Ok(Variable { position, value })
+    }
+}
+impl<'token, 'text: 'token> TokenRange for Variable<'token, 'text> {
     fn token_start(&self) -> usize {
         self.position
     }
@@ -320,7 +348,7 @@ impl<'token, 'text: 'token> Deref for Integer<'token, 'text> {
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Integer<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        reader.skip_hidden_tokens();
+        // reader.skip_hidden_tokens();
         let position = reader.position();
         let value = track_try!(reader.read_integer());
         Ok(Integer { position, value })

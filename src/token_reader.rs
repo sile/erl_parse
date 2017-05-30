@@ -1,5 +1,5 @@
 use erl_tokenize::Token;
-use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken};
+use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, VariableToken};
 use erl_tokenize::values::Symbol;
 
 use {Result, ErrorKind, Parse};
@@ -11,10 +11,12 @@ pub struct TokenReader<'token, 'text: 'token> {
 }
 impl<'token, 'text: 'token> TokenReader<'token, 'text> {
     pub fn new(tokens: &'token [Token<'text>]) -> Self {
-        TokenReader {
+        let mut this = TokenReader {
             tokens,
             position: 0,
-        }
+        };
+        this.skip_hidden_tokens();
+        this
     }
     pub fn parse_next<T: Parse<'token, 'text>>(&mut self) -> Result<T> {
         track!(T::parse(self))
@@ -32,7 +34,7 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
     pub fn set_position(&mut self, position: usize) {
         self.position = position;
     }
-    pub fn skip_hidden_tokens(&mut self) {
+    fn skip_hidden_tokens(&mut self) {
         let count = self.tokens
             .iter()
             .skip(self.position)
@@ -47,6 +49,7 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
     pub fn read(&mut self) -> Result<&'token Token<'text>> {
         if let Some(token) = self.tokens.get(self.position) {
             self.position += 1;
+            self.skip_hidden_tokens();
             Ok(token)
         } else {
             track_panic!(ErrorKind::UnexpectedEos);
@@ -59,6 +62,16 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
         } else {
             track_panic!(ErrorKind::InvalidInput,
                          "expected=AtomToken, actual={:?}",
+                         token);
+        }
+    }
+    pub fn read_variable(&mut self) -> Result<&'token VariableToken<'text>> {
+        let token = track_try!(self.read());
+        if let Token::Variable(ref token) = *token {
+            Ok(token)
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "expected=VariableToken, actual={:?}",
                          token);
         }
     }

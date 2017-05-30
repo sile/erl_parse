@@ -10,3 +10,10 @@ fn parse_hello_module() {
     let parser = track_try_unwrap!(Parser::new(text));
     let _module = track_try_unwrap!(parser.parse_module());
 }
+
+#[test]
+fn parse_fib_module() {
+    let text = include_str!("fib.erl");
+    let parser = track_try_unwrap!(Parser::new(text));
+    let _module = track_try_unwrap!(parser.parse_module());
+}

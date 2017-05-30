@@ -8,7 +8,7 @@ macro_rules! define_atom {
         }
         impl<'token, 'text: 'token> Parse<'token, 'text> for $name {
             fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-                reader.skip_hidden_tokens();
+                // reader.skip_hidden_tokens();
                 let position = reader.position();
                 track_try!(reader.expect_atom($value));
                 Ok($name { position })
