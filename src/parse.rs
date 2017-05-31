@@ -23,3 +23,10 @@ impl<'token, 'text: 'token, P0, P1> Parse<'token, 'text> for (P0, P1)
         Ok((v0, v1))
     }
 }
+impl<'token, 'text: 'token, P> Parse<'token, 'text> for Option<P>
+    where P: Parse<'token, 'text>
+{
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        Ok(reader.try_parse_next())
+    }
+}

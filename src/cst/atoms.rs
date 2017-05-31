@@ -1,17 +1,22 @@
-use {Result, TokenReader, Parse, TokenRange};
+use {Result, TokenReader, Parse, TokenRange, ErrorKind};
 
 macro_rules! define_atom {
-    ($name:ident, $value:expr) => {
+    ($name:ident, $($value:pat)|*) => {
         #[derive(Debug)]
         pub struct $name {
             position: usize,
         }
         impl<'token, 'text: 'token> Parse<'token, 'text> for $name {
             fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-                // reader.skip_hidden_tokens();
                 let position = reader.position();
-                track_try!(reader.expect_atom($value));
-                Ok($name { position })
+                let atom = track_try!(reader.read_atom());
+                match atom.value() {
+                    $($value)|* => Ok($name{ position }),
+                    _ => track_panic!(ErrorKind::InvalidInput,
+                                      "actual={:?}, expected={:?}",
+                                      atom.value(),
+                                      stringify!($($value)|*)),
+                }
             }
         }
         impl TokenRange for $name {
@@ -26,5 +31,11 @@ macro_rules! define_atom {
 }
 
 define_atom!(Module, "module");
+define_atom!(Behaviour, "behaviour" | "behavior");
 define_atom!(Export, "export");
-define_atom!(Spec, "spec");
+define_atom!(ExportType, "export_type");
+define_atom!(Import, "import");
+define_atom!(Spec, "spec" | "callback"); // TODO
+define_atom!(File, "file");
+define_atom!(Record, "record");
+define_atom!(Type, "type" | "opaque");

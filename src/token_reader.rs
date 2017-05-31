@@ -1,5 +1,5 @@
 use erl_tokenize::Token;
-use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, VariableToken};
+use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, VariableToken, StringToken};
 use erl_tokenize::values::Symbol;
 
 use {Result, ErrorKind, Parse};
@@ -74,6 +74,16 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
         } else {
             track_panic!(ErrorKind::InvalidInput,
                          "expected=AtomToken, actual={:?}",
+                         token);
+        }
+    }
+    pub fn read_string(&mut self) -> Result<&'token StringToken<'text>> {
+        let token = track_try!(self.read());
+        if let Token::String(ref token) = *token {
+            Ok(token)
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "expected=StringToken, actual={:?}",
                          token);
         }
     }

@@ -2,6 +2,8 @@ use std::ops::Range;
 use erl_tokenize::Token;
 
 use {Result, TokenReader, Parse, TokenRange, ErrorKind};
+use self::primitives::Atom;
+use self::symbols::Hyphen;
 
 pub mod atoms;
 pub mod clauses;
@@ -57,25 +59,46 @@ impl<'token, 'text: 'token> TokenRange for ModuleDecl<'token, 'text> {
 #[derive(Debug)]
 pub enum Form<'token, 'text: 'token> {
     ModuleAttr(forms::ModuleAttr<'token, 'text>),
-    //    BehaviourAttr(forms::BehaviourAttr<'token, 'text>),
+    BehaviourAttr(forms::BehaviourAttr<'token, 'text>),
     ExportAttr(forms::ExportAttr<'token, 'text>),
-    FunSpec(forms::FunctionSpec<'token, 'text>),
-    FunDecl(forms::FunctionDecl<'token, 'text>),
+    ImportAttr(forms::ImportAttr<'token, 'text>),
+    ExportTypeAttr(forms::ExportTypeAttr<'token, 'text>),
+    FileAttr(forms::FileAttr<'token, 'text>),
+    WildAttr(forms::WildAttr<'token, 'text>),
+    FunSpec(forms::FunSpec<'token, 'text>),
+    FunDecl(forms::FunDecl<'token, 'text>),
+    TypeDecl(forms::TypeDecl<'token, 'text>),
+    RecordDecl(forms::RecordDecl<'token, 'text>),
+    // MacroDecl
+    // MacroDirective
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Form<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        use self::symbols::Hyphen;
-        use self::primitives::Atom; // TODO
         if reader.peek::<Atom>().is_ok() {
             parse!(reader).map(Form::FunDecl)
         } else {
             let (_, atom): (Hyphen, Atom) = track_try!(reader.peek());
             match atom.value() {
                 "module" => parse!(reader).map(Form::ModuleAttr),
-                //"behaviour" | "behavior" => try_parse!(reader),
+                "behaviour" | "behavior" => parse!(reader).map(Form::BehaviourAttr),
                 "export" => parse!(reader).map(Form::ExportAttr),
-                "spec" => parse!(reader).map(Form::FunSpec),
-                a => panic!("{:?}", a),
+                "import" => parse!(reader).map(Form::ImportAttr),
+                "export_type" => parse!(reader).map(Form::ExportTypeAttr),
+                "spec" | "callback" => parse!(reader).map(Form::FunSpec),
+                "file" => parse!(reader).map(Form::FileAttr),
+                "type" | "opaque" => parse!(reader).map(Form::TypeDecl),
+                "record" => parse!(reader).map(Form::RecordDecl),
+
+                "define" => unimplemented!(),
+                "undef" => unimplemented!(),
+                "ifdef" => unimplemented!(),
+                "ifndef" => unimplemented!(),
+                "else" => unimplemented!(),
+                "endif" => unimplemented!(),
+                "warning" => unimplemented!(),
+                "error" => unimplemented!(),
+
+                _ => parse!(reader).map(Form::WildAttr),
             }
         }
     }
@@ -84,9 +107,16 @@ impl<'token, 'text: 'token> TokenRange for Form<'token, 'text> {
     fn token_range(&self) -> Range<usize> {
         match *self {
             Form::ModuleAttr(ref f) => f.token_range(),
+            Form::BehaviourAttr(ref f) => f.token_range(),
             Form::ExportAttr(ref f) => f.token_range(),
+            Form::ImportAttr(ref f) => f.token_range(),
+            Form::ExportTypeAttr(ref f) => f.token_range(),
+            Form::FileAttr(ref f) => f.token_range(),
+            Form::WildAttr(ref f) => f.token_range(),
             Form::FunSpec(ref f) => f.token_range(),
             Form::FunDecl(ref f) => f.token_range(),
+            Form::TypeDecl(ref f) => f.token_range(),
+            Form::RecordDecl(ref f) => f.token_range(),
         }
     }
 }
@@ -217,6 +247,33 @@ impl<'token, 'text: 'token> TokenRange for Type<'token, 'text> {
         match *self {
             Type::Local(ref t) => t.token_end(),
             Type::Atom(ref t) => t.token_end(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Term<'token, 'text: 'token> {
+    Atom(primitives::Atom<'token, 'text>),
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for Term<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        // TODO: improve
+        if let Some(t) = primitives::Atom::try_parse(reader) {
+            Ok(Term::Atom(t))
+        } else {
+            track_panic!(ErrorKind::InvalidInput, "Unrecognized term");
+        }
+    }
+}
+impl<'token, 'text: 'token> TokenRange for Term<'token, 'text> {
+    fn token_start(&self) -> usize {
+        match *self {
+            Term::Atom(ref t) => t.token_start(),
+        }
+    }
+    fn token_end(&self) -> usize {
+        match *self {
+            Term::Atom(ref t) => t.token_end(),
         }
     }
 }

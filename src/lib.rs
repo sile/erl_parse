@@ -15,6 +15,54 @@ macro_rules! try_parse {
 macro_rules! parse {
     ($reader:expr) => { track!($reader.parse_next()) }
 }
+macro_rules! derive_parse {
+    ($type:ident, $($field:ident),*) => {
+        impl<'token, 'text: 'token> ::Parse<'token, 'text> for $type<'token, 'text> {
+            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+                Ok($type {
+                    $($field: try_parse!(reader)),*
+                })
+            }
+        }
+    }
+}
+macro_rules! derive_token_range {
+    ($type:ident, $first:ident, $last:ident) => {
+        impl<'token, 'text: 'token> ::TokenRange for $type<'token, 'text> {
+            fn token_start(&self) -> usize {
+                self.$first.token_start()
+            }
+            fn token_end(&self) -> usize {
+                self.$last.token_end()
+            }
+        }
+    }
+}
+// TODO: 共通化
+macro_rules! derive_parse2 {
+    ($type:ident, $($field:ident),*) => {
+        impl<'token, 'text: 'token, T> ::Parse<'token, 'text> for $type<T>
+            where T: ::Parse<'token, 'text> {
+            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+                Ok($type {
+                    $($field: try_parse!(reader)),*
+                })
+            }
+        }
+    }
+}
+macro_rules! derive_token_range2 {
+    ($type:ident, $first:ident, $last:ident) => {
+        impl<T> ::TokenRange for $type<T> where T: ::TokenRange {
+            fn token_start(&self) -> usize {
+                self.$first.token_start()
+            }
+            fn token_end(&self) -> usize {
+                self.$last.token_end()
+            }
+        }
+    }
+}
 
 pub mod cst;
 
