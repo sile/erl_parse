@@ -38,6 +38,29 @@ macro_rules! derive_token_range {
         }
     }
 }
+macro_rules! derive_parse0 {
+    ($type:ident, $($field:ident),*) => {
+        impl<'token, 'text: 'token> ::Parse<'token, 'text> for $type {
+            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+                Ok($type {
+                    $($field: try_parse!(reader)),*
+                })
+            }
+        }
+    }
+}
+macro_rules! derive_token_range0 {
+    ($type:ident, $first:ident, $last:ident) => {
+        impl<'token, 'text: 'token> ::TokenRange for $type {
+            fn token_start(&self) -> usize {
+                self.$first.token_start()
+            }
+            fn token_end(&self) -> usize {
+                self.$last.token_end()
+            }
+        }
+    }
+}
 // TODO: 共通化
 macro_rules! derive_parse2 {
     ($type:ident, $($field:ident),*) => {
@@ -54,6 +77,30 @@ macro_rules! derive_parse2 {
 macro_rules! derive_token_range2 {
     ($type:ident, $first:ident, $last:ident) => {
         impl<T> ::TokenRange for $type<T> where T: ::TokenRange {
+            fn token_start(&self) -> usize {
+                self.$first.token_start()
+            }
+            fn token_end(&self) -> usize {
+                self.$last.token_end()
+            }
+        }
+    }
+}
+macro_rules! derive_parse3 {
+    ($type:ident, $($field:ident),*) => {
+        impl<'token, 'text: 'token, T, U> ::Parse<'token, 'text> for $type<T, U>
+            where T: ::Parse<'token, 'text>, U: ::Parse<'token, 'text> {
+            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+                Ok($type {
+                    $($field: try_parse!(reader)),*
+                })
+            }
+        }
+    }
+}
+macro_rules! derive_token_range3 {
+    ($type:ident, $first:ident, $last:ident) => {
+        impl<T, U> ::TokenRange for $type<T, U> where T: ::TokenRange, U: ::TokenRange {
             fn token_start(&self) -> usize {
                 self.$first.token_start()
             }

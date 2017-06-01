@@ -1,4 +1,7 @@
-use super::{Term, Type, Expression, TokenRange};
+use std::ops::Range;
+
+use {Result, ErrorKind, Parse, TokenRange, TokenReader};
+use super::{Term, Type, Expression};
 use super::atoms;
 use super::clauses;
 use super::primitives::{Atom, List, Export, Import, ModuleAtom, Clauses, ExportType, Str, Integer,
@@ -236,3 +239,180 @@ pub struct RecordFieldType<'token, 'text: 'token> {
 }
 derive_parse!(RecordFieldType, _double_colon, field_type);
 derive_token_range!(RecordFieldType, _double_colon, field_type);
+
+#[derive(Debug)]
+pub struct MacroDecl<'token, 'text: 'token> {
+    pub _hyphen: symbols::Hyphen,
+    pub _define: atoms::Define,
+    pub _open: symbols::OpenParen,
+    pub macro_name: MacroName<'token, 'text>,
+    pub args: Option<Args<Variable<'token, 'text>>>,
+    pub _comma: symbols::Comma,
+    pub replacement: MacroReplacement,
+    pub _close: symbols::CloseParen,
+    pub _dot: symbols::Dot,
+}
+derive_parse!(MacroDecl,
+              _hyphen,
+              _define,
+              _open,
+              macro_name,
+              args,
+              _comma,
+              replacement,
+              _close,
+              _dot);
+derive_token_range!(MacroDecl, _hyphen, _dot);
+
+#[derive(Debug)]
+pub enum MacroName<'token, 'text: 'token> {
+    Atom(Atom<'token, 'text>),
+    Var(Variable<'token, 'text>),
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for MacroName<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        if let Some(t) = reader.try_parse_next() {
+            Ok(MacroName::Atom(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(MacroName::Var(t))
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "Unrecognized macro name: next={:?}",
+                         reader.read());
+        }
+    }
+}
+impl<'token, 'text: 'token> TokenRange for MacroName<'token, 'text> {
+    fn token_range(&self) -> Range<usize> {
+        match *self {
+            MacroName::Atom(ref t) => t.token_range(),
+            MacroName::Var(ref t) => t.token_range(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct MacroReplacement {
+    token_start: usize,
+    token_end: usize,
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for MacroReplacement {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        let token_start = reader.position();
+        while let Err(_) = reader.peek::<(symbols::CloseParen, symbols::Dot)>() {
+            track_try!(reader.read());
+        }
+        let token_end = reader.position();
+        Ok(MacroReplacement {
+               token_start,
+               token_end,
+           })
+    }
+}
+impl TokenRange for MacroReplacement {
+    fn token_range(&self) -> Range<usize> {
+        Range {
+            start: self.token_start,
+            end: self.token_end,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum MacroDirective<'token, 'text: 'token> {
+    Undef(MacroUndef<'token, 'text>),
+    Ifdef(MacroIfdef<'token, 'text>),
+    Ifndef(MacroIfndef<'token, 'text>),
+    Else(MacroElse),
+    Endif(MacroEndif),
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for MacroDirective<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        if let Some(t) = reader.try_parse_next() {
+            Ok(MacroDirective::Undef(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(MacroDirective::Ifdef(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(MacroDirective::Ifndef(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(MacroDirective::Else(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(MacroDirective::Endif(t))
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "Unrecognized macro name: next={:?}",
+                         reader.read());
+        }
+    }
+}
+impl<'token, 'text: 'token> TokenRange for MacroDirective<'token, 'text> {
+    fn token_range(&self) -> Range<usize> {
+        match *self {
+            MacroDirective::Undef(ref t) => t.token_range(),
+            MacroDirective::Ifdef(ref t) => t.token_range(),
+            MacroDirective::Ifndef(ref t) => t.token_range(),
+            MacroDirective::Else(ref t) => t.token_range(),
+            MacroDirective::Endif(ref t) => t.token_range(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct MacroUndef<'token, 'text: 'token> {
+    pub _hyphen: symbols::Hyphen,
+    pub _undef: atoms::Undef,
+    pub _open: symbols::OpenParen,
+    pub macro_name: MacroName<'token, 'text>,
+    pub _close: symbols::CloseParen,
+    pub _dot: symbols::Dot,
+}
+derive_parse!(MacroUndef, _hyphen, _undef, _open, macro_name, _close, _dot);
+derive_token_range!(MacroUndef, _hyphen, _dot);
+
+#[derive(Debug)]
+pub struct MacroIfdef<'token, 'text: 'token> {
+    pub _hyphen: symbols::Hyphen,
+    pub _ifdef: atoms::Ifdef,
+    pub _open: symbols::OpenParen,
+    pub macro_name: MacroName<'token, 'text>,
+    pub _close: symbols::CloseParen,
+    pub _dot: symbols::Dot,
+}
+derive_parse!(MacroIfdef, _hyphen, _ifdef, _open, macro_name, _close, _dot);
+derive_token_range!(MacroIfdef, _hyphen, _dot);
+
+#[derive(Debug)]
+pub struct MacroIfndef<'token, 'text: 'token> {
+    pub _hyphen: symbols::Hyphen,
+    pub _ifndef: atoms::Ifndef,
+    pub _open: symbols::OpenParen,
+    pub macro_name: MacroName<'token, 'text>,
+    pub _close: symbols::CloseParen,
+    pub _dot: symbols::Dot,
+}
+derive_parse!(MacroIfndef,
+              _hyphen,
+              _ifndef,
+              _open,
+              macro_name,
+              _close,
+              _dot);
+derive_token_range!(MacroIfndef, _hyphen, _dot);
+
+#[derive(Debug)]
+pub struct MacroElse {
+    pub _hyphen: symbols::Hyphen,
+    pub _else: atoms::Else,
+    pub _dot: symbols::Dot,
+}
+derive_parse0!(MacroElse, _hyphen, _else, _dot);
+derive_token_range0!(MacroElse, _hyphen, _dot);
+
+#[derive(Debug)]
+pub struct MacroEndif {
+    pub _hyphen: symbols::Hyphen,
+    pub _endif: atoms::Endif,
+    pub _dot: symbols::Dot,
+}
+derive_parse0!(MacroEndif, _hyphen, _endif, _dot);
+derive_token_range0!(MacroEndif, _hyphen, _dot);

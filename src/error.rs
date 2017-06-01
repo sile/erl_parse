@@ -17,6 +17,6 @@ pub enum ErrorKind {
 impl TrackableErrorKind for ErrorKind {}
 impl IntoTrackableError<erl_tokenize::Error> for ErrorKind {
     fn into_trackable_error(e: erl_tokenize::Error) -> Error {
-        ErrorKind::TokenizationFailed.cause(e)
+        ErrorKind::TokenizationFailed.takes_over(e)
     }
 }

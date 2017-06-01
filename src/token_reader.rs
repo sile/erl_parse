@@ -1,6 +1,6 @@
 use erl_tokenize::Token;
 use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, VariableToken, StringToken};
-use erl_tokenize::values::Symbol;
+use erl_tokenize::values::{Symbol, Whitespace};
 
 use {Result, ErrorKind, Parse};
 
@@ -8,15 +8,26 @@ use {Result, ErrorKind, Parse};
 pub struct TokenReader<'token, 'text: 'token> {
     tokens: &'token [Token<'text>],
     position: usize,
+    line_num: usize,
 }
 impl<'token, 'text: 'token> TokenReader<'token, 'text> {
     pub fn new(tokens: &'token [Token<'text>]) -> Self {
         let mut this = TokenReader {
             tokens,
             position: 0,
+            line_num: 1,
         };
         this.skip_hidden_tokens();
         this
+    }
+    pub fn line_num(&self) -> usize {
+        self.tokens[..self.position]
+            .iter()
+            .filter(|t| match **t {
+                        Token::Whitespace(ref t) if t.value() == Whitespace::Newline => true,
+                        _ => false,
+                    })
+            .count() + 1
     }
     pub fn parse_next<T: Parse<'token, 'text>>(&mut self) -> Result<T> {
         track!(T::parse(self))

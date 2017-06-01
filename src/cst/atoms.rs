@@ -39,3 +39,9 @@ define_atom!(Spec, "spec" | "callback"); // TODO
 define_atom!(File, "file");
 define_atom!(Record, "record");
 define_atom!(Type, "type" | "opaque");
+define_atom!(Define, "define");
+define_atom!(Undef, "undef");
+define_atom!(Ifdef, "ifdef");
+define_atom!(Ifndef, "ifndef");
+define_atom!(Else, "else");
+define_atom!(Endif, "endif");

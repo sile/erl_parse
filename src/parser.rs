@@ -17,6 +17,8 @@ impl<'text> Parser<'text> {
     }
     pub fn parse_module<'token>(&'token self) -> Result<ModuleDecl<'token, 'text>> {
         let mut reader = TokenReader::new(&self.tokens);
-        track!(ModuleDecl::parse(&mut reader))
+        track!(ModuleDecl::parse(&mut reader),
+               "line_num={}",
+               reader.line_num())
     }
 }

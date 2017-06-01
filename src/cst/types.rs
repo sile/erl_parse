@@ -1,6 +1,6 @@
 use {Result, TokenReader, Parse, TokenRange};
-use cst::Type;
-use cst::primitives::{Args, Atom};
+use cst::{Type, NonRecursiveType};
+use cst::primitives::{Args, Atom, Seq2, Variable, Int};
 use cst::symbols;
 
 #[derive(Debug)]
@@ -55,3 +55,97 @@ impl<'token, 'text: 'token> TokenRange for LocalType<'token, 'text> {
         self.args.token_end()
     }
 }
+
+#[derive(Debug)]
+pub struct RemoteType<'token, 'text: 'token> {
+    pub module_name: Atom<'token, 'text>,
+    pub _colon: symbols::Colon,
+    pub type_name: Atom<'token, 'text>,
+    pub args: Args<Type<'token, 'text>>,
+}
+derive_parse!(RemoteType, module_name, _colon, type_name, args);
+derive_token_range!(RemoteType, module_name, args);
+
+#[derive(Debug)]
+pub struct Union<'token, 'text: 'token> {
+    pub head: Type<'token, 'text>,
+    pub tail: Vec<UnionElem<'token, 'text>>,
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for Union<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        let head: NonRecursiveType = try_parse!(reader);
+        Ok(Union {
+               head: head.into(),
+               tail: try_parse!(reader),
+           })
+    }
+}
+impl<'token, 'text: 'token> TokenRange for Union<'token, 'text> {
+    fn token_start(&self) -> usize {
+        self.head.token_start()
+    }
+    fn token_end(&self) -> usize {
+        self.tail
+            .last()
+            .map_or(self.head.token_end(), |t| t.token_end())
+    }
+}
+
+#[derive(Debug)]
+pub struct UnionElem<'token, 'text: 'token> {
+    pub bar: symbols::VerticalBar,
+    pub ty: Type<'token, 'text>,
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for UnionElem<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        let bar = try_parse!(reader);
+        let ty: NonRecursiveType = try_parse!(reader);
+        Ok(UnionElem { bar, ty: ty.into() })
+    }
+}
+derive_token_range!(UnionElem, bar, ty);
+
+#[derive(Debug)]
+pub struct List<'token, 'text: 'token> {
+    pub _open: symbols::OpenSquare,
+    pub element_type: Type<'token, 'text>,
+    pub _close: symbols::CloseSquare,
+}
+derive_parse!(List, _open, element_type, _close);
+derive_token_range!(List, _open, _close);
+
+#[derive(Debug)]
+pub struct Tuple<'token, 'text: 'token> {
+    pub _open: symbols::OpenBrace,
+    pub elements: Seq2<Type<'token, 'text>, symbols::Comma>,
+    pub _close: symbols::CloseBrace,
+}
+derive_parse!(Tuple, _open, elements, _close);
+derive_token_range!(Tuple, _open, _close);
+
+#[derive(Debug)]
+pub struct Annotated<'token, 'text: 'token> {
+    pub variable: Variable<'token, 'text>,
+    pub _double_colon: symbols::DoubleColon,
+    pub ann_type: Type<'token, 'text>,
+}
+derive_parse!(Annotated, variable, _double_colon, ann_type);
+derive_token_range!(Annotated, variable, ann_type);
+
+#[derive(Debug)]
+pub struct IntRange<'token, 'text: 'token> {
+    pub low: Int<'token, 'text>,
+    pub _double_dot: symbols::DoubleDot,
+    pub high: Int<'token, 'text>,
+}
+derive_parse!(IntRange, low, _double_dot, high);
+derive_token_range!(IntRange, low, high);
+
+#[derive(Debug)]
+pub struct Parenthesized<'token, 'text: 'token> {
+    pub _open: symbols::OpenParen,
+    pub ty: Type<'token, 'text>,
+    pub _close: symbols::CloseParen,
+}
+derive_parse!(Parenthesized, _open, ty, _close);
+derive_token_range!(Parenthesized, _open, _close);

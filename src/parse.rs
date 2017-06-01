@@ -30,3 +30,14 @@ impl<'token, 'text: 'token, P> Parse<'token, 'text> for Option<P>
         Ok(reader.try_parse_next())
     }
 }
+impl<'token, 'text: 'token, P> Parse<'token, 'text> for Vec<P>
+    where P: Parse<'token, 'text>
+{
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        let mut vec = Vec::new();
+        while let Some(v) = reader.try_parse_next() {
+            vec.push(v);
+        }
+        Ok(vec)
+    }
+}

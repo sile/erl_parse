@@ -69,8 +69,8 @@ pub enum Form<'token, 'text: 'token> {
     FunDecl(forms::FunDecl<'token, 'text>),
     TypeDecl(forms::TypeDecl<'token, 'text>),
     RecordDecl(forms::RecordDecl<'token, 'text>),
-    // MacroDecl
-    // MacroDirective
+    MacroDecl(forms::MacroDecl<'token, 'text>),
+    MacroDirective(forms::MacroDirective<'token, 'text>),
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Form<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
@@ -88,16 +88,10 @@ impl<'token, 'text: 'token> Parse<'token, 'text> for Form<'token, 'text> {
                 "file" => parse!(reader).map(Form::FileAttr),
                 "type" | "opaque" => parse!(reader).map(Form::TypeDecl),
                 "record" => parse!(reader).map(Form::RecordDecl),
-
-                "define" => unimplemented!(),
-                "undef" => unimplemented!(),
-                "ifdef" => unimplemented!(),
-                "ifndef" => unimplemented!(),
-                "else" => unimplemented!(),
-                "endif" => unimplemented!(),
-                "warning" => unimplemented!(),
-                "error" => unimplemented!(),
-
+                "define" => parse!(reader).map(Form::MacroDecl),
+                "undef" | "ifdef" | "ifndef" | "else" | "endif" | "warning" | "error" => {
+                    parse!(reader).map(Form::MacroDirective)
+                }
                 _ => parse!(reader).map(Form::WildAttr),
             }
         }
@@ -117,6 +111,8 @@ impl<'token, 'text: 'token> TokenRange for Form<'token, 'text> {
             Form::FunDecl(ref f) => f.token_range(),
             Form::TypeDecl(ref f) => f.token_range(),
             Form::RecordDecl(ref f) => f.token_range(),
+            Form::MacroDecl(ref f) => f.token_range(),
+            Form::MacroDirective(ref f) => f.token_range(),
         }
     }
 }
@@ -219,34 +215,100 @@ impl<'token, 'text: 'token> TokenRange for Expression<'token, 'text> {
     }
 }
 
+// XXX: name => NonUnionType (?)
 #[derive(Debug)]
-pub enum Type<'token, 'text: 'token> {
+enum NonRecursiveType<'token, 'text: 'token> {
     Local(types::LocalType<'token, 'text>),
+    Remote(types::RemoteType<'token, 'text>),
     Atom(primitives::Atom<'token, 'text>),
+    Int(primitives::Int<'token, 'text>),
+    IntRange(types::IntRange<'token, 'text>),
+    List(types::List<'token, 'text>),
+    Tuple(types::Tuple<'token, 'text>),
+    Annotated(types::Annotated<'token, 'text>),
+    Parenthesized(types::Parenthesized<'token, 'text>),
 }
-impl<'token, 'text: 'token> Parse<'token, 'text> for Type<'token, 'text> {
+impl<'token, 'text: 'token> Parse<'token, 'text> for NonRecursiveType<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         // TODO: improve
         if let Some(t) = types::LocalType::try_parse(reader) {
-            Ok(Type::Local(t))
+            Ok(NonRecursiveType::Local(t))
+        } else if let Some(t) = types::RemoteType::try_parse(reader) {
+            Ok(NonRecursiveType::Remote(t))
         } else if let Some(t) = primitives::Atom::try_parse(reader) {
-            Ok(Type::Atom(t))
+            Ok(NonRecursiveType::Atom(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(NonRecursiveType::IntRange(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(NonRecursiveType::Int(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(NonRecursiveType::List(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(NonRecursiveType::Tuple(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(NonRecursiveType::Annotated(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(NonRecursiveType::Parenthesized(t))
         } else {
             track_panic!(ErrorKind::InvalidInput, "Unrecognized type");
         }
     }
 }
-impl<'token, 'text: 'token> TokenRange for Type<'token, 'text> {
-    fn token_start(&self) -> usize {
-        match *self {
-            Type::Local(ref t) => t.token_start(),
-            Type::Atom(ref t) => t.token_start(),
+impl<'token, 'text: 'token> From<NonRecursiveType<'token, 'text>> for Type<'token, 'text> {
+    fn from(f: NonRecursiveType<'token, 'text>) -> Self {
+        match f {
+            NonRecursiveType::Local(t) => Type::Local(t),
+            NonRecursiveType::Remote(t) => Type::Remote(t),
+            NonRecursiveType::Atom(t) => Type::Atom(t),
+            NonRecursiveType::Int(t) => Type::Int(t),
+            NonRecursiveType::IntRange(t) => Type::IntRange(t),
+            NonRecursiveType::List(t) => Type::List(Box::new(t)),
+            NonRecursiveType::Tuple(t) => Type::Tuple(Box::new(t)),
+            NonRecursiveType::Annotated(t) => Type::Annotated(Box::new(t)),
+            NonRecursiveType::Parenthesized(t) => Type::Parenthesized(Box::new(t)),
         }
     }
-    fn token_end(&self) -> usize {
+}
+
+#[derive(Debug)]
+pub enum Type<'token, 'text: 'token> {
+    Local(types::LocalType<'token, 'text>),
+    Remote(types::RemoteType<'token, 'text>),
+    Atom(primitives::Atom<'token, 'text>),
+    Int(primitives::Int<'token, 'text>),
+    IntRange(types::IntRange<'token, 'text>),
+    List(Box<types::List<'token, 'text>>),
+    Tuple(Box<types::Tuple<'token, 'text>>),
+    Annotated(Box<types::Annotated<'token, 'text>>),
+    Parenthesized(Box<types::Parenthesized<'token, 'text>>),
+    Union(Box<types::Union<'token, 'text>>),
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for Type<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        if let Some(t) = types::Union::try_parse(reader) {
+            Ok(Type::Union(Box::new(t)))
+        } else if let Some(t) = NonRecursiveType::try_parse(reader) {
+            Ok(t.into())
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "Unrecognized type: {:?}",
+                         reader.read());
+        }
+    }
+}
+impl<'token, 'text: 'token> TokenRange for Type<'token, 'text> {
+    fn token_range(&self) -> Range<usize> {
         match *self {
-            Type::Local(ref t) => t.token_end(),
-            Type::Atom(ref t) => t.token_end(),
+            Type::Local(ref t) => t.token_range(),
+            Type::Remote(ref t) => t.token_range(),
+            Type::Atom(ref t) => t.token_range(),
+            Type::Int(ref t) => t.token_range(),
+            Type::IntRange(ref t) => t.token_range(),
+            Type::List(ref t) => t.token_range(),
+            Type::Tuple(ref t) => t.token_range(),
+            Type::Annotated(ref t) => t.token_range(),
+            Type::Parenthesized(ref t) => t.token_range(),
+            Type::Union(ref t) => t.token_range(),
         }
     }
 }

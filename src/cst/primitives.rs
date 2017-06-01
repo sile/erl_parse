@@ -4,6 +4,63 @@ use erl_tokenize::tokens::{AtomToken, IntegerToken, VariableToken, StringToken};
 use {Result, TokenReader, Parse, TokenRange};
 use super::symbols;
 
+#[derive(Debug)]
+pub struct Seq2<T, D> {
+    pub position: usize,
+    pub elems: Option<NonEmptySeq<T, D>>,
+}
+impl<'token, 'text: 'token, T, D> Parse<'token, 'text> for Seq2<T, D>
+    where T: Parse<'token, 'text>,
+          D: Parse<'token, 'text>
+{
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        let position = reader.position();
+        Ok(Seq2 {
+               position,
+               elems: try_parse!(reader),
+           })
+    }
+}
+impl<T, D> TokenRange for Seq2<T, D>
+    where T: TokenRange,
+          D: TokenRange
+{
+    fn token_start(&self) -> usize {
+        self.position
+    }
+    fn token_end(&self) -> usize {
+        self.elems.as_ref().map_or(self.position, |e| e.token_end())
+    }
+}
+
+#[derive(Debug)]
+pub struct NonEmptySeq<T, D> {
+    pub head: T,
+    pub tail: Vec<SeqElem<T, D>>,
+}
+derive_parse3!(NonEmptySeq, head, tail);
+impl<T, D> TokenRange for NonEmptySeq<T, D>
+    where T: TokenRange,
+          D: TokenRange
+{
+    fn token_start(&self) -> usize {
+        self.head.token_start()
+    }
+    fn token_end(&self) -> usize {
+        self.tail
+            .last()
+            .map_or(self.head.token_end(), |e| e.token_end())
+    }
+}
+
+#[derive(Debug)]
+pub struct SeqElem<T, D> {
+    pub delim: D,
+    pub elem: T,
+}
+derive_parse3!(SeqElem, delim, elem);
+derive_token_range3!(SeqElem, delim, elem);
+
 // non empty
 #[derive(Debug)]
 pub struct Seq<T> {
@@ -372,6 +429,48 @@ impl<'token, 'text: 'token> TokenRange for ModuleAtom<'token, 'text> {
     }
 }
 
+#[derive(Debug)]
+pub struct Int<'token, 'text: 'token> {
+    pub sign: NumSign,
+    pub value: Integer<'token, 'text>,
+}
+derive_parse!(Int, sign, value);
+derive_token_range!(Int, sign, value);
+
+#[derive(Debug)]
+pub struct NumSign {
+    position: usize,
+    pub sign: Option<Sign>,
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for NumSign {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        let position = reader.position();
+        let sign = if reader.try_parse_next::<symbols::Plus>().is_some() {
+            Some(Sign::Plus)
+        } else if reader.try_parse_next::<symbols::Hyphen>().is_some() {
+            Some(Sign::Minus)
+        } else {
+            None
+        };
+        Ok(NumSign { position, sign })
+    }
+}
+impl TokenRange for NumSign {
+    fn token_start(&self) -> usize {
+        self.position
+    }
+    fn token_end(&self) -> usize {
+        self.position + self.sign.map_or(0, |_| 1)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sign {
+    Plus,
+    Minus,
+}
+
+// TODO:
 #[derive(Debug)]
 pub struct Integer<'token, 'text: 'token> {
     position: usize,
