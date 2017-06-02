@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use {Result, ErrorKind, Parse, TokenRange, TokenReader};
-use super::{Term, Type, Expression};
+use super::{Term, Type, Expr};
 use super::atoms;
 use super::clauses;
 use super::primitives::{Atom, List, Export, Import, ModuleAtom, Clauses, ExportType, Str, Integer,
@@ -226,7 +226,7 @@ impl<'token, 'text: 'token> TokenRange for RecordField<'token, 'text> {
 #[derive(Debug)]
 pub struct RecordFieldValue<'token, 'text: 'token> {
     pub _bind: symbols::Match,
-    pub value: Expression<'token, 'text>,
+    pub value: Expr<'token, 'text>,
 }
 derive_parse!(RecordFieldValue, _bind, value);
 derive_token_range!(RecordFieldValue, _bind, value);

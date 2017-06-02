@@ -1,5 +1,5 @@
 use {Result, TokenReader, Parse, TokenRange};
-use cst::{Pattern, Expression};
+use cst::{Pattern, Expr};
 use cst::primitives::{Seq, Args, Atom};
 use cst::symbols;
 
@@ -9,7 +9,7 @@ pub struct FunctionClause<'token, 'text: 'token> {
     pub patterns: Args<Pattern<'token, 'text>>,
     // TODO: guard
     pub allow: symbols::RightAllow,
-    pub body: Seq<Expression<'token, 'text>>,
+    pub body: Seq<Expr<'token, 'text>>,
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for FunctionClause<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {

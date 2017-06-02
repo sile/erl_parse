@@ -157,24 +157,30 @@ impl<'token, 'text: 'token> TokenRange for Pattern<'token, 'text> {
 }
 
 #[derive(Debug)]
-pub enum Expression<'token, 'text: 'token> {
+pub enum Expr<'token, 'text: 'token> {
     Integer(primitives::Integer<'token, 'text>),
     Atom(primitives::Atom<'token, 'text>),
     Variable(primitives::Variable<'token, 'text>),
     LocalCall(exprs::LocalCall<'token, 'text>),
     BinaryOpCall(Box<exprs::BinaryOpCall<'token, 'text>>),
+    List(Box<exprs::List<'token, 'text>>),
+    Try(Box<expr::Try<'token, 'text>>),
 }
-impl<'token, 'text: 'token> Parse<'token, 'text> for Expression<'token, 'text> {
+impl<'token, 'text: 'token> Parse<'token, 'text> for Expr<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         // TODO: improve
         let expr = if let Some(t) = reader.try_parse_next() {
-            Expression::Integer(t)
+            Expr::Integer(t)
         } else if let Some(t) = reader.try_parse_next() {
-            Expression::LocalCall(t)
+            Expr::LocalCall(t)
         } else if let Some(t) = reader.try_parse_next() {
-            Expression::Variable(t)
+            Expr::Variable(t)
         } else if let Some(t) = reader.try_parse_next() {
-            Expression::Atom(t)
+            Expr::Atom(t)
+        } else if let Some(t) = reader.try_parse_next() {
+            Expr::List(Box::new(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Expr::Try(Box::new(t))
         } else {
             // reader.skip_hidden_tokens();
             track_panic!(ErrorKind::InvalidInput,
@@ -188,29 +194,22 @@ impl<'token, 'text: 'token> Parse<'token, 'text> for Expression<'token, 'text> {
                 op,
                 right,
             };
-            Ok(Expression::BinaryOpCall(Box::new(expr)))
+            Ok(Expr::BinaryOpCall(Box::new(expr)))
         } else {
             Ok(expr)
         }
     }
 }
-impl<'token, 'text: 'token> TokenRange for Expression<'token, 'text> {
-    fn token_start(&self) -> usize {
+impl<'token, 'text: 'token> TokenRange for Expr<'token, 'text> {
+    fn token_range(&self) -> Range<usize> {
         match *self {
-            Expression::Integer(ref t) => t.token_start(),
-            Expression::Atom(ref t) => t.token_start(),
-            Expression::Variable(ref t) => t.token_start(),
-            Expression::LocalCall(ref t) => t.token_start(),
-            Expression::BinaryOpCall(ref t) => t.token_start(),
-        }
-    }
-    fn token_end(&self) -> usize {
-        match *self {
-            Expression::Integer(ref t) => t.token_end(),
-            Expression::Atom(ref t) => t.token_end(),
-            Expression::Variable(ref t) => t.token_end(),
-            Expression::LocalCall(ref t) => t.token_end(),
-            Expression::BinaryOpCall(ref t) => t.token_end(),
+            Expr::Integer(ref t) => t.token_range(),
+            Expr::Atom(ref t) => t.token_range(),
+            Expr::Variable(ref t) => t.token_range(),
+            Expr::LocalCall(ref t) => t.token_range(),
+            Expr::BinaryOpCall(ref t) => t.token_range(),
+            Expr::List(ref t) => t.token_range(),
+            Expr::Try(ref t) => t.token_range(),
         }
     }
 }

@@ -1,30 +1,39 @@
 use erl_tokenize::values::Symbol;
 
 use {Result, TokenReader, Parse, TokenRange, ErrorKind};
-use cst::Expression;
-use cst::primitives::{Args, Atom};
+use cst::Expr;
+use cst::primitives::{Args, Atom, Seq2, NonEmptySeq};
+use cst::symbols;
 
 #[derive(Debug)]
 pub struct LocalCall<'token, 'text: 'token> {
-    pub function_name: Atom<'token, 'text>,
-    pub args: Args<Expression<'token, 'text>>,
+    pub fun_name: Atom<'token, 'text>,
+    pub args: Args<Expr<'token, 'text>>,
 }
-impl<'token, 'text: 'token> Parse<'token, 'text> for LocalCall<'token, 'text> {
-    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        Ok(LocalCall {
-               function_name: track_try!(reader.parse_next()),
-               args: track_try!(reader.parse_next()),
-           })
-    }
+derive_parse!(LocalCall, fun_name, args);
+derive_token_range!(LocalCall, fun_name, args);
+
+#[derive(Debug)]
+pub struct Try<'token, 'text: 'token> {
+    pub _try: keywords::Try,
+    pub body: NonEmptySeq<Expr<'token, 'text>, symbols::Comm>,
+    pub try_of: Option<TryOf<'token, 'text>>,
+    pub try_catch: Option<TryCatch<'token, 'text>>,
+    pub try_after: Option<TryAfter<'token, 'text>>,
+    pub _end: keywords::End,
 }
-impl<'token, 'text: 'token> TokenRange for LocalCall<'token, 'text> {
-    fn token_start(&self) -> usize {
-        self.function_name.token_start()
-    }
-    fn token_end(&self) -> usize {
-        self.args.token_end()
-    }
+derive_parse!(Try, _try, body, try_of, try_catch, try_after, _end);
+derive_token_range!(Try, _try, _end);
+// TODO: catchとafterの両方がNoneなのはillegal
+
+#[derive(Debug)]
+pub struct List<'token, 'text: 'token> {
+    pub _open: symbols::OpenSquare,
+    pub elements: Seq2<Expr<'token, 'text>, symbols::Comma>,
+    pub _close: symbols::CloseSquare,
 }
+derive_parse!(List, _open, elements, _close);
+derive_token_range!(List, _open, _close);
 
 #[derive(Debug, Copy,Clone)]
 pub enum BinaryOp {
@@ -64,9 +73,9 @@ impl<'token, 'text: 'token> TokenRange for BinaryOp {
 
 #[derive(Debug)]
 pub struct BinaryOpCall<'token, 'text: 'token> {
-    pub left: Expression<'token, 'text>,
+    pub left: Expr<'token, 'text>,
     pub op: BinaryOp,
-    pub right: Expression<'token, 'text>,
+    pub right: Expr<'token, 'text>,
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for BinaryOpCall<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
