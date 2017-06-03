@@ -5,6 +5,33 @@ use {Result, TokenReader, Parse, TokenRange, ErrorKind};
 use super::symbols;
 
 #[derive(Debug)]
+pub struct Optional<T> {
+    pub position: usize,
+    pub value: Option<T>,
+}
+impl<'token, 'text: 'token, T> Parse<'token, 'text> for Optional<T>
+    where T: Parse<'token, 'text>
+{
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        let position = reader.position();
+        Ok(Optional {
+               position,
+               value: try_parse!(reader),
+           })
+    }
+}
+impl<T> TokenRange for Optional<T>
+    where T: TokenRange
+{
+    fn token_start(&self) -> usize {
+        self.position
+    }
+    fn token_end(&self) -> usize {
+        self.value.as_ref().map_or(self.position, |v| v.token_end())
+    }
+}
+
+#[derive(Debug)]
 pub struct Seq2<T, D> {
     pub position: usize,
     pub elems: Option<NonEmptySeq<T, D>>,

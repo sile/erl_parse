@@ -26,6 +26,19 @@ macro_rules! derive_parse {
         }
     }
 }
+macro_rules! derive_parse_trace {
+    ($type:ident, $($field:ident),*) => {
+        impl<'token, 'text: 'token> ::Parse<'token, 'text> for $type<'token, 'text> {
+            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+                Ok($type {
+                    $($field: {let t = try_parse!(reader);
+                               println!("# {} {}: {:?}", stringify!($type), stringify!($field), t);
+                               t}),*
+                })
+            }
+        }
+    }
+}
 macro_rules! derive_token_range {
     ($type:ident, $first:ident, $last:ident) => {
         impl<'token, 'text: 'token> ::TokenRange for $type<'token, 'text> {

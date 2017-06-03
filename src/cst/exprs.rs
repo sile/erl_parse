@@ -1,19 +1,55 @@
 use erl_tokenize::values::Symbol;
 
 use {Result, TokenReader, Parse, TokenRange, ErrorKind};
-use cst::Expr;
+use cst::{Expr, IdExpr, Pattern};
 use cst::clauses::{CaseClause, CatchClause};
 use cst::keywords;
-use cst::primitives::{Args, Seq2, NonEmptySeq, Clauses};
+use cst::primitives::{Args, Seq2, NonEmptySeq, Clauses, Optional};
 use cst::symbols;
 
 #[derive(Debug)]
-pub struct LocalCall<'token, 'text: 'token> {
-    pub fun_name: Expr<'token, 'text>,
+pub struct ModulePrefix<'token, 'text: 'token> {
+    pub name: IdExpr<'token, 'text>,
+    pub _colon: symbols::Colon,
+}
+derive_parse!(ModulePrefix, name, _colon);
+derive_token_range!(ModulePrefix, name, _colon);
+
+#[derive(Debug)]
+pub struct Match<'token, 'text: 'token> {
+    pub pattern: Pattern<'token, 'text>,
+    pub _match: symbols::Match,
+    pub value: Expr<'token, 'text>,
+}
+derive_parse!(Match, pattern, _match, value);
+derive_token_range!(Match, pattern, value);
+
+// #[derive(Debug)]
+// pub struct LocalCall<'token, 'text: 'token> {
+//     pub fun_name: Expr<'token, 'text>,
+//     pub args: Args<Expr<'token, 'text>>,
+// }
+// derive_parse!(LocalCall, fun_name, args);
+// de rive_token_range!(LocalCall, fun_name, args);
+
+// #[derive(Debug)]
+// pub struct RemoteCall<'token, 'text: 'token> {
+//     pub module_name: Expr<'token, 'text>,
+//     pub _colon: symbols::Colon,
+//     pub fun_name: Expr<'token, 'text>,
+//     pub args: Args<Expr<'token, 'text>>,
+// }
+// derive_parse_trace!(RemoteCall, module_name, _colon, fun_name, args);
+// derive_token_range!(RemoteCall, module_name, args);
+
+#[derive(Debug)]
+pub struct Call<'token, 'text: 'token> {
+    pub module: Optional<ModulePrefix<'token, 'text>>,
+    pub fun_name: IdExpr<'token, 'text>,
     pub args: Args<Expr<'token, 'text>>,
 }
-derive_parse!(LocalCall, fun_name, args);
-derive_token_range!(LocalCall, fun_name, args);
+derive_parse!(Call, module, fun_name, args);
+derive_token_range!(Call, module, args);
 
 #[derive(Debug)]
 pub struct Try<'token, 'text: 'token> {
@@ -56,10 +92,20 @@ derive_token_range!(TryAfter, _after, body);
 pub struct List<'token, 'text: 'token> {
     pub _open: symbols::OpenSquare,
     pub elements: Seq2<Expr<'token, 'text>, symbols::Comma>,
+    // TODO: [|0]が許容されてしまう
+    pub tail: Option<ListTail<'token, 'text>>,
     pub _close: symbols::CloseSquare,
 }
-derive_parse!(List, _open, elements, _close);
+derive_parse!(List, _open, elements, tail, _close);
 derive_token_range!(List, _open, _close);
+
+#[derive(Debug)]
+pub struct ListTail<'token, 'text: 'token> {
+    pub bar: symbols::VerticalBar,
+    pub element: Expr<'token, 'text>,
+}
+derive_parse!(ListTail, bar, element);
+derive_token_range!(ListTail, bar, element);
 
 #[derive(Debug, Copy,Clone)]
 pub enum BinaryOp {
@@ -68,7 +114,6 @@ pub enum BinaryOp {
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for BinaryOp {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        // reader.skip_hidden_tokens();
         let position = reader.position();
         let symbol = track_try!(reader.read_symbol());
         match symbol.value() {
