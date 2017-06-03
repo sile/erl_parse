@@ -376,6 +376,35 @@ impl<'token, 'text: 'token> TokenRange for AtomOrVar<'token, 'text> {
 }
 
 #[derive(Debug)]
+pub enum VarOr<'token, 'text: 'token, T> {
+    Var(Variable<'token, 'text>),
+    Val(T),
+}
+impl<'token, 'text: 'token, T> Parse<'token, 'text> for VarOr<'token, 'text, T>
+    where T: Parse<'token, 'text>
+{
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        if let Some(t) = reader.try_parse_next() {
+            Ok(VarOr::Val(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(VarOr::Var(t))
+        } else {
+            track_panic!(ErrorKind::Other, "Unrecognized token: {:?}", reader.read());
+        }
+    }
+}
+impl<'token, 'text: 'token, T> TokenRange for VarOr<'token, 'text, T>
+    where T: TokenRange
+{
+    fn token_range(&self) -> Range<usize> {
+        match *self {
+            VarOr::Val(ref t) => t.token_range(),
+            VarOr::Var(ref t) => t.token_range(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Atom<'token, 'text: 'token> {
     position: usize,
     value: &'token AtomToken<'text>,

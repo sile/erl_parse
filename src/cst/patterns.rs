@@ -1,5 +1,5 @@
 use cst::Pattern;
-use cst::primitives::Seq2;
+use cst::primitives::{Seq2, AtomOrVar, Optional, Args};
 use cst::symbols;
 
 #[derive(Debug)]
@@ -29,3 +29,13 @@ pub struct ListTail<'token, 'text: 'token> {
 }
 derive_parse!(ListTail, bar, element);
 derive_token_range!(ListTail, bar, element);
+
+// TODO: マクロはちゃんと展開する必要があるので、これでは不適切
+#[derive(Debug)]
+pub struct MacroCall<'token, 'text: 'token> {
+    pub _question: symbols::Question,
+    pub macro_name: AtomOrVar<'token, 'text>,
+    pub args: Optional<Args<Pattern<'token, 'text>>>,
+}
+derive_parse!(MacroCall, _question, macro_name, args);
+derive_token_range!(MacroCall, _question, args);

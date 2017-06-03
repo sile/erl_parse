@@ -32,3 +32,5 @@ define_keyword!(Of);
 define_keyword!(End);
 define_keyword!(Catch);
 define_keyword!(After);
+define_keyword!(Fun);
+define_keyword!(Case);

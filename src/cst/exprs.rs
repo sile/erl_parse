@@ -2,9 +2,9 @@ use erl_tokenize::values::Symbol;
 
 use {Result, TokenReader, Parse, TokenRange, ErrorKind};
 use cst::{Expr, IdExpr, Pattern};
-use cst::clauses::{CaseClause, CatchClause};
+use cst::clauses::{CaseClause, CatchClause, AnonymousFunClause};
 use cst::keywords;
-use cst::primitives::{Args, Seq2, NonEmptySeq, Clauses, Optional};
+use cst::primitives::{Args, Seq2, NonEmptySeq, Clauses, Optional, AtomOrVar, Integer, VarOr, Atom};
 use cst::symbols;
 
 #[derive(Debug)]
@@ -23,6 +23,43 @@ pub struct Match<'token, 'text: 'token> {
 }
 derive_parse!(Match, pattern, _match, value);
 derive_token_range!(Match, pattern, value);
+
+#[derive(Debug)]
+pub struct AnonymousFun<'token, 'text: 'token> {
+    pub _fun: keywords::Fun,
+    pub clauses: Clauses<AnonymousFunClause<'token, 'text>>,
+    pub _end: keywords::End,
+}
+derive_parse!(AnonymousFun, _fun, clauses, _end);
+derive_token_range!(AnonymousFun, _fun, _end);
+
+#[derive(Debug)]
+pub struct LocalFun<'token, 'text: 'token> {
+    pub _fun: keywords::Fun,
+    pub fun_name: Atom<'token, 'text>,
+    pub _slash: symbols::Slash,
+    pub arity: Integer<'token, 'text>,
+}
+derive_parse!(LocalFun, _fun, fun_name, _slash, arity);
+derive_token_range!(LocalFun, _fun, arity);
+
+#[derive(Debug)]
+pub struct RemoteFun<'token, 'text: 'token> {
+    pub _fun: keywords::Fun,
+    pub module_name: VarOr<'token, 'text, Atom<'token, 'text>>,
+    pub _colon: symbols::Colon,
+    pub fun_name: VarOr<'token, 'text, Atom<'token, 'text>>,
+    pub _slash: symbols::Slash,
+    pub arity: VarOr<'token, 'text, Integer<'token, 'text>>,
+}
+derive_parse!(RemoteFun,
+              _fun,
+              module_name,
+              _colon,
+              fun_name,
+              _slash,
+              arity);
+derive_token_range!(RemoteFun, _fun, arity);
 
 // #[derive(Debug)]
 // pub struct LocalCall<'token, 'text: 'token> {
@@ -51,6 +88,16 @@ pub struct Call<'token, 'text: 'token> {
 derive_parse!(Call, module, fun_name, args);
 derive_token_range!(Call, module, args);
 
+// TODO: マクロはちゃんと展開する必要があるので、これでは不適切
+#[derive(Debug)]
+pub struct MacroCall<'token, 'text: 'token> {
+    pub _question: symbols::Question,
+    pub macro_name: AtomOrVar<'token, 'text>,
+    pub args: Optional<Args<Expr<'token, 'text>>>,
+}
+derive_parse!(MacroCall, _question, macro_name, args);
+derive_token_range!(MacroCall, _question, args);
+
 #[derive(Debug)]
 pub struct Try<'token, 'text: 'token> {
     pub _try: keywords::Try,
@@ -63,6 +110,18 @@ pub struct Try<'token, 'text: 'token> {
 derive_parse!(Try, _try, body, try_of, try_catch, try_after, _end);
 derive_token_range!(Try, _try, _end);
 // TODO: catchとafterの両方がNoneなのはillegal
+
+
+#[derive(Debug)]
+pub struct Case<'token, 'text: 'token> {
+    pub _case: keywords::Case,
+    pub expr: Expr<'token, 'text>,
+    pub _of: keywords::Of,
+    pub clauses: Clauses<CaseClause<'token, 'text>>,
+    pub _end: keywords::End,
+}
+derive_parse!(Case, _case, expr, _of, clauses, _end);
+derive_token_range!(Case, _case, _end);
 
 #[derive(Debug)]
 pub struct TryOf<'token, 'text: 'token> {
@@ -100,6 +159,15 @@ derive_parse!(List, _open, elements, tail, _close);
 derive_token_range!(List, _open, _close);
 
 #[derive(Debug)]
+pub struct Tuple<'token, 'text: 'token> {
+    pub _open: symbols::OpenBrace,
+    pub elements: Seq2<Expr<'token, 'text>, symbols::Comma>,
+    pub _close: symbols::CloseBrace,
+}
+derive_parse!(Tuple, _open, elements, _close);
+derive_token_range!(Tuple, _open, _close);
+
+#[derive(Debug)]
 pub struct ListTail<'token, 'text: 'token> {
     pub bar: symbols::VerticalBar,
     pub element: Expr<'token, 'text>,
@@ -111,6 +179,7 @@ derive_token_range!(ListTail, bar, element);
 pub enum BinaryOp {
     Add { position: usize },
     Sub { position: usize },
+    LessThan { position: usize },
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for BinaryOp {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
@@ -119,6 +188,7 @@ impl<'token, 'text: 'token> Parse<'token, 'text> for BinaryOp {
         match symbol.value() {
             Symbol::Plus => Ok(BinaryOp::Add { position }),
             Symbol::Hyphen => Ok(BinaryOp::Sub { position }),
+            Symbol::Less => Ok(BinaryOp::LessThan { position }),
             _ => {
                 track_panic!(ErrorKind::InvalidInput,
                              "Not a binary operator: {:?}",
@@ -132,12 +202,14 @@ impl<'token, 'text: 'token> TokenRange for BinaryOp {
         match *self {
             BinaryOp::Add { position } => position,
             BinaryOp::Sub { position } => position,
+            BinaryOp::LessThan { position } => position,
         }
     }
     fn token_end(&self) -> usize {
         match *self {
             BinaryOp::Add { position } => position + 1,
             BinaryOp::Sub { position } => position + 1,
+            BinaryOp::LessThan { position } => position + 1,
         }
     }
 }

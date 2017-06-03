@@ -1,5 +1,6 @@
 use {Result, TokenReader, Parse, TokenRange};
 use cst::Type;
+use cst::keywords;
 use cst::primitives::{Args, Atom, Seq2, Variable, Int};
 use cst::symbols;
 
@@ -135,3 +136,41 @@ pub struct Parenthesized<'token, 'text: 'token> {
 }
 derive_parse!(Parenthesized, _open, ty, _close);
 derive_token_range!(Parenthesized, _open, _close);
+
+#[derive(Debug)]
+pub struct AnyArgFun<'token, 'text: 'token> {
+    pub _fun: keywords::Fun,
+    pub _open: symbols::OpenParen,
+
+    // TODO: AnyArg
+    pub _open_args: symbols::OpenParen,
+    pub _any: symbols::TripleDot,
+    pub _close_args: symbols::OpenParen,
+
+    pub _allow: symbols::RightAllow,
+    pub return_type: Type<'token, 'text>,
+    pub _close: symbols::CloseParen,
+}
+derive_parse!(AnyArgFun,
+              _fun,
+              _open,
+              _open_args,
+              _any,
+              _close_args,
+              _allow,
+              return_type,
+              _close);
+derive_token_range!(AnyArgFun, _fun, _close);
+
+#[derive(Debug)]
+pub struct Fun<'token, 'text: 'token> {
+    pub _fun: keywords::Fun,
+    pub _open: symbols::OpenParen,
+    pub args: Args<Type<'token, 'text>>,
+    pub _allow: symbols::RightAllow,
+    pub return_type: Type<'token, 'text>,
+    // TODO: guard
+    pub _close: symbols::CloseParen,
+}
+derive_parse!(Fun, _fun, _open, args, _allow, return_type, _close);
+derive_token_range!(Fun, _fun, _close);

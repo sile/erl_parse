@@ -126,6 +126,8 @@ pub enum Pattern<'token, 'text: 'token> {
     Variable(primitives::Variable<'token, 'text>),
     Tuple(Box<patterns::Tuple<'token, 'text>>),
     List(Box<patterns::List<'token, 'text>>),
+    // TODO: 暫定的な対処
+    MacroCall(Box<patterns::MacroCall<'token, 'text>>),
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Pattern<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
@@ -140,6 +142,8 @@ impl<'token, 'text: 'token> Parse<'token, 'text> for Pattern<'token, 'text> {
             Ok(Pattern::Tuple(t))
         } else if let Some(t) = reader.try_parse_next() {
             Ok(Pattern::List(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Pattern::MacroCall(t))
         } else {
             track_panic!(ErrorKind::InvalidInput,
                          "Unrecognized pattern: next={:?}",
@@ -154,7 +158,8 @@ impl<'token, 'text: 'token> TokenRange for Pattern<'token, 'text> {
             Pattern::Atom(ref t) => t.token_range(),
             Pattern::Variable(ref t) => t.token_range(),
             Pattern::Tuple(ref t) => t.token_range(),
-            Pattern::List(ref t) => t.token_range(),            
+            Pattern::List(ref t) => t.token_range(),
+            Pattern::MacroCall(ref t) => t.token_range(),
         }
     }
 }
@@ -165,12 +170,20 @@ pub enum Expr<'token, 'text: 'token> {
     Atom(primitives::Atom<'token, 'text>),
     Variable(primitives::Variable<'token, 'text>),
     List(Box<exprs::List<'token, 'text>>),
+    Tuple(Box<exprs::Tuple<'token, 'text>>),
     Try(Box<exprs::Try<'token, 'text>>),
     // LocalCall(Box<exprs::LocalCall<'token, 'text>>),
     // RemoteCall(Box<exprs::RemoteCall<'token, 'text>>),
     Call(Box<exprs::Call<'token, 'text>>),
     BinaryOpCall(Box<exprs::BinaryOpCall<'token, 'text>>),
     Match(Box<exprs::Match<'token, 'text>>),
+    AnonymousFun(Box<exprs::AnonymousFun<'token, 'text>>),
+    LocalFun(Box<exprs::LocalFun<'token, 'text>>),
+    RemoteFun(Box<exprs::RemoteFun<'token, 'text>>),
+    Case(Box<exprs::Case<'token, 'text>>),
+
+    // TODO: 暫定的な対処
+    MacroCall(Box<exprs::MacroCall<'token, 'text>>),
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Expr<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
@@ -180,6 +193,12 @@ impl<'token, 'text: 'token> Parse<'token, 'text> for Expr<'token, 'text> {
             //     Ok(Expr::RemoteCall(t))
             // } else if let Some(t) = reader.try_parse_next2(1) {
             //     Ok(Expr::LocalCall(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Expr::AnonymousFun(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Expr::LocalFun(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Expr::RemoteFun(t))
         } else if let Some(t) = reader.try_parse_next2(1) {
             Ok(Expr::Call(t))
         } else if let Some(t) = reader.try_parse_next2(3) {
@@ -193,7 +212,13 @@ impl<'token, 'text: 'token> Parse<'token, 'text> for Expr<'token, 'text> {
         } else if let Some(t) = reader.try_parse_next() {
             Ok(Expr::List(t))
         } else if let Some(t) = reader.try_parse_next() {
+            Ok(Expr::Tuple(t))
+        } else if let Some(t) = reader.try_parse_next() {
             Ok(Expr::Try(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Expr::Case(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Expr::MacroCall(t))
         } else {
             track_panic!(ErrorKind::InvalidInput,
                          "Unrecognized expr: {:?}",
@@ -212,8 +237,14 @@ impl<'token, 'text: 'token> TokenRange for Expr<'token, 'text> {
             Expr::Call(ref t) => t.token_range(),
             Expr::BinaryOpCall(ref t) => t.token_range(),
             Expr::List(ref t) => t.token_range(),
+            Expr::Tuple(ref t) => t.token_range(),
             Expr::Try(ref t) => t.token_range(),
+            Expr::Case(ref t) => t.token_range(),
             Expr::Match(ref t) => t.token_range(),
+            Expr::AnonymousFun(ref t) => t.token_range(),
+            Expr::LocalFun(ref t) => t.token_range(),
+            Expr::RemoteFun(ref t) => t.token_range(),
+            Expr::MacroCall(ref t) => t.token_range(),
         }
     }
 }
@@ -249,6 +280,8 @@ impl<'token, 'text: 'token> TokenRange for IdExpr<'token, 'text> {
 
 #[derive(Debug)]
 pub enum Type<'token, 'text: 'token> {
+    AnyArgFun(Box<types::AnyArgFun<'token, 'text>>),
+    Fun(Box<types::Fun<'token, 'text>>),
     Local(types::LocalType<'token, 'text>),
     Remote(types::RemoteType<'token, 'text>),
     Atom(primitives::Atom<'token, 'text>),
@@ -264,6 +297,10 @@ impl<'token, 'text: 'token> Parse<'token, 'text> for Type<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
         if let Some(t) = reader.try_parse_next2(2) {
             Ok(Type::Union(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Type::AnyArgFun(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Type::Fun(t))
         } else if let Some(t) = types::LocalType::try_parse(reader) {
             Ok(Type::Local(t))
         } else if let Some(t) = types::RemoteType::try_parse(reader) {
@@ -302,6 +339,8 @@ impl<'token, 'text: 'token> TokenRange for Type<'token, 'text> {
             Type::Annotated(ref t) => t.token_range(),
             Type::Parenthesized(ref t) => t.token_range(),
             Type::Union(ref t) => t.token_range(),
+            Type::Fun(ref t) => t.token_range(),
+            Type::AnyArgFun(ref t) => t.token_range(),
         }
     }
 }

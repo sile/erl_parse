@@ -4,6 +4,16 @@ use cst::primitives::{Seq, Args, Atom, AtomOrVar};
 use cst::symbols;
 
 #[derive(Debug)]
+pub struct AnonymousFunClause<'token, 'text: 'token> {
+    pub patterns: Args<Pattern<'token, 'text>>,
+    // TODO: guard
+    pub _allow: symbols::RightAllow,
+    pub body: Seq<Expr<'token, 'text>>,
+}
+derive_parse!(AnonymousFunClause, patterns, _allow, body);
+derive_token_range!(AnonymousFunClause, patterns, body);
+
+#[derive(Debug)]
 pub struct FunctionClause<'token, 'text: 'token> {
     pub name: Atom<'token, 'text>,
     pub patterns: Args<Pattern<'token, 'text>>,
