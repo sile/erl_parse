@@ -162,42 +162,31 @@ pub enum Expr<'token, 'text: 'token> {
     Integer(primitives::Integer<'token, 'text>),
     Atom(primitives::Atom<'token, 'text>),
     Variable(primitives::Variable<'token, 'text>),
-    LocalCall(exprs::LocalCall<'token, 'text>),
-    BinaryOpCall(Box<exprs::BinaryOpCall<'token, 'text>>),
     List(Box<exprs::List<'token, 'text>>),
     Try(Box<exprs::Try<'token, 'text>>),
+    LocalCall(Box<exprs::LocalCall<'token, 'text>>),
+    BinaryOpCall(Box<exprs::BinaryOpCall<'token, 'text>>),
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Expr<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        // TODO: improve
-        let expr = if let Some(t) = reader.try_parse_next() {
-            Expr::Integer(t)
+        if let Some(t) = reader.try_parse_next2(0) {
+            Ok(Expr::BinaryOpCall(Box::new(t)))
+        } else if let Some(t) = reader.try_parse_next2(1) {
+            Ok(Expr::LocalCall(Box::new(t)))
         } else if let Some(t) = reader.try_parse_next() {
-            Expr::LocalCall(t)
+            Ok(Expr::Integer(t))
         } else if let Some(t) = reader.try_parse_next() {
-            Expr::Variable(t)
+            Ok(Expr::Variable(t))
         } else if let Some(t) = reader.try_parse_next() {
-            Expr::Atom(t)
+            Ok(Expr::Atom(t))
         } else if let Some(t) = reader.try_parse_next() {
-            Expr::List(Box::new(t))
+            Ok(Expr::List(Box::new(t)))
         } else if let Some(t) = reader.try_parse_next() {
-            Expr::Try(Box::new(t))
+            Ok(Expr::Try(Box::new(t)))
         } else {
-            // reader.skip_hidden_tokens();
             track_panic!(ErrorKind::InvalidInput,
-                         "Unrecognized expression: next={:?}",
+                         "Unrecognized expr: {:?}",
                          reader.read());
-        };
-        if let Some(op) = exprs::BinaryOp::try_parse(reader) {
-            let right = track_try!(reader.parse_next());
-            let expr = exprs::BinaryOpCall {
-                left: expr,
-                op,
-                right,
-            };
-            Ok(Expr::BinaryOpCall(Box::new(expr)))
-        } else {
-            Ok(expr)
         }
     }
 }
@@ -211,61 +200,6 @@ impl<'token, 'text: 'token> TokenRange for Expr<'token, 'text> {
             Expr::BinaryOpCall(ref t) => t.token_range(),
             Expr::List(ref t) => t.token_range(),
             Expr::Try(ref t) => t.token_range(),
-        }
-    }
-}
-
-// XXX: name => NonUnionType (?)
-#[derive(Debug)]
-enum NonRecursiveType<'token, 'text: 'token> {
-    Local(types::LocalType<'token, 'text>),
-    Remote(types::RemoteType<'token, 'text>),
-    Atom(primitives::Atom<'token, 'text>),
-    Int(primitives::Int<'token, 'text>),
-    IntRange(types::IntRange<'token, 'text>),
-    List(types::List<'token, 'text>),
-    Tuple(types::Tuple<'token, 'text>),
-    Annotated(types::Annotated<'token, 'text>),
-    Parenthesized(types::Parenthesized<'token, 'text>),
-}
-impl<'token, 'text: 'token> Parse<'token, 'text> for NonRecursiveType<'token, 'text> {
-    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        // TODO: improve
-        if let Some(t) = types::LocalType::try_parse(reader) {
-            Ok(NonRecursiveType::Local(t))
-        } else if let Some(t) = types::RemoteType::try_parse(reader) {
-            Ok(NonRecursiveType::Remote(t))
-        } else if let Some(t) = primitives::Atom::try_parse(reader) {
-            Ok(NonRecursiveType::Atom(t))
-        } else if let Some(t) = reader.try_parse_next() {
-            Ok(NonRecursiveType::IntRange(t))
-        } else if let Some(t) = reader.try_parse_next() {
-            Ok(NonRecursiveType::Int(t))
-        } else if let Some(t) = reader.try_parse_next() {
-            Ok(NonRecursiveType::List(t))
-        } else if let Some(t) = reader.try_parse_next() {
-            Ok(NonRecursiveType::Tuple(t))
-        } else if let Some(t) = reader.try_parse_next() {
-            Ok(NonRecursiveType::Annotated(t))
-        } else if let Some(t) = reader.try_parse_next() {
-            Ok(NonRecursiveType::Parenthesized(t))
-        } else {
-            track_panic!(ErrorKind::InvalidInput, "Unrecognized type");
-        }
-    }
-}
-impl<'token, 'text: 'token> From<NonRecursiveType<'token, 'text>> for Type<'token, 'text> {
-    fn from(f: NonRecursiveType<'token, 'text>) -> Self {
-        match f {
-            NonRecursiveType::Local(t) => Type::Local(t),
-            NonRecursiveType::Remote(t) => Type::Remote(t),
-            NonRecursiveType::Atom(t) => Type::Atom(t),
-            NonRecursiveType::Int(t) => Type::Int(t),
-            NonRecursiveType::IntRange(t) => Type::IntRange(t),
-            NonRecursiveType::List(t) => Type::List(Box::new(t)),
-            NonRecursiveType::Tuple(t) => Type::Tuple(Box::new(t)),
-            NonRecursiveType::Annotated(t) => Type::Annotated(Box::new(t)),
-            NonRecursiveType::Parenthesized(t) => Type::Parenthesized(Box::new(t)),
         }
     }
 }
@@ -285,10 +219,26 @@ pub enum Type<'token, 'text: 'token> {
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Type<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        if let Some(t) = types::Union::try_parse(reader) {
-            Ok(Type::Union(Box::new(t)))
-        } else if let Some(t) = NonRecursiveType::try_parse(reader) {
-            Ok(t.into())
+        if let Some(t) = reader.try_parse_next2(2) {
+            Ok(Type::Union(t))
+        } else if let Some(t) = types::LocalType::try_parse(reader) {
+            Ok(Type::Local(t))
+        } else if let Some(t) = types::RemoteType::try_parse(reader) {
+            Ok(Type::Remote(t))
+        } else if let Some(t) = primitives::Atom::try_parse(reader) {
+            Ok(Type::Atom(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Type::IntRange(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Type::Int(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Type::List(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Type::Tuple(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Type::Annotated(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(Type::Parenthesized(t))
         } else {
             track_panic!(ErrorKind::InvalidInput,
                          "Unrecognized type: {:?}",

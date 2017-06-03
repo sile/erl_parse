@@ -41,3 +41,11 @@ impl<'token, 'text: 'token, P> Parse<'token, 'text> for Vec<P>
         Ok(vec)
     }
 }
+impl<'token, 'text: 'token, P> Parse<'token, 'text> for Box<P>
+    where P: Parse<'token, 'text>
+{
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        let v = try_parse!(reader);
+        Ok(Box::new(v))
+    }
+}

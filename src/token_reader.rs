@@ -1,3 +1,4 @@
+use std::collections::{HashSet, HashMap};
 use erl_tokenize::Token;
 use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, VariableToken, StringToken,
                            KeywordToken};
@@ -10,6 +11,9 @@ pub struct TokenReader<'token, 'text: 'token> {
     tokens: &'token [Token<'text>],
     position: usize,
     line_num: usize,
+
+    // TODO: optimize
+    recurs: HashMap<usize, HashSet<usize>>,
 }
 impl<'token, 'text: 'token> TokenReader<'token, 'text> {
     pub fn new(tokens: &'token [Token<'text>]) -> Self {
@@ -17,6 +21,7 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
             tokens,
             position: 0,
             line_num: 1,
+            recurs: HashMap::new(),
         };
         this.skip_hidden_tokens();
         this
@@ -35,6 +40,25 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
     }
     pub fn try_parse_next<T: Parse<'token, 'text>>(&mut self) -> Option<T> {
         T::try_parse(self)
+    }
+    pub fn try_parse_next2<T: Parse<'token, 'text>>(&mut self, tag: usize) -> Option<T> {
+        let position = self.position;
+        if self.recurs
+               .get(&position)
+               .map_or(false, |s| s.contains(&tag)) {
+            None
+        } else {
+            self.recurs
+                .entry(position)
+                .or_insert_with(|| HashSet::new())
+                .insert(tag);
+            let r = T::try_parse(self);
+            self.recurs
+                .entry(position)
+                .or_insert_with(|| HashSet::new())
+                .remove(&tag);
+            r
+        }
     }
 
     pub fn remaining_tokens(&self) -> &'token [Token<'text>] {

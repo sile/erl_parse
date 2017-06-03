@@ -4,12 +4,12 @@ use {Result, TokenReader, Parse, TokenRange, ErrorKind};
 use cst::Expr;
 use cst::clauses::{CaseClause, CatchClause};
 use cst::keywords;
-use cst::primitives::{Args, Atom, Seq2, NonEmptySeq, Clauses};
+use cst::primitives::{Args, Seq2, NonEmptySeq, Clauses};
 use cst::symbols;
 
 #[derive(Debug)]
 pub struct LocalCall<'token, 'text: 'token> {
-    pub fun_name: Atom<'token, 'text>,
+    pub fun_name: Expr<'token, 'text>,
     pub args: Args<Expr<'token, 'text>>,
 }
 derive_parse!(LocalCall, fun_name, args);
@@ -103,20 +103,5 @@ pub struct BinaryOpCall<'token, 'text: 'token> {
     pub op: BinaryOp,
     pub right: Expr<'token, 'text>,
 }
-impl<'token, 'text: 'token> Parse<'token, 'text> for BinaryOpCall<'token, 'text> {
-    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        Ok(BinaryOpCall {
-               left: track_try!(reader.parse_next()),
-               op: track_try!(reader.parse_next()),
-               right: track_try!(reader.parse_next()),
-           })
-    }
-}
-impl<'token, 'text: 'token> TokenRange for BinaryOpCall<'token, 'text> {
-    fn token_start(&self) -> usize {
-        self.left.token_start()
-    }
-    fn token_end(&self) -> usize {
-        self.right.token_end()
-    }
-}
+derive_parse!(BinaryOpCall, left, op, right);
+derive_token_range!(BinaryOpCall, left, right);

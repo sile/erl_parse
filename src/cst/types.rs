@@ -1,5 +1,5 @@
 use {Result, TokenReader, Parse, TokenRange};
-use cst::{Type, NonRecursiveType};
+use cst::Type;
 use cst::primitives::{Args, Atom, Seq2, Variable, Int};
 use cst::symbols;
 
@@ -71,15 +71,7 @@ pub struct Union<'token, 'text: 'token> {
     pub head: Type<'token, 'text>,
     pub tail: Vec<UnionElem<'token, 'text>>,
 }
-impl<'token, 'text: 'token> Parse<'token, 'text> for Union<'token, 'text> {
-    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        let head: NonRecursiveType = try_parse!(reader);
-        Ok(Union {
-               head: head.into(),
-               tail: try_parse!(reader),
-           })
-    }
-}
+derive_parse!(Union, head, tail);
 impl<'token, 'text: 'token> TokenRange for Union<'token, 'text> {
     fn token_start(&self) -> usize {
         self.head.token_start()
@@ -96,13 +88,7 @@ pub struct UnionElem<'token, 'text: 'token> {
     pub bar: symbols::VerticalBar,
     pub ty: Type<'token, 'text>,
 }
-impl<'token, 'text: 'token> Parse<'token, 'text> for UnionElem<'token, 'text> {
-    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
-        let bar = try_parse!(reader);
-        let ty: NonRecursiveType = try_parse!(reader);
-        Ok(UnionElem { bar, ty: ty.into() })
-    }
-}
+derive_parse!(UnionElem, bar, ty);
 derive_token_range!(UnionElem, bar, ty);
 
 #[derive(Debug)]
