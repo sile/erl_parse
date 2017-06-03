@@ -2,7 +2,9 @@ use erl_tokenize::values::Symbol;
 
 use {Result, TokenReader, Parse, TokenRange, ErrorKind};
 use cst::Expr;
-use cst::primitives::{Args, Atom, Seq2, NonEmptySeq};
+use cst::clauses::{CaseClause, CatchClause};
+use cst::keywords;
+use cst::primitives::{Args, Atom, Seq2, NonEmptySeq, Clauses};
 use cst::symbols;
 
 #[derive(Debug)]
@@ -16,7 +18,7 @@ derive_token_range!(LocalCall, fun_name, args);
 #[derive(Debug)]
 pub struct Try<'token, 'text: 'token> {
     pub _try: keywords::Try,
-    pub body: NonEmptySeq<Expr<'token, 'text>, symbols::Comm>,
+    pub body: NonEmptySeq<Expr<'token, 'text>, symbols::Comma>,
     pub try_of: Option<TryOf<'token, 'text>>,
     pub try_catch: Option<TryCatch<'token, 'text>>,
     pub try_after: Option<TryAfter<'token, 'text>>,
@@ -25,6 +27,30 @@ pub struct Try<'token, 'text: 'token> {
 derive_parse!(Try, _try, body, try_of, try_catch, try_after, _end);
 derive_token_range!(Try, _try, _end);
 // TODO: catchとafterの両方がNoneなのはillegal
+
+#[derive(Debug)]
+pub struct TryOf<'token, 'text: 'token> {
+    pub _of: keywords::Of,
+    pub clauses: Clauses<CaseClause<'token, 'text>>,
+}
+derive_parse!(TryOf, _of, clauses);
+derive_token_range!(TryOf, _of, clauses);
+
+#[derive(Debug)]
+pub struct TryCatch<'token, 'text: 'token> {
+    pub _catch: keywords::Catch,
+    pub clauses: Clauses<CatchClause<'token, 'text>>,
+}
+derive_parse!(TryCatch, _catch, clauses);
+derive_token_range!(TryCatch, _catch, clauses);
+
+#[derive(Debug)]
+pub struct TryAfter<'token, 'text: 'token> {
+    pub _after: keywords::After,
+    pub body: NonEmptySeq<Expr<'token, 'text>, symbols::Comma>,
+}
+derive_parse!(TryAfter, _after, body);
+derive_token_range!(TryAfter, _after, body);
 
 #[derive(Debug)]
 pub struct List<'token, 'text: 'token> {

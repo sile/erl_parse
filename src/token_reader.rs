@@ -1,6 +1,7 @@
 use erl_tokenize::Token;
-use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, VariableToken, StringToken};
-use erl_tokenize::values::{Symbol, Whitespace};
+use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, VariableToken, StringToken,
+                           KeywordToken};
+use erl_tokenize::values::{Symbol, Whitespace, Keyword};
 
 use {Result, ErrorKind, Parse};
 
@@ -121,6 +122,21 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
     pub fn expect_symbol(&mut self, expected: Symbol) -> Result<()> {
         let symbol = track_try!(self.read_symbol());
         track_assert_eq!(symbol.value(), expected, ErrorKind::InvalidInput);
+        Ok(())
+    }
+    pub fn read_keyword(&mut self) -> Result<&'token KeywordToken<'text>> {
+        let token = track_try!(self.read());
+        if let Token::Keyword(ref token) = *token {
+            Ok(token)
+        } else {
+            track_panic!(ErrorKind::InvalidInput,
+                         "expected=KeywordToken, actual={:?}",
+                         token);
+        }
+    }
+    pub fn expect_keyword(&mut self, expected: Keyword) -> Result<()> {
+        let keyword = track_try!(self.read_keyword());
+        track_assert_eq!(keyword.value(), expected, ErrorKind::InvalidInput);
         Ok(())
     }
     pub fn expect_atom(&mut self, expected: &str) -> Result<()> {

@@ -9,6 +9,7 @@ pub mod atoms;
 pub mod clauses;
 pub mod exprs;
 pub mod forms;
+pub mod keywords;
 pub mod primitives;
 pub mod symbols;
 pub mod types;
@@ -164,7 +165,7 @@ pub enum Expr<'token, 'text: 'token> {
     LocalCall(exprs::LocalCall<'token, 'text>),
     BinaryOpCall(Box<exprs::BinaryOpCall<'token, 'text>>),
     List(Box<exprs::List<'token, 'text>>),
-    Try(Box<expr::Try<'token, 'text>>),
+    Try(Box<exprs::Try<'token, 'text>>),
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for Expr<'token, 'text> {
     fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {

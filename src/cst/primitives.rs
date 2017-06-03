@@ -1,7 +1,7 @@
-use std::ops::Deref;
+use std::ops::{Range, Deref};
 use erl_tokenize::tokens::{AtomToken, IntegerToken, VariableToken, StringToken};
 
-use {Result, TokenReader, Parse, TokenRange};
+use {Result, TokenReader, Parse, TokenRange, ErrorKind};
 use super::symbols;
 
 #[derive(Debug)]
@@ -320,6 +320,31 @@ impl<T> TokenRange for Arg<T>
     fn token_end(&self) -> usize {
         self.delimiter
             .map_or(self.arg.token_end(), |d| d.token_end())
+    }
+}
+
+#[derive(Debug)]
+pub enum AtomOrVar<'token, 'text: 'token> {
+    Atom(Atom<'token, 'text>),
+    Var(Variable<'token, 'text>),
+}
+impl<'token, 'text: 'token> Parse<'token, 'text> for AtomOrVar<'token, 'text> {
+    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        if let Some(t) = reader.try_parse_next() {
+            Ok(AtomOrVar::Atom(t))
+        } else if let Some(t) = reader.try_parse_next() {
+            Ok(AtomOrVar::Var(t))
+        } else {
+            track_panic!(ErrorKind::Other, "Unrecognized token: {:?}", reader.read());
+        }
+    }
+}
+impl<'token, 'text: 'token> TokenRange for AtomOrVar<'token, 'text> {
+    fn token_range(&self) -> Range<usize> {
+        match *self {
+            AtomOrVar::Atom(ref t) => t.token_range(),
+            AtomOrVar::Var(ref t) => t.token_range(),
+        }
     }
 }
 
