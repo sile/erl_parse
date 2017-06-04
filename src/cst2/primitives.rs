@@ -4,7 +4,7 @@ use erl_tokenize::tokens::{AtomToken, IntegerToken, VariableToken, StringToken};
 use {Result, TokenReader, Parse, TokenRange, ErrorKind};
 use super::symbols;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Optional<T> {
     pub position: usize,
     pub value: Option<T>,
@@ -31,7 +31,7 @@ impl<T> TokenRange for Optional<T>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Seq2<T, D> {
     pub position: usize,
     pub elems: Option<NonEmptySeq<T, D>>,
@@ -60,7 +60,7 @@ impl<T, D> TokenRange for Seq2<T, D>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NonEmptySeq<T, D> {
     pub head: T,
     pub tail: Vec<SeqElem<T, D>>,
@@ -80,7 +80,7 @@ impl<T, D> TokenRange for NonEmptySeq<T, D>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SeqElem<T, D> {
     pub delim: D,
     pub elem: T,
@@ -89,7 +89,7 @@ derive_parse3!(SeqElem, delim, elem);
 derive_token_range3!(SeqElem, delim, elem);
 
 // non empty
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Seq<T> {
     pub position: usize,
     pub items: Vec<SeqItem<T>>,
@@ -122,7 +122,7 @@ impl<T> TokenRange for Seq<T>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SeqItem<T> {
     pub item: T,
     pub delimiter: Option<symbols::Comma>,
@@ -148,7 +148,7 @@ impl<T> TokenRange for SeqItem<T>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Clauses<T> {
     pub position: usize,
     pub clauses: Vec<Clause<T>>,
@@ -181,7 +181,7 @@ impl<T> TokenRange for Clauses<T>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Clause<T> {
     pub clause: T,
     pub delimiter: Option<symbols::Semicolon>,
@@ -208,7 +208,7 @@ impl<T> TokenRange for Clause<T>
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tuple<T> {
     pub _open: symbols::OpenBrace,
     pub elements: Seq<T>,
@@ -217,7 +217,7 @@ pub struct Tuple<T> {
 derive_parse2!(Tuple, _open, elements, _close);
 derive_token_range2!(Tuple, _open, _close);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct List<T> {
     pub open: symbols::OpenSquare,
     pub elements: Vec<ListElement<T>>,
@@ -261,7 +261,7 @@ impl<T> TokenRange for List<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListElement<T> {
     pub value: T,
     pub delimiter: Option<symbols::Comma>,
@@ -287,7 +287,7 @@ impl<T> TokenRange for ListElement<T>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Args<T> {
     pub open: symbols::OpenParen,
     pub args: Vec<Arg<T>>,
@@ -324,7 +324,7 @@ impl<T> TokenRange for Args<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Arg<T> {
     pub arg: T,
     pub delimiter: Option<symbols::Comma>,
@@ -350,7 +350,7 @@ impl<T> TokenRange for Arg<T>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AtomOrVar<'token, 'text: 'token> {
     Atom(Atom<'token, 'text>),
     Var(Variable<'token, 'text>),
@@ -375,7 +375,7 @@ impl<'token, 'text: 'token> TokenRange for AtomOrVar<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum VarOr<'token, 'text: 'token, T> {
     Var(Variable<'token, 'text>),
     Val(T),
@@ -404,7 +404,7 @@ impl<'token, 'text: 'token, T> TokenRange for VarOr<'token, 'text, T>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Atom<'token, 'text: 'token> {
     position: usize,
     value: &'token AtomToken<'text>,
@@ -432,7 +432,7 @@ impl<'token, 'text: 'token> TokenRange for Atom<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Str<'token, 'text: 'token> {
     position: usize,
     value: &'token StringToken<'text>,
@@ -460,7 +460,7 @@ impl<'token, 'text: 'token> TokenRange for Str<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Variable<'token, 'text: 'token> {
     position: usize,
     value: &'token VariableToken<'text>,
@@ -488,7 +488,7 @@ impl<'token, 'text: 'token> TokenRange for Variable<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ModuleAtom<'token, 'text: 'token> {
     pub module_name: Atom<'token, 'text>,
     pub colon: symbols::Colon,
@@ -510,7 +510,7 @@ impl<'token, 'text: 'token> TokenRange for ModuleAtom<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Int<'token, 'text: 'token> {
     pub sign: NumSign,
     pub value: Integer<'token, 'text>,
@@ -518,7 +518,7 @@ pub struct Int<'token, 'text: 'token> {
 derive_parse!(Int, sign, value);
 derive_token_range!(Int, sign, value);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NumSign {
     position: usize,
     pub sign: Option<Sign>,
@@ -552,7 +552,7 @@ pub enum Sign {
 }
 
 // TODO:
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Integer<'token, 'text: 'token> {
     position: usize,
     value: &'token IntegerToken<'text>,
@@ -579,7 +579,7 @@ impl<'token, 'text: 'token> TokenRange for Integer<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Export<'token, 'text: 'token> {
     pub fun_name: Atom<'token, 'text>,
     pub delim: symbols::Slash,
@@ -588,7 +588,7 @@ pub struct Export<'token, 'text: 'token> {
 derive_parse!(Export, fun_name, delim, arity);
 derive_token_range!(Export, fun_name, arity);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Import<'token, 'text: 'token> {
     pub fun_name: Atom<'token, 'text>,
     pub delim: symbols::Slash,
@@ -597,7 +597,7 @@ pub struct Import<'token, 'text: 'token> {
 derive_parse!(Import, fun_name, delim, arity);
 derive_token_range!(Import, fun_name, arity);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExportType<'token, 'text: 'token> {
     pub type_name: Atom<'token, 'text>,
     pub delim: symbols::Slash,

@@ -2,7 +2,7 @@ use {Result, TokenReader, Parse, TokenRange, ErrorKind};
 
 macro_rules! define_atom {
     ($name:ident, $($value:pat)|*) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone)]
         pub struct $name {
             position: usize,
         }

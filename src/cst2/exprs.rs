@@ -7,7 +7,7 @@ use cst::keywords;
 use cst::primitives::{Args, Seq2, NonEmptySeq, Clauses, Optional, AtomOrVar, Integer, VarOr, Atom};
 use cst::symbols;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ModulePrefix<'token, 'text: 'token> {
     pub name: IdExpr<'token, 'text>,
     pub _colon: symbols::Colon,
@@ -15,7 +15,7 @@ pub struct ModulePrefix<'token, 'text: 'token> {
 derive_parse!(ModulePrefix, name, _colon);
 derive_token_range!(ModulePrefix, name, _colon);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Match<'token, 'text: 'token> {
     pub pattern: Pattern<'token, 'text>,
     pub _match: symbols::Match,
@@ -24,7 +24,7 @@ pub struct Match<'token, 'text: 'token> {
 derive_parse!(Match, pattern, _match, value);
 derive_token_range!(Match, pattern, value);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AnonymousFun<'token, 'text: 'token> {
     pub _fun: keywords::Fun,
     pub clauses: Clauses<AnonymousFunClause<'token, 'text>>,
@@ -33,7 +33,7 @@ pub struct AnonymousFun<'token, 'text: 'token> {
 derive_parse!(AnonymousFun, _fun, clauses, _end);
 derive_token_range!(AnonymousFun, _fun, _end);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalFun<'token, 'text: 'token> {
     pub _fun: keywords::Fun,
     pub fun_name: Atom<'token, 'text>,
@@ -43,7 +43,7 @@ pub struct LocalFun<'token, 'text: 'token> {
 derive_parse!(LocalFun, _fun, fun_name, _slash, arity);
 derive_token_range!(LocalFun, _fun, arity);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RemoteFun<'token, 'text: 'token> {
     pub _fun: keywords::Fun,
     pub module_name: VarOr<'token, 'text, Atom<'token, 'text>>,
@@ -61,7 +61,7 @@ derive_parse!(RemoteFun,
               arity);
 derive_token_range!(RemoteFun, _fun, arity);
 
-// #[derive(Debug)]
+// #[derive(Debug, Clone)]
 // pub struct LocalCall<'token, 'text: 'token> {
 //     pub fun_name: Expr<'token, 'text>,
 //     pub args: Args<Expr<'token, 'text>>,
@@ -69,7 +69,7 @@ derive_token_range!(RemoteFun, _fun, arity);
 // derive_parse!(LocalCall, fun_name, args);
 // de rive_token_range!(LocalCall, fun_name, args);
 
-// #[derive(Debug)]
+// #[derive(Debug, Clone)]
 // pub struct RemoteCall<'token, 'text: 'token> {
 //     pub module_name: Expr<'token, 'text>,
 //     pub _colon: symbols::Colon,
@@ -79,7 +79,7 @@ derive_token_range!(RemoteFun, _fun, arity);
 // derive_parse_trace!(RemoteCall, module_name, _colon, fun_name, args);
 // derive_token_range!(RemoteCall, module_name, args);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Call<'token, 'text: 'token> {
     pub module: Optional<ModulePrefix<'token, 'text>>,
     pub fun_name: IdExpr<'token, 'text>,
@@ -89,7 +89,7 @@ derive_parse!(Call, module, fun_name, args);
 derive_token_range!(Call, module, args);
 
 // TODO: マクロはちゃんと展開する必要があるので、これでは不適切
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroCall<'token, 'text: 'token> {
     pub _question: symbols::Question,
     pub macro_name: AtomOrVar<'token, 'text>,
@@ -98,7 +98,7 @@ pub struct MacroCall<'token, 'text: 'token> {
 derive_parse!(MacroCall, _question, macro_name, args);
 derive_token_range!(MacroCall, _question, args);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Try<'token, 'text: 'token> {
     pub _try: keywords::Try,
     pub body: NonEmptySeq<Expr<'token, 'text>, symbols::Comma>,
@@ -112,7 +112,7 @@ derive_token_range!(Try, _try, _end);
 // TODO: catchとafterの両方がNoneなのはillegal
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Case<'token, 'text: 'token> {
     pub _case: keywords::Case,
     pub expr: Expr<'token, 'text>,
@@ -123,7 +123,7 @@ pub struct Case<'token, 'text: 'token> {
 derive_parse!(Case, _case, expr, _of, clauses, _end);
 derive_token_range!(Case, _case, _end);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TryOf<'token, 'text: 'token> {
     pub _of: keywords::Of,
     pub clauses: Clauses<CaseClause<'token, 'text>>,
@@ -131,7 +131,7 @@ pub struct TryOf<'token, 'text: 'token> {
 derive_parse!(TryOf, _of, clauses);
 derive_token_range!(TryOf, _of, clauses);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TryCatch<'token, 'text: 'token> {
     pub _catch: keywords::Catch,
     pub clauses: Clauses<CatchClause<'token, 'text>>,
@@ -139,7 +139,7 @@ pub struct TryCatch<'token, 'text: 'token> {
 derive_parse!(TryCatch, _catch, clauses);
 derive_token_range!(TryCatch, _catch, clauses);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TryAfter<'token, 'text: 'token> {
     pub _after: keywords::After,
     pub body: NonEmptySeq<Expr<'token, 'text>, symbols::Comma>,
@@ -147,7 +147,7 @@ pub struct TryAfter<'token, 'text: 'token> {
 derive_parse!(TryAfter, _after, body);
 derive_token_range!(TryAfter, _after, body);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct List<'token, 'text: 'token> {
     pub _open: symbols::OpenSquare,
     pub elements: Seq2<Expr<'token, 'text>, symbols::Comma>,
@@ -158,7 +158,7 @@ pub struct List<'token, 'text: 'token> {
 derive_parse!(List, _open, elements, tail, _close);
 derive_token_range!(List, _open, _close);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tuple<'token, 'text: 'token> {
     pub _open: symbols::OpenBrace,
     pub elements: Seq2<Expr<'token, 'text>, symbols::Comma>,
@@ -167,7 +167,7 @@ pub struct Tuple<'token, 'text: 'token> {
 derive_parse!(Tuple, _open, elements, _close);
 derive_token_range!(Tuple, _open, _close);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListTail<'token, 'text: 'token> {
     pub bar: symbols::VerticalBar,
     pub element: Expr<'token, 'text>,
@@ -214,7 +214,7 @@ impl<'token, 'text: 'token> TokenRange for BinaryOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BinaryOpCall<'token, 'text: 'token> {
     pub left: Expr<'token, 'text>,
     pub op: BinaryOp,

@@ -3,7 +3,7 @@ use cst::{Pattern, Expr};
 use cst::primitives::{Seq, Args, Atom, AtomOrVar};
 use cst::symbols;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AnonymousFunClause<'token, 'text: 'token> {
     pub patterns: Args<Pattern<'token, 'text>>,
     // TODO: guard
@@ -13,7 +13,7 @@ pub struct AnonymousFunClause<'token, 'text: 'token> {
 derive_parse!(AnonymousFunClause, patterns, _allow, body);
 derive_token_range!(AnonymousFunClause, patterns, body);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionClause<'token, 'text: 'token> {
     pub name: Atom<'token, 'text>,
     pub patterns: Args<Pattern<'token, 'text>>,
@@ -40,7 +40,7 @@ impl<'token, 'text: 'token> TokenRange for FunctionClause<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CaseClause<'token, 'text: 'token> {
     pub pattern: Pattern<'token, 'text>,
     // TODO: guard
@@ -50,7 +50,7 @@ pub struct CaseClause<'token, 'text: 'token> {
 derive_parse!(CaseClause, pattern, _allow, body);
 derive_token_range!(CaseClause, pattern, body);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CatchClause<'token, 'text: 'token> {
     pub exception_class: Option<ExceptionClass<'token, 'text>>,
     pub pattern: Pattern<'token, 'text>,
@@ -71,7 +71,7 @@ impl<'token, 'text: 'token> TokenRange for CatchClause<'token, 'text> {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExceptionClass<'token, 'text: 'token> {
     pub class: AtomOrVar<'token, 'text>,
     pub _colon: symbols::Colon,

@@ -5,7 +5,7 @@ use {Result, ErrorKind};
 
 // TODO: Support macro expansions
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TokenReader<'token, 'text: 'token> {
     tokens: &'token [Token<'text>],
     position: usize,

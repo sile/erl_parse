@@ -9,7 +9,7 @@ use super::primitives::{Atom, List, Export, Import, ModuleAtom, Clauses, ExportT
 use super::symbols;
 use super::types;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ModuleAttr<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _module: atoms::Module,
@@ -27,7 +27,7 @@ derive_parse!(ModuleAttr,
               _dot);
 derive_token_range!(ModuleAttr, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BehaviourAttr<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _behaviour: atoms::Behaviour,
@@ -45,7 +45,7 @@ derive_parse!(BehaviourAttr,
               _dot);
 derive_token_range!(BehaviourAttr, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExportAttr<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _export: atoms::Export,
@@ -57,7 +57,7 @@ pub struct ExportAttr<'token, 'text: 'token> {
 derive_parse!(ExportAttr, _hyphen, _export, _open, exports, _close, _dot);
 derive_token_range!(ExportAttr, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ImportAttr<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _import: atoms::Import,
@@ -79,7 +79,7 @@ derive_parse!(ImportAttr,
               _dot);
 derive_token_range!(ImportAttr, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExportTypeAttr<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _export_type: atoms::ExportType,
@@ -97,7 +97,7 @@ derive_parse!(ExportTypeAttr,
               _dot);
 derive_token_range!(ExportTypeAttr, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FileAttr<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _file: atoms::File,
@@ -119,7 +119,7 @@ derive_parse!(FileAttr,
               _dot);
 derive_token_range!(FileAttr, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WildAttr<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub attr_name: Atom<'token, 'text>,
@@ -138,7 +138,7 @@ derive_parse!(WildAttr,
 derive_token_range!(WildAttr, _hyphen, _dot);
 
 // TODO: Split to `FunSpec`, `RemoteFunSpec` and `CallbackSpec`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunSpec<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub spec_kind: atoms::Spec,
@@ -156,7 +156,7 @@ derive_parse!(FunSpec,
               _dot);
 derive_token_range!(FunSpec, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunDecl<'token, 'text: 'token> {
     pub clauses: Clauses<clauses::FunctionClause<'token, 'text>>,
     pub _dot: symbols::Dot,
@@ -164,7 +164,7 @@ pub struct FunDecl<'token, 'text: 'token> {
 derive_parse!(FunDecl, clauses, _dot);
 derive_token_range!(FunDecl, clauses, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TypeDecl<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub type_kind: atoms::Type,
@@ -184,7 +184,7 @@ derive_parse!(TypeDecl,
               _dot);
 derive_token_range!(TypeDecl, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RecordDecl<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _record: atoms::Record,
@@ -202,7 +202,7 @@ derive_parse!(RecordDecl,
               _dot);
 derive_token_range!(RecordDecl, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RecordField<'token, 'text: 'token> {
     pub field_name: Atom<'token, 'text>,
     pub default_value: Option<RecordFieldValue<'token, 'text>>,
@@ -223,7 +223,7 @@ impl<'token, 'text: 'token> TokenRange for RecordField<'token, 'text> {
 }
 
 // TODO: 共通化 (=> Bind)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RecordFieldValue<'token, 'text: 'token> {
     pub _bind: symbols::Match,
     pub value: Expr<'token, 'text>,
@@ -232,7 +232,7 @@ derive_parse!(RecordFieldValue, _bind, value);
 derive_token_range!(RecordFieldValue, _bind, value);
 
 // TODO: 共通化 (=> TypeAnotated)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RecordFieldType<'token, 'text: 'token> {
     pub _double_colon: symbols::DoubleColon,
     pub field_type: Type<'token, 'text>,
@@ -240,7 +240,7 @@ pub struct RecordFieldType<'token, 'text: 'token> {
 derive_parse!(RecordFieldType, _double_colon, field_type);
 derive_token_range!(RecordFieldType, _double_colon, field_type);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroDecl<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _define: atoms::Define,
@@ -264,7 +264,7 @@ derive_parse!(MacroDecl,
               _dot);
 derive_token_range!(MacroDecl, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MacroName<'token, 'text: 'token> {
     Atom(Atom<'token, 'text>),
     Var(Variable<'token, 'text>),
@@ -291,7 +291,7 @@ impl<'token, 'text: 'token> TokenRange for MacroName<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroReplacement {
     token_start: usize,
     token_end: usize,
@@ -318,7 +318,7 @@ impl TokenRange for MacroReplacement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MacroDirective<'token, 'text: 'token> {
     Undef(MacroUndef<'token, 'text>),
     Ifdef(MacroIfdef<'token, 'text>),
@@ -357,7 +357,7 @@ impl<'token, 'text: 'token> TokenRange for MacroDirective<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroUndef<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _undef: atoms::Undef,
@@ -369,7 +369,7 @@ pub struct MacroUndef<'token, 'text: 'token> {
 derive_parse!(MacroUndef, _hyphen, _undef, _open, macro_name, _close, _dot);
 derive_token_range!(MacroUndef, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroIfdef<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _ifdef: atoms::Ifdef,
@@ -381,7 +381,7 @@ pub struct MacroIfdef<'token, 'text: 'token> {
 derive_parse!(MacroIfdef, _hyphen, _ifdef, _open, macro_name, _close, _dot);
 derive_token_range!(MacroIfdef, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroIfndef<'token, 'text: 'token> {
     pub _hyphen: symbols::Hyphen,
     pub _ifndef: atoms::Ifndef,
@@ -399,7 +399,7 @@ derive_parse!(MacroIfndef,
               _dot);
 derive_token_range!(MacroIfndef, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroElse {
     pub _hyphen: symbols::Hyphen,
     pub _else: atoms::Else,
@@ -408,7 +408,7 @@ pub struct MacroElse {
 derive_parse0!(MacroElse, _hyphen, _else, _dot);
 derive_token_range0!(MacroElse, _hyphen, _dot);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroEndif {
     pub _hyphen: symbols::Hyphen,
     pub _endif: atoms::Endif,

@@ -6,7 +6,7 @@ use erl_tokenize::values::{Symbol, Whitespace, Keyword};
 
 use {Result, ErrorKind, Parse};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TokenReader<'token, 'text: 'token> {
     tokens: &'token [Token<'text>],
     position: usize,

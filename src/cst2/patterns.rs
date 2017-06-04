@@ -2,7 +2,7 @@ use cst::Pattern;
 use cst::primitives::{Seq2, AtomOrVar, Optional, Args};
 use cst::symbols;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tuple<'token, 'text: 'token> {
     pub _open: symbols::OpenBrace,
     pub elements: Seq2<Pattern<'token, 'text>, symbols::Comma>,
@@ -11,7 +11,7 @@ pub struct Tuple<'token, 'text: 'token> {
 derive_parse!(Tuple, _open, elements, _close);
 derive_token_range!(Tuple, _open, _close);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct List<'token, 'text: 'token> {
     pub _open: symbols::OpenSquare,
     pub elements: Seq2<Pattern<'token, 'text>, symbols::Comma>,
@@ -22,7 +22,7 @@ pub struct List<'token, 'text: 'token> {
 derive_parse!(List, _open, elements, tail, _close);
 derive_token_range!(List, _open, _close);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListTail<'token, 'text: 'token> {
     pub bar: symbols::VerticalBar,
     pub element: Pattern<'token, 'text>,
@@ -31,7 +31,7 @@ derive_parse!(ListTail, bar, element);
 derive_token_range!(ListTail, bar, element);
 
 // TODO: マクロはちゃんと展開する必要があるので、これでは不適切
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroCall<'token, 'text: 'token> {
     pub _question: symbols::Question,
     pub macro_name: AtomOrVar<'token, 'text>,

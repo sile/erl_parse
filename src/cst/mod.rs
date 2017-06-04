@@ -186,10 +186,11 @@ macro_rules! derive_traits_for_token {
 }
 
 pub mod commons;
+pub mod clauses;
 pub mod exprs;
 pub mod literals;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr<'token, 'text: 'token> {
     // TODO: remote call
     // TODO: local call
@@ -201,18 +202,18 @@ pub enum Expr<'token, 'text: 'token> {
     // TOOD: receive
     // TODO: match
     // TODO: list comprehension
+    // TODO: bitstring comprehension
     // TODO: if
     // TOOD: named fun
     // TODO: anonymous fun
-    // TODO: case
     RemoteFun(Box<exprs::RemoteFun<'token, 'text>>),
     LocalFun(Box<exprs::LocalFun<'token, 'text>>),
     UnaryOpCall(Box<exprs::UnaryOpCall<'token, 'text>>),
     Catch(Box<exprs::Catch<'token, 'text>>),
     Paren(Box<exprs::Parenthesized<'token, 'text>>),
+    // Case(Box<exprs::Case<'token, 'text>>),
     Block(Box<exprs::Block<'token, 'text>>),
-    // TODO: bitstring comprehension
-    // TODO: bitstring constructo
+    BitStr(Box<exprs::BitStr<'token, 'text>>),
     Record(Box<exprs::Record<'token, 'text>>),
     RecordFieldIndex(exprs::RecordFieldIndex<'token, 'text>),
     Map(Box<exprs::Map<'token, 'text>>),
@@ -232,7 +233,9 @@ derive_traits_for_enum!(Expr,
                         UnaryOpCall,
                         Catch,
                         Paren,
+                        // Case,
                         Block,
+                        BitStr,
                         Record,
                         RecordFieldIndex,
                         Map,

@@ -15,7 +15,7 @@ pub mod primitives;
 pub mod symbols;
 pub mod types;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ModuleDecl<'token, 'text: 'token> {
     position: usize,
     pub forms: Vec<Form<'token, 'text>>,
@@ -58,7 +58,7 @@ impl<'token, 'text: 'token> TokenRange for ModuleDecl<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Form<'token, 'text: 'token> {
     ModuleAttr(forms::ModuleAttr<'token, 'text>),
     BehaviourAttr(forms::BehaviourAttr<'token, 'text>),
@@ -119,7 +119,7 @@ impl<'token, 'text: 'token> TokenRange for Form<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Pattern<'token, 'text: 'token> {
     Integer(primitives::Integer<'token, 'text>),
     Atom(primitives::Atom<'token, 'text>),
@@ -164,7 +164,7 @@ impl<'token, 'text: 'token> TokenRange for Pattern<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr<'token, 'text: 'token> {
     Integer(primitives::Integer<'token, 'text>),
     Atom(primitives::Atom<'token, 'text>),
@@ -250,7 +250,7 @@ impl<'token, 'text: 'token> TokenRange for Expr<'token, 'text> {
 }
 
 // TODO: rename
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum IdExpr<'token, 'text: 'token> {
     Atom(primitives::Atom<'token, 'text>),
     Variable(primitives::Variable<'token, 'text>),
@@ -278,7 +278,7 @@ impl<'token, 'text: 'token> TokenRange for IdExpr<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type<'token, 'text: 'token> {
     AnyArgFun(Box<types::AnyArgFun<'token, 'text>>),
     Fun(Box<types::Fun<'token, 'text>>),
@@ -345,7 +345,7 @@ impl<'token, 'text: 'token> TokenRange for Type<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Term<'token, 'text: 'token> {
     Atom(primitives::Atom<'token, 'text>),
 }

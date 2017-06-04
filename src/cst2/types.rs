@@ -4,7 +4,7 @@ use cst::keywords;
 use cst::primitives::{Args, Atom, Seq2, Variable, Int};
 use cst::symbols;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function<'token, 'text: 'token> {
     pub args: Args<Type<'token, 'text>>,
     pub allow: symbols::RightAllow,
@@ -29,13 +29,13 @@ impl<'token, 'text: 'token> TokenRange for Function<'token, 'text> {
     }
 }
 
-// #[derive(Debug)]
+// #[derive(Debug, Clone)]
 // pub struct Constraints<'token, 'text: 'token> {
 //     _a: &'token (),
 //     _b: &'text (),
 // }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalType<'token, 'text: 'token> {
     pub name: Atom<'token, 'text>,
     pub args: Args<Type<'token, 'text>>,
@@ -57,7 +57,7 @@ impl<'token, 'text: 'token> TokenRange for LocalType<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RemoteType<'token, 'text: 'token> {
     pub module_name: Atom<'token, 'text>,
     pub _colon: symbols::Colon,
@@ -67,7 +67,7 @@ pub struct RemoteType<'token, 'text: 'token> {
 derive_parse!(RemoteType, module_name, _colon, type_name, args);
 derive_token_range!(RemoteType, module_name, args);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Union<'token, 'text: 'token> {
     pub head: Type<'token, 'text>,
     pub tail: Vec<UnionElem<'token, 'text>>,
@@ -84,7 +84,7 @@ impl<'token, 'text: 'token> TokenRange for Union<'token, 'text> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnionElem<'token, 'text: 'token> {
     pub bar: symbols::VerticalBar,
     pub ty: Type<'token, 'text>,
@@ -92,7 +92,7 @@ pub struct UnionElem<'token, 'text: 'token> {
 derive_parse!(UnionElem, bar, ty);
 derive_token_range!(UnionElem, bar, ty);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct List<'token, 'text: 'token> {
     pub _open: symbols::OpenSquare,
     pub element_type: Type<'token, 'text>,
@@ -101,7 +101,7 @@ pub struct List<'token, 'text: 'token> {
 derive_parse!(List, _open, element_type, _close);
 derive_token_range!(List, _open, _close);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tuple<'token, 'text: 'token> {
     pub _open: symbols::OpenBrace,
     pub elements: Seq2<Type<'token, 'text>, symbols::Comma>,
@@ -110,7 +110,7 @@ pub struct Tuple<'token, 'text: 'token> {
 derive_parse!(Tuple, _open, elements, _close);
 derive_token_range!(Tuple, _open, _close);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Annotated<'token, 'text: 'token> {
     pub variable: Variable<'token, 'text>,
     pub _double_colon: symbols::DoubleColon,
@@ -119,7 +119,7 @@ pub struct Annotated<'token, 'text: 'token> {
 derive_parse!(Annotated, variable, _double_colon, ann_type);
 derive_token_range!(Annotated, variable, ann_type);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IntRange<'token, 'text: 'token> {
     pub low: Int<'token, 'text>,
     pub _double_dot: symbols::DoubleDot,
@@ -128,7 +128,7 @@ pub struct IntRange<'token, 'text: 'token> {
 derive_parse!(IntRange, low, _double_dot, high);
 derive_token_range!(IntRange, low, high);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Parenthesized<'token, 'text: 'token> {
     pub _open: symbols::OpenParen,
     pub ty: Type<'token, 'text>,
@@ -137,7 +137,7 @@ pub struct Parenthesized<'token, 'text: 'token> {
 derive_parse!(Parenthesized, _open, ty, _close);
 derive_token_range!(Parenthesized, _open, _close);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AnyArgFun<'token, 'text: 'token> {
     pub _fun: keywords::Fun,
     pub _open: symbols::OpenParen,
@@ -162,7 +162,7 @@ derive_parse!(AnyArgFun,
               _close);
 derive_token_range!(AnyArgFun, _fun, _close);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Fun<'token, 'text: 'token> {
     pub _fun: keywords::Fun,
     pub _open: symbols::OpenParen,
