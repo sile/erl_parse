@@ -1,6 +1,6 @@
-use cst::Expr;
+use cst::{LeftExpr, Expr};
 use cst::commons;
-use cst::clauses;
+// use cst::clauses;
 use cst::literals;
 
 #[derive(Debug, Clone)]
@@ -67,7 +67,10 @@ derive_parse!(RemoteFun,
 derive_token_range!(RemoteFun, _fun, arity);
 
 pub type Parenthesized<'token, 'text> = commons::Parenthesized<Expr<'token, 'text>>;
-pub type BitStr<'token, 'text> = commons::BitStr<'token, 'text, Expr<'token, 'text>>;
+pub type BitStr<'token, 'text> = commons::BitStr<'token,
+                                                 'text,
+                                                 Expr<'token, 'text>,
+                                                 LeftExpr<'token, 'text>>;
 pub type Tuple<'token, 'text> = commons::Tuple<Expr<'token, 'text>>;
 pub type Map<'token, 'text> = commons::Map<Expr<'token, 'text>>;
 pub type Record<'token, 'text> = commons::Record<'token, 'text, Expr<'token, 'text>>;

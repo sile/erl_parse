@@ -3,6 +3,7 @@ use erl_tokenize::Token;
 use erl_tokenize::tokens::VariableToken;
 
 use {Result, Parse, TokenRange, TokenReader};
+use cst::LeftPattern;
 use cst::literals;
 
 #[derive(Debug, Clone)]
@@ -64,28 +65,28 @@ derive_parse!(Parenthesized<T>, _open, inner, _close);
 derive_token_range!(Parenthesized<T>, _open, _close);
 
 #[derive(Debug, Clone)]
-pub struct BitStr<'token, 'text: 'token, T> {
+pub struct BitStr<'token, 'text: 'token, T, S> {
     pub _open: literals::S_DOUBLE_LEFT_ANGLE,
-    pub elems: Seq<BitStrElem<'token, 'text, T>, literals::S_COMMA>,
+    pub elems: Seq<BitStrElem<'token, 'text, T, S>, literals::S_COMMA>,
     pub _close: literals::S_DOUBLE_RIGHT_ANGLE,
 }
-derive_parse!(BitStr<'token, 'text, T>, _open, elems, _close);
-derive_token_range!(BitStr<'token, 'text, T>, _open, _close);
+derive_parse!(BitStr<'token, 'text, T, S>, _open, elems, _close);
+derive_token_range!(BitStr<'token, 'text, T, S>, _open, _close);
 
 #[derive(Debug, Clone)]
-pub struct BitStrElem<'token, 'text: 'token, T> {
+pub struct BitStrElem<'token, 'text: 'token, T, S> {
     pub elem: T,
-    pub size: Option<BitStrElemSize<T>>,
+    pub size: Option<BitStrElemSize<S>>,
     pub type_spec_list: Option<BitStrElemTypeSpecs<'token, 'text>>,
     _position: Void,
 }
-derive_parse!(BitStrElem<'token, 'text, T>, elem, size, type_spec_list, _position);
-derive_token_range!(BitStrElem<'token, 'text, T>, elem, _position);
+derive_parse!(BitStrElem<'token, 'text, T, S>, elem, size, type_spec_list, _position);
+derive_token_range!(BitStrElem<'token, 'text, T, S>, elem, _position);
 
 #[derive(Debug, Clone)]
-pub struct BitStrElemSize<T> {
+pub struct BitStrElemSize<S> {
     pub _colon: literals::S_COLON,
-    pub size: T,
+    pub size: S,
 }
 derive_parse!(BitStrElemSize<T>, _colon, size);
 derive_token_range!(BitStrElemSize<T>, _colon, size);
@@ -196,6 +197,7 @@ pub struct Map<T> {
 derive_parse!(Map<T>, _sharp, _open, fields, _close);
 derive_token_range!(Map<T>, _sharp, _close);
 
+// XXX: 常に`:=`と`=>`の両方が許容される訳ではない
 #[derive(Debug, Clone)]
 pub enum MapField<T> {
     Assoc(MapFieldAssoc<T>),
@@ -257,6 +259,70 @@ pub enum UnaryOp {
     Bnot(literals::K_BNOT),
 }
 derive_traits_for_enum!(UnaryOp<>, Plus, Minus, Not, Bnot);
+
+#[derive(Debug, Clone)]
+pub struct Match<'token, 'text: 'token, T> {
+    pub pattern: LeftPattern<'token, 'text>,
+    pub _match: literals::S_MATCH,
+    pub value: T,
+}
+derive_parse!(Match<'token, 'text, T>, pattern, _match, value);
+derive_token_range!(Match<'token, 'text, T>, pattern, value);
+
+#[derive(Debug, Clone)]
+pub struct BinaryOpCall<L, R> {
+    pub left: L,
+    pub op: BinaryOp,
+    pub right: R,
+}
+derive_parse!(BinaryOpCall<L, R>, left, op, right);
+derive_token_range!(BinaryOpCall<L, R>, left, right);
+
+#[derive(Debug, Clone)]
+pub enum BinaryOp {
+    Plus(literals::S_PLUS),
+    Minus(literals::S_HYPHEN),
+    FloatDiv(literals::S_SLASH),
+    IntDiv(literals::K_DIV),
+    Bor(literals::K_BOR),
+    Bxor(literals::K_BXOR),
+    Bsl(literals::K_BSL),
+    Bsr(literals::K_BSR),
+    Or(literals::K_OR),
+    Xor(literals::K_XOR),
+    PlusPlus(literals::S_PLUS_PLUS),
+    MinusMinus(literals::S_MINUS_MINUS),
+    Eq(literals::S_EQ),
+    ExactEq(literals::S_EXACT_EQ),
+    NotEq(literals::S_NOT_EQ),
+    ExactNotEq(literals::S_EXACT_NOT_EQ),
+    Less(literals::S_LESS),
+    LessEq(literals::S_LESS_EQ),
+    Greater(literals::S_GREATER),
+    GreaterEq(literals::S_GREATER_EQ),
+    AndAlso(literals::K_AND_ALSO),
+    OrElse(literals::K_OR_ELSE),
+    Send(literals::S_NOT),
+}
+derive_traits_for_enum!(BinaryOp<>, Plus, Minus,
+                        FloatDiv, IntDiv, Bor, Bxor, Bsl, Bsr, Or, Xor, PlusPlus, MinusMinus,
+                        Eq, ExactEq, NotEq, ExactNotEq, Less, LessEq, Greater, GreaterEq,
+                        AndAlso, OrElse, Send);
+
+#[derive(Debug, Clone)]
+pub struct UnaryNumOpCall<T> {
+    pub op: UnaryNumOp,
+    pub operand: T,
+}
+derive_parse!(UnaryNumOpCall<T>, op, operand);
+derive_token_range!(UnaryNumOpCall<T>, op, operand);
+
+#[derive(Debug, Clone)]
+pub enum UnaryNumOp {
+    Plus(literals::S_PLUS),
+    Minus(literals::S_HYPHEN),
+}
+derive_traits_for_enum!(UnaryNumOp<>, Plus, Minus);
 
 #[derive(Debug, Clone)]
 pub enum VarOrAtom<'token, 'text: 'token> {

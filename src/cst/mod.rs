@@ -189,6 +189,7 @@ pub mod commons;
 pub mod clauses;
 pub mod exprs;
 pub mod literals;
+pub mod patterns;
 
 #[derive(Debug, Clone)]
 pub enum Expr<'token, 'text: 'token> {
@@ -248,3 +249,94 @@ derive_traits_for_enum!(Expr,
                         Float,
                         Int,
                         Str);
+
+#[derive(Debug, Clone)]
+pub enum LeftExpr<'token, 'text: 'token> {
+    RemoteFun(Box<exprs::RemoteFun<'token, 'text>>),
+    LocalFun(Box<exprs::LocalFun<'token, 'text>>),
+    UnaryOpCall(Box<exprs::UnaryOpCall<'token, 'text>>),
+    Catch(Box<exprs::Catch<'token, 'text>>),
+    Paren(Box<exprs::Parenthesized<'token, 'text>>),
+    Block(Box<exprs::Block<'token, 'text>>),
+    BitStr(Box<exprs::BitStr<'token, 'text>>),
+    Record(Box<exprs::Record<'token, 'text>>),
+    RecordFieldIndex(exprs::RecordFieldIndex<'token, 'text>),
+    Map(Box<exprs::Map<'token, 'text>>),
+    List(Box<exprs::List<'token, 'text>>),
+    TailConsList(Box<exprs::TailConsList<'token, 'text>>),
+    Tuple(Box<exprs::Tuple<'token, 'text>>),
+    Var(commons::Var<'token, 'text>),
+    Atom(literals::Atom<'token, 'text>),
+    Char(literals::Char<'token, 'text>),
+    Float(literals::Float<'token, 'text>),
+    Int(literals::Int<'token, 'text>),
+    Str(literals::Str<'token, 'text>),
+}
+derive_traits_for_enum!(LeftExpr,
+                        RemoteFun,
+                        LocalFun,
+                        UnaryOpCall,
+                        Catch,
+                        Paren,
+                        Block,
+                        BitStr,
+                        Record,
+                        RecordFieldIndex,
+                        Map,
+                        List,
+                        TailConsList,
+                        Tuple,
+                        Var,
+                        Atom,
+                        Char,
+                        Float,
+                        Int,
+                        Str);
+
+#[derive(Debug, Clone)]
+pub enum Pattern<'token, 'text: 'token> {
+    Match(Box<patterns::Match<'token, 'text>>),
+    BinaryOpCall(Box<patterns::BinaryOpCall<'token, 'text>>),
+    UnaryOpCall(Box<patterns::UnaryOpCall<'token,'text>>),
+    Paren(Box<patterns::Parenthesized<'token, 'text>>),    
+    Record(Box<patterns::Record<'token, 'text>>),
+    RecordFieldIndex(patterns::RecordFieldIndex<'token, 'text>),
+    Map(Box<patterns::Map<'token, 'text>>),
+    Tuple(Box<patterns::Tuple<'token, 'text>>),
+    List(Box<patterns::List<'token, 'text>>),
+    TailConsList(Box<patterns::TailConsList<'token, 'text>>),
+    BitStr(Box<patterns::BitStr<'token, 'text>>),
+    Var(commons::Var<'token, 'text>),
+    Atom(literals::Atom<'token, 'text>),
+    Char(literals::Char<'token, 'text>),
+    Float(literals::Float<'token, 'text>),
+    Int(literals::Int<'token, 'text>),
+    Str(literals::Str<'token, 'text>),
+}
+derive_traits_for_enum!(Pattern,
+                        Match, BinaryOpCall,
+                        UnaryOpCall, Paren, Record, RecordFieldIndex,
+                        Map, Tuple, List, TailConsList, BitStr,
+                        Var, Atom, Char, Float, Int, Str);
+
+#[derive(Debug, Clone)]
+pub enum LeftPattern<'token, 'text: 'token> {
+    Paren(Box<patterns::Parenthesized<'token, 'text>>),
+    UnaryOpCall(Box<patterns::UnaryOpCall<'token,'text>>),
+    Record(Box<patterns::Record<'token, 'text>>),
+    RecordFieldIndex(patterns::RecordFieldIndex<'token, 'text>),
+    Map(Box<patterns::Map<'token, 'text>>),
+    Tuple(Box<patterns::Tuple<'token, 'text>>),
+    List(Box<patterns::List<'token, 'text>>),
+    TailConsList(Box<patterns::TailConsList<'token, 'text>>),
+    BitStr(Box<patterns::BitStr<'token, 'text>>),
+    Var(commons::Var<'token, 'text>),
+    Atom(literals::Atom<'token, 'text>),
+    Char(literals::Char<'token, 'text>),
+    Float(literals::Float<'token, 'text>),
+    Int(literals::Int<'token, 'text>),
+    Str(literals::Str<'token, 'text>),
+}
+derive_traits_for_enum!(LeftPattern, Paren, UnaryOpCall, Record, RecordFieldIndex,
+                        Map, Tuple, List, TailConsList, BitStr,
+                        Var, Atom, Char, Float, Int, Str);

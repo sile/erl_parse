@@ -83,6 +83,75 @@ fn parse_expr_works() {
     parse_expr!("fun Foo:Bar/Baz");
 }
 
+macro_rules! parse_pattern {
+    ($text:expr) => {
+        let parser = track_try_unwrap!(Parser::new($text));
+        let pattern = track_try_unwrap!(parser.parse_pattern(), "text={:?}", $text);
+        assert_eq!(pattern.token_end(), parser.tokens().len());
+    }
+ }
+
+#[test]
+fn parse_pattern_works() {
+    // literals
+    parse_pattern!("foo");
+    parse_pattern!("$c");
+    parse_pattern!("1.2");
+    parse_pattern!("123");
+    parse_pattern!(r#""foo""#);
+
+    // variable
+    parse_pattern!("Foo");
+
+    // bitstring
+    parse_pattern!("<<>>");
+    parse_pattern!("<<10>>");
+    parse_pattern!("<<1, 2, 3>>");
+    parse_pattern!("<<100:2>>");
+    parse_pattern!("<<1/little>>");
+    parse_pattern!("<<1:2/little-unit:8>>");
+
+    // proper list
+    parse_pattern!("[]");
+    parse_pattern!("[1]");
+    parse_pattern!("[1, 2, 3]");
+
+    // improper list
+    parse_pattern!("[1 | 2]");
+    parse_pattern!("[1, 2 | 3]");
+
+    // map
+    parse_pattern!("#{}");
+    parse_pattern!("#{a := b}");
+    parse_pattern!("#{a := B, 1 := 2}");
+
+    // tuple
+    parse_pattern!("{}");
+    parse_pattern!("{1}");
+    parse_pattern!("{1, 2, 3}");
+
+    // unary op
+    parse_pattern!("+10");
+    parse_pattern!("-20");
+
+    // binary op
+    parse_pattern!("[1] ++ [2,3]");
+
+    // parenthesized
+    parse_pattern!("( [1,2,3] )");
+
+    // record
+    parse_pattern!("#foo{}");
+    parse_pattern!("#foo{a = b}");
+    parse_pattern!("#foo{a = b, _ = 10}");
+
+    // record field index
+    parse_pattern!("#foo.bar");
+
+    // match
+    parse_pattern!("{A, B, 3} = {1, 2, 3}");
+}
+
 // #[test]
 // fn parse_hello_module() {
 //     let text = include_str!("hello.erl");
