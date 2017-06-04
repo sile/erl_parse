@@ -42,7 +42,7 @@ define_symbol!(DoubleColon);
 define_symbol!(DoubleDot);
 define_symbol!(TripleDot);
 define_symbol!(Semicolon);
-define_symbol!(RightAllow);
+define_symbol!(RightArrow);
 define_symbol!(Match);
 define_symbol!(VerticalBar);
 define_symbol!(Plus);

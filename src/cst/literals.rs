@@ -76,10 +76,34 @@ pub struct K_BEGIN {
 derive_traits_for_value!(K_BEGIN, Keyword, Keyword::Begin);
 
 #[derive(Debug, Clone)]
+pub struct K_TRY {
+    position: usize,
+}
+derive_traits_for_value!(K_TRY, Keyword, Keyword::Try);
+
+#[derive(Debug, Clone)]
+pub struct K_IF {
+    position: usize,
+}
+derive_traits_for_value!(K_IF, Keyword, Keyword::If);
+
+#[derive(Debug, Clone)]
 pub struct K_END {
     position: usize,
 }
 derive_traits_for_value!(K_END, Keyword, Keyword::End);
+
+#[derive(Debug, Clone)]
+pub struct K_AFTER {
+    position: usize,
+}
+derive_traits_for_value!(K_AFTER, Keyword, Keyword::After);
+
+#[derive(Debug, Clone)]
+pub struct K_RECEIVE {
+    position: usize,
+}
+derive_traits_for_value!(K_RECEIVE, Keyword, Keyword::Receive);
 
 #[derive(Debug, Clone)]
 pub struct K_CATCH {
@@ -160,6 +184,24 @@ pub struct K_OR_ELSE {
 derive_traits_for_value!(K_OR_ELSE, Keyword, Keyword::Orelse);
 
 #[derive(Debug, Clone)]
+pub struct K_WHEN {
+    position: usize,
+}
+derive_traits_for_value!(K_WHEN, Keyword, Keyword::When);
+
+#[derive(Debug, Clone)]
+pub struct K_CASE {
+    position: usize,
+}
+derive_traits_for_value!(K_CASE, Keyword, Keyword::Case);
+
+#[derive(Debug, Clone)]
+pub struct K_OF {
+    position: usize,
+}
+derive_traits_for_value!(K_OF, Keyword, Keyword::Of);
+
+#[derive(Debug, Clone)]
 pub struct S_COMMA {
     position: usize,
 }
@@ -232,6 +274,12 @@ pub struct S_VERTICAL_BAR {
 derive_traits_for_value!(S_VERTICAL_BAR, Symbol, Symbol::VerticalBar);
 
 #[derive(Debug, Clone)]
+pub struct S_DOUBLE_VERTICAL_BAR {
+    position: usize,
+}
+derive_traits_for_value!(S_DOUBLE_VERTICAL_BAR, Symbol, Symbol::DoubleVerticalBar);
+
+#[derive(Debug, Clone)]
 pub struct S_SLASH {
     position: usize,
 }
@@ -244,10 +292,28 @@ pub struct S_SHARP {
 derive_traits_for_value!(S_SHARP, Symbol, Symbol::Sharp);
 
 #[derive(Debug, Clone)]
-pub struct S_DOUBLE_RIGHT_ALLOW {
+pub struct S_RIGHT_ARROW {
     position: usize,
 }
-derive_traits_for_value!(S_DOUBLE_RIGHT_ALLOW, Symbol, Symbol::DoubleRightAllow);
+derive_traits_for_value!(S_RIGHT_ARROW, Symbol, Symbol::RightArrow);
+
+#[derive(Debug, Clone)]
+pub struct S_DOUBLE_RIGHT_ARROW {
+    position: usize,
+}
+derive_traits_for_value!(S_DOUBLE_RIGHT_ARROW, Symbol, Symbol::DoubleRightArrow);
+
+#[derive(Debug, Clone)]
+pub struct S_LEFT_ARROW {
+    position: usize,
+}
+derive_traits_for_value!(S_LEFT_ARROW, Symbol, Symbol::LeftArrow);
+
+#[derive(Debug, Clone)]
+pub struct S_DOUBLE_LEFT_ARROW {
+    position: usize,
+}
+derive_traits_for_value!(S_DOUBLE_LEFT_ARROW, Symbol, Symbol::DoubleLeftArrow);
 
 #[derive(Debug, Clone)]
 pub struct S_DOUBLE_RIGHT_ANGLE {
@@ -284,6 +350,12 @@ pub struct S_DOT {
     position: usize,
 }
 derive_traits_for_value!(S_DOT, Symbol, Symbol::Dot);
+
+#[derive(Debug, Clone)]
+pub struct S_MULTIPLY {
+    position: usize,
+}
+derive_traits_for_value!(S_MULTIPLY, Symbol, Symbol::Multiply);
 
 #[derive(Debug, Clone)]
 pub struct S_PLUS_PLUS {
@@ -356,6 +428,12 @@ pub struct A_INTEGER {
     position: usize,
 }
 derive_traits_for_value!(A_INTEGER, Atom, "integer");
+
+#[derive(Debug, Clone)]
+pub struct A_ERLANG {
+    position: usize,
+}
+derive_traits_for_value!(A_ERLANG, Atom, "erlang");
 
 #[derive(Debug, Clone)]
 pub struct A_FLOAT {

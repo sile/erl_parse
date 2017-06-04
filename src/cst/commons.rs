@@ -7,6 +7,24 @@ use cst::LeftPattern;
 use cst::literals;
 
 #[derive(Debug, Clone)]
+pub struct LocalCall<N, A> {
+    pub name: N,
+    pub args: Args<A>,
+}
+derive_parse!(LocalCall<N, A>, name, args);
+derive_token_range!(LocalCall<N, A>, name, args);
+
+#[derive(Debug, Clone)]
+pub struct RemoteCall<M, N, A> {
+    pub module_name: M,
+    pub _colon: literals::S_COLON,
+    pub name: N,
+    pub args: Args<A>,
+}
+derive_parse!(RemoteCall<M, N, A>, module_name, _colon, name, args);
+derive_token_range!(RemoteCall<M, N, A>, module_name, args);
+
+#[derive(Debug, Clone)]
 pub struct Var<'token, 'text: 'token> {
     position: usize,
     value: &'token VariableToken<'text>,
@@ -177,6 +195,17 @@ derive_parse!(RecordFieldIndex, _sharp, record_name, _dot, field_name);
 derive_token_range!(RecordFieldIndex, _sharp, field_name);
 
 #[derive(Debug, Clone)]
+pub struct RecordFieldAccess<'token, 'text: 'token, T> {
+    pub record: T,
+    pub _sharp: literals::S_SHARP,
+    pub record_name: literals::Atom<'token, 'text>,
+    pub _dot: literals::S_DOT,
+    pub field_name: literals::Atom<'token, 'text>,
+}
+derive_parse!(RecordFieldAccess<'token, 'text, T>, record, _sharp, record_name, _dot, field_name);
+derive_token_range!(RecordFieldAccess<'token, 'text, T>, record, field_name);
+
+#[derive(Debug, Clone)]
 pub struct RecordField<'token, 'text: 'token, T> {
     // XXX: 実際には全ての変数が許容される訳ではない
     // '_'のみが特定ケースで使用可能になるだけ(TODO)
@@ -208,7 +237,7 @@ derive_traits_for_enum!(MapField<T>, Assoc, Exact);
 #[derive(Debug, Clone)]
 pub struct MapFieldAssoc<T> {
     pub key: T,
-    pub _delim: literals::S_DOUBLE_RIGHT_ALLOW,
+    pub _delim: literals::S_DOUBLE_RIGHT_ARROW,
     pub value: T,
 }
 derive_parse!(MapFieldAssoc<T>, key, _delim, value);
@@ -282,6 +311,7 @@ derive_token_range!(BinaryOpCall<L, R>, left, right);
 pub enum BinaryOp {
     Plus(literals::S_PLUS),
     Minus(literals::S_HYPHEN),
+    Mul(literals::S_MULTIPLY),
     FloatDiv(literals::S_SLASH),
     IntDiv(literals::K_DIV),
     Bor(literals::K_BOR),
@@ -304,7 +334,7 @@ pub enum BinaryOp {
     OrElse(literals::K_OR_ELSE),
     Send(literals::S_NOT),
 }
-derive_traits_for_enum!(BinaryOp<>, Plus, Minus,
+derive_traits_for_enum!(BinaryOp<>, Plus, Minus, Mul,
                         FloatDiv, IntDiv, Bor, Bxor, Bsl, Bsr, Or, Xor, PlusPlus, MinusMinus,
                         Eq, ExactEq, NotEq, ExactNotEq, Less, LessEq, Greater, GreaterEq,
                         AndAlso, OrElse, Send);

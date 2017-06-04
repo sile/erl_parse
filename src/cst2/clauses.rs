@@ -7,10 +7,10 @@ use cst::symbols;
 pub struct AnonymousFunClause<'token, 'text: 'token> {
     pub patterns: Args<Pattern<'token, 'text>>,
     // TODO: guard
-    pub _allow: symbols::RightAllow,
+    pub _arrow: symbols::RightArrow,
     pub body: Seq<Expr<'token, 'text>>,
 }
-derive_parse!(AnonymousFunClause, patterns, _allow, body);
+derive_parse!(AnonymousFunClause, patterns, _arrow, body);
 derive_token_range!(AnonymousFunClause, patterns, body);
 
 #[derive(Debug, Clone)]
@@ -18,7 +18,7 @@ pub struct FunctionClause<'token, 'text: 'token> {
     pub name: Atom<'token, 'text>,
     pub patterns: Args<Pattern<'token, 'text>>,
     // TODO: guard
-    pub allow: symbols::RightAllow,
+    pub allow: symbols::RightArrow,
     pub body: Seq<Expr<'token, 'text>>,
 }
 impl<'token, 'text: 'token> Parse<'token, 'text> for FunctionClause<'token, 'text> {
@@ -44,10 +44,10 @@ impl<'token, 'text: 'token> TokenRange for FunctionClause<'token, 'text> {
 pub struct CaseClause<'token, 'text: 'token> {
     pub pattern: Pattern<'token, 'text>,
     // TODO: guard
-    pub _allow: symbols::RightAllow,
+    pub _arrow: symbols::RightArrow,
     pub body: Seq<Expr<'token, 'text>>,
 }
-derive_parse!(CaseClause, pattern, _allow, body);
+derive_parse!(CaseClause, pattern, _arrow, body);
 derive_token_range!(CaseClause, pattern, body);
 
 #[derive(Debug, Clone)]
@@ -55,10 +55,10 @@ pub struct CatchClause<'token, 'text: 'token> {
     pub exception_class: Option<ExceptionClass<'token, 'text>>,
     pub pattern: Pattern<'token, 'text>,
     // TODO: guard
-    pub _allow: symbols::RightAllow,
+    pub _arrow: symbols::RightArrow,
     pub body: Seq<Expr<'token, 'text>>,
 }
-derive_parse!(CatchClause, exception_class, pattern, _allow, body);
+derive_parse!(CatchClause, exception_class, pattern, _arrow, body);
 impl<'token, 'text: 'token> TokenRange for CatchClause<'token, 'text> {
     fn token_start(&self) -> usize {
         self.exception_class

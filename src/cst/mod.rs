@@ -194,33 +194,33 @@ pub mod patterns;
 
 #[derive(Debug, Clone)]
 pub enum Expr<'token, 'text: 'token> {
-    // TODO: remote call
-    // TODO: local call
-    // TODO: binary op
-    // TODO: map update
-    // TODO: record update, field access
-    
-    // TODO: try
-    // TOOD: receive
-    // TODO: match
-    // TODO: list comprehension
-    // TODO: bitstring comprehension
-    // TODO: if
-    // TOOD: named fun
-    // TODO: anonymous fun
+    BinaryOpCall(Box<exprs::BinaryOpCall<'token, 'text>>),
+    RemoteCall(Box<exprs::RemoteCall<'token, 'text>>),
+    LocalCall(Box<exprs::LocalCall<'token, 'text>>),
+    Match(Box<exprs::Match<'token, 'text>>),
+    MapUpdate(Box<exprs::MapUpdate<'token, 'text>>),
+    RecordUpdate(Box<exprs::RecordUpdate<'token, 'text>>),
+    RecordFieldAccess(Box<exprs::RecordFieldAccess<'token,'text>>),
+    NamedFun(Box<exprs::NamedFun<'token, 'text>>),
+    AnonymousFun(Box<exprs::AnonymousFun<'token, 'text>>),
     RemoteFun(Box<exprs::RemoteFun<'token, 'text>>),
     LocalFun(Box<exprs::LocalFun<'token, 'text>>),
     UnaryOpCall(Box<exprs::UnaryOpCall<'token, 'text>>),
     Catch(Box<exprs::Catch<'token, 'text>>),
     Paren(Box<exprs::Parenthesized<'token, 'text>>),
-    // Case(Box<exprs::Case<'token, 'text>>),
+    Try(Box<exprs::Try<'token, 'text>>),
+    Receive(Box<exprs::Receive<'token, 'text>>),
+    Case(Box<exprs::Case<'token, 'text>>),
+    If(Box<exprs::If<'token, 'text>>),
     Block(Box<exprs::Block<'token, 'text>>),
     BitStr(Box<exprs::BitStr<'token, 'text>>),
+    BitStrComprehension(Box<exprs::BitStrComprehension<'token, 'text>>),
     Record(Box<exprs::Record<'token, 'text>>),
     RecordFieldIndex(exprs::RecordFieldIndex<'token, 'text>),
     Map(Box<exprs::Map<'token, 'text>>),
     List(Box<exprs::List<'token, 'text>>),
     TailConsList(Box<exprs::TailConsList<'token, 'text>>),
+    ListComprehension(Box<exprs::ListComprehension<'token, 'text>>),
     Tuple(Box<exprs::Tuple<'token, 'text>>),
     Var(commons::Var<'token, 'text>),
     Atom(literals::Atom<'token, 'text>),
@@ -230,19 +230,33 @@ pub enum Expr<'token, 'text: 'token> {
     Str(literals::Str<'token, 'text>),
 }
 derive_traits_for_enum!(Expr,
+                        BinaryOpCall,
+                        RemoteCall,
+                        LocalCall,
+                        Match,
+                        MapUpdate,
+                        RecordUpdate,
+                        RecordFieldAccess,
+                        NamedFun,
+                        AnonymousFun,
                         RemoteFun,
                         LocalFun,
                         UnaryOpCall,
                         Catch,
                         Paren,
-                        // Case,
+                        Try,
+                        Receive,
+                        Case,
+                        If,
                         Block,
                         BitStr,
+                        BitStrComprehension,
                         Record,
                         RecordFieldIndex,
                         Map,
                         List,
                         TailConsList,
+                        ListComprehension,
                         Tuple,
                         Var,
                         Atom,
@@ -264,6 +278,7 @@ pub enum LeftExpr<'token, 'text: 'token> {
     RecordFieldIndex(exprs::RecordFieldIndex<'token, 'text>),
     Map(Box<exprs::Map<'token, 'text>>),
     List(Box<exprs::List<'token, 'text>>),
+    ListComprehension(Box<exprs::ListComprehension<'token, 'text>>),
     TailConsList(Box<exprs::TailConsList<'token, 'text>>),
     Tuple(Box<exprs::Tuple<'token, 'text>>),
     Var(commons::Var<'token, 'text>),
@@ -285,6 +300,7 @@ derive_traits_for_enum!(LeftExpr,
                         RecordFieldIndex,
                         Map,
                         List,
+                        ListComprehension,
                         TailConsList,
                         Tuple,
                         Var,
@@ -358,11 +374,10 @@ derive_token_range!(Guard, tests, tests);
 
 #[derive(Debug, Clone)]
 pub enum GuardTest<'token, 'text: 'token> {
-    // TODO: remote call
-    // TODO: local call
-    // TODO: binary op
-    // TODO: map update
-    // TODO: record field access
+    BinaryOpCall(Box<guard_tests::BinaryOpCall<'token, 'text>>),
+    RemoteCall(Box<guard_tests::RemoteCall<'token, 'text>>),
+    LocalCall(Box<guard_tests::LocalCall<'token, 'text>>),
+    RecordFieldAccess(guard_tests::RecordFieldAccess<'token, 'text>),
     UnaryOpCall(Box<guard_tests::UnaryOpCall<'token, 'text>>),
     Paren(Box<guard_tests::Parenthesized<'token, 'text>>),
     BitStr(Box<guard_tests::BitStr<'token, 'text>>),
@@ -380,11 +395,15 @@ pub enum GuardTest<'token, 'text: 'token> {
     Str(literals::Str<'token, 'text>),
 }
 derive_traits_for_enum!(GuardTest,
+                        BinaryOpCall,
+                        RemoteCall,
+                        LocalCall,
                         UnaryOpCall,
                         Paren,
                         BitStr,
                         Record,
                         RecordFieldIndex,
+                        RecordFieldAccess,
                         Map,
                         List,
                         TailConsList,
@@ -398,11 +417,6 @@ derive_traits_for_enum!(GuardTest,
 
 #[derive(Debug, Clone)]
 pub enum LeftGuardTest<'token, 'text: 'token> {
-    // TODO: remote call
-    // TODO: local call
-    // TODO: binary op
-    // TODO: map update
-    // TODO: record field access
     UnaryOpCall(Box<guard_tests::UnaryOpCall<'token, 'text>>),
     Paren(Box<guard_tests::Parenthesized<'token, 'text>>),
     BitStr(Box<guard_tests::BitStr<'token, 'text>>),

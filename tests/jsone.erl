@@ -201,7 +201,7 @@
 %% - default: `{iso8601, utc}' <br />
 %%
 %% `object_key_type':
-%% - Allowable object key type <br />
+%% - Arrowable object key type <br />
 %% - `string': Only string values are allowed (i.e. `json_string()' type) <br />
 %% - `scalar': In addition to `string', following values are allowed: nulls, booleans, numerics (i.e. `json_scalar()' type) <br />
 %% - `value': Any json compatible values are allowed (i.e. `json_value()' type) <br />

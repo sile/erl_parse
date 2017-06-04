@@ -7,7 +7,7 @@ use cst::symbols;
 #[derive(Debug, Clone)]
 pub struct Function<'token, 'text: 'token> {
     pub args: Args<Type<'token, 'text>>,
-    pub allow: symbols::RightAllow,
+    pub allow: symbols::RightArrow,
     pub return_type: Type<'token, 'text>,
     // TODO: pub constraints: Constraints<'token, 'text>,
 }
@@ -147,7 +147,7 @@ pub struct AnyArgFun<'token, 'text: 'token> {
     pub _any: symbols::TripleDot,
     pub _close_args: symbols::OpenParen,
 
-    pub _allow: symbols::RightAllow,
+    pub _arrow: symbols::RightArrow,
     pub return_type: Type<'token, 'text>,
     pub _close: symbols::CloseParen,
 }
@@ -157,7 +157,7 @@ derive_parse!(AnyArgFun,
               _open_args,
               _any,
               _close_args,
-              _allow,
+              _arrow,
               return_type,
               _close);
 derive_token_range!(AnyArgFun, _fun, _close);
@@ -167,10 +167,10 @@ pub struct Fun<'token, 'text: 'token> {
     pub _fun: keywords::Fun,
     pub _open: symbols::OpenParen,
     pub args: Args<Type<'token, 'text>>,
-    pub _allow: symbols::RightAllow,
+    pub _arrow: symbols::RightArrow,
     pub return_type: Type<'token, 'text>,
     // TODO: guard
     pub _close: symbols::CloseParen,
 }
-derive_parse!(Fun, _fun, _open, args, _allow, return_type, _close);
+derive_parse!(Fun, _fun, _open, args, _arrow, return_type, _close);
 derive_token_range!(Fun, _fun, _close);
