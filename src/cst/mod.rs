@@ -191,6 +191,39 @@ pub mod exprs;
 pub mod guard_tests;
 pub mod literals;
 pub mod patterns;
+pub mod types;
+
+#[derive(Debug, Clone)]
+pub enum Type<'token, 'text: 'token> {
+    // TODO: union
+    // TODO: bitstring
+    // TODO: fun ((...) -> T), fun (clauses)
+    // TODO: intExpr..intExp
+    // TODO: map
+    // TODO: binary op, unary op
+    // TODO: record
+    // TODO: call
+    // TOOD: tuple
+    Annotated(Box<types::Annotated<'token, 'text>>),
+    Paren(Box<types::Parenthesized<'token, 'text>>),
+    List(Box<types::List<'token,'text>>),
+    Var(commons::Var<'token, 'text>),
+    Atom(literals::Atom<'token, 'text>),
+    Char(literals::Char<'token, 'text>),
+    Float(literals::Float<'token, 'text>),
+    Int(literals::Int<'token, 'text>),
+    Str(literals::Str<'token, 'text>),
+}
+derive_traits_for_enum!(Type,
+                        Annotated,
+                        Paren,
+                        List,
+                        Var,
+                        Atom,
+                        Char,
+                        Float,
+                        Int,
+                        Str);
 
 #[derive(Debug, Clone)]
 pub enum Expr<'token, 'text: 'token> {

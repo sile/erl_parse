@@ -214,6 +214,12 @@ pub struct S_COLON {
 derive_traits_for_value!(S_COLON, Symbol, Symbol::Colon);
 
 #[derive(Debug, Clone)]
+pub struct S_DOUBLE_COLON {
+    position: usize,
+}
+derive_traits_for_value!(S_DOUBLE_COLON, Symbol, Symbol::DoubleColon);
+
+#[derive(Debug, Clone)]
 pub struct S_SEMICOLON {
     position: usize,
 }

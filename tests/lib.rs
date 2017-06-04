@@ -223,3 +223,24 @@ fn parse_pattern_works() {
     // match
     parse_pattern!("{A, B = 2, 3} = {1, 2, 3}");
 }
+
+macro_rules! parse_type {
+    ($text:expr) => {
+        let parser = track_try_unwrap!(Parser::new($text));
+        let ty = track_try_unwrap!(parser.parse_type(), "text={:?}", $text);
+        assert_eq!(ty.token_end(), parser.tokens().len());
+    }
+ }
+
+#[test]
+fn parse_type_works() {
+    // annotated
+    parse_type!("A :: 10");
+
+    // list
+    parse_type!("[]");
+    parse_type!("[foo]");
+
+    // parenthesized
+    parse_type!("([10])");
+}
