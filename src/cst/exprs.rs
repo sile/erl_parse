@@ -156,7 +156,7 @@ derive_token_range!(RemoteFun, _fun, arity);
 
 #[derive(Debug, Clone)]
 pub struct MapUpdate<'token, 'text: 'token> {
-    pub map: LeftExpr<'token, 'text>,
+    pub map: NonLeftRecurExpr<'token, 'text>,
     pub _sharp: literals::S_SHARP,
     pub _open: literals::S_OPEN_BRACE,
     pub fields: commons::Seq<commons::MapField<Expr<'token, 'text>>, literals::S_COMMA>,
@@ -167,7 +167,7 @@ derive_token_range!(MapUpdate, map, _close);
 
 #[derive(Debug, Clone)]
 pub struct RecordUpdate<'token, 'text: 'token> {
-    pub record: LeftExpr<'token, 'text>,
+    pub record: NonLeftRecurExpr<'token, 'text>,
     pub _sharp: literals::S_SHARP,
     pub record_name: literals::Atom<'token, 'text>,
     pub _open: literals::S_OPEN_BRACE,
@@ -232,26 +232,86 @@ pub struct BitStrGenerator<'token, 'text: 'token> {
 derive_parse!(BitStrGenerator, pattern, _arrow, bitstring);
 derive_token_range!(BitStrGenerator, pattern, bitstring);
 
+#[derive(Debug, Clone)]
+pub enum NonLeftRecurExpr<'token, 'text: 'token> {
+    NamedFun(Box<NamedFun<'token, 'text>>),
+    AnonymousFun(Box<AnonymousFun<'token, 'text>>),
+    RemoteFun(Box<RemoteFun<'token, 'text>>),
+    LocalFun(Box<LocalFun<'token, 'text>>),
+    UnaryOpCall(Box<UnaryOpCall<'token, 'text>>),
+    Catch(Box<Catch<'token, 'text>>),
+    Paren(Box<Parenthesized<'token, 'text>>),
+    Try(Box<Try<'token, 'text>>),
+    Receive(Box<Receive<'token, 'text>>),
+    Case(Box<Case<'token, 'text>>),
+    If(Box<If<'token, 'text>>),
+    Block(Box<Block<'token, 'text>>),
+    BitStr(Box<BitStr<'token, 'text>>),
+    BitStrComprehension(Box<BitStrComprehension<'token, 'text>>),
+    Record(Box<Record<'token, 'text>>),
+    RecordFieldIndex(RecordFieldIndex<'token, 'text>),
+    Map(Box<Map<'token, 'text>>),
+    List(Box<List<'token, 'text>>),
+    TailConsList(Box<TailConsList<'token, 'text>>),
+    ListComprehension(Box<ListComprehension<'token, 'text>>),
+    Tuple(Box<Tuple<'token, 'text>>),
+    Var(commons::Var<'token, 'text>),
+    Atom(literals::Atom<'token, 'text>),
+    Char(literals::Char<'token, 'text>),
+    Float(literals::Float<'token, 'text>),
+    Int(literals::Int<'token, 'text>),
+    Str(literals::Str<'token, 'text>),
+}
+derive_traits_for_enum!(NonLeftRecurExpr,
+                        NamedFun,
+                        AnonymousFun,
+                        RemoteFun,
+                        LocalFun,
+                        UnaryOpCall,
+                        Catch,
+                        Paren,
+                        Try,
+                        Receive,
+                        Case,
+                        If,
+                        Block,
+                        BitStr,
+                        BitStrComprehension,
+                        Record,
+                        RecordFieldIndex,
+                        Map,
+                        List,
+                        TailConsList,
+                        ListComprehension,
+                        Tuple,
+                        Var,
+                        Atom,
+                        Char,
+                        Float,
+                        Int,
+                        Str);
+
 pub type Parenthesized<'token, 'text> = commons::Parenthesized<Expr<'token, 'text>>;
 pub type BitStr<'token, 'text> = commons::BitStr<'token,
                                                  'text,
                                                  Expr<'token, 'text>,
-                                                 LeftExpr<'token, 'text>>;
+                                                 NonLeftRecurExpr<'token, 'text>>;
 pub type Tuple<'token, 'text> = commons::Tuple<Expr<'token, 'text>>;
 pub type Map<'token, 'text> = commons::Map<Expr<'token, 'text>>;
 pub type Record<'token, 'text> = commons::Record<'token, 'text, Expr<'token, 'text>>;
 pub type RecordFieldIndex<'token, 'text> = commons::RecordFieldIndex<'token, 'text>;
 pub type RecordFieldAccess<'token, 'text> = commons::RecordFieldAccess<'token,
                                                                        'text,
-                                                                       LeftExpr<'token, 'text>>;
+                                                                       NonLeftRecurExpr<'token,
+                                                                                        'text>>;
 pub type List<'token, 'text> = commons::List<Expr<'token, 'text>>;
 pub type TailConsList<'token, 'text> = commons::TailConsList<Expr<'token, 'text>>;
 pub type UnaryOpCall<'token, 'text> = commons::UnaryOpCall<Expr<'token, 'text>>;
 pub type BinaryOpCall<'token, 'text> = commons::BinaryOpCall<LeftExpr<'token, 'text>,
                                                              Expr<'token, 'text>>;
-pub type LocalCall<'token, 'text> = commons::LocalCall<LeftExpr<'token, 'text>,
+pub type LocalCall<'token, 'text> = commons::LocalCall<NonLeftRecurExpr<'token, 'text>,
                                                        Expr<'token, 'text>>;
-pub type RemoteCall<'token, 'text> = commons::RemoteCall<LeftExpr<'token, 'text>,
-                                                         LeftExpr<'token, 'text>,
+pub type RemoteCall<'token, 'text> = commons::RemoteCall<NonLeftRecurExpr<'token, 'text>,
+                                                         NonLeftRecurExpr<'token, 'text>,
                                                          Expr<'token, 'text>>;
 pub type Match<'token, 'text> = commons::Match<'token, 'text, Expr<'token, 'text>>;

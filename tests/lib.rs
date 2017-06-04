@@ -98,7 +98,7 @@ fn parse_expr_works() {
     // binary op
     parse_expr!("1 =:= 2");
     parse_expr!("Pid ! [1, 2] ++ [3] -- [1]");
-    // TODO: parse_expr!("foo() ++ bar()");
+    parse_expr!("foo() ++ bar()");
 
     // local call
     parse_expr!("foo()");
@@ -221,33 +221,5 @@ fn parse_pattern_works() {
     parse_pattern!("#foo.bar");
 
     // match
-    parse_pattern!("{A, B, 3} = {1, 2, 3}");
+    parse_pattern!("{A, B = 2, 3} = {1, 2, 3}");
 }
-
-// #[test]
-// fn parse_hello_module() {
-//     let text = include_str!("hello.erl");
-//     let parser = track_try_unwrap!(Parser::new(text));
-//     let _module = track_try_unwrap!(parser.parse_module());
-// }
-
-// #[test]
-// fn parse_fib_module() {
-//     let text = include_str!("fib.erl");
-//     let parser = track_try_unwrap!(Parser::new(text));
-//     let _module = track_try_unwrap!(parser.parse_module());
-// }
-
-// #[test]
-// fn parse_jsone_module() {
-//     let text = include_str!("jsone.erl");
-//     let parser = track_try_unwrap!(Parser::new(text));
-//     let _module = track_try_unwrap!(parser.parse_module());
-// }
-
-// #[test]
-// fn parse_splay_tree_module() {
-//     let text = include_str!("splay_tree.erl");
-//     let parser = track_try_unwrap!(Parser::new(text));
-//     let _module = track_try_unwrap!(parser.parse_module());
-// }
