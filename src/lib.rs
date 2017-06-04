@@ -4,8 +4,16 @@ extern crate num;
 extern crate trackable;
 
 pub use error::{Error, ErrorKind};
+pub use parser::Parser;
+pub use reader::TokenReader;
+pub use traits::{Parse, TokenRange};
+
+pub mod cst;
 
 mod error;
+mod parser;
+mod reader;
+mod traits;
 
 // pub use parse::Parse;
 // pub use parser::Parser;
@@ -134,19 +142,3 @@ mod error;
 // mod token_reader;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
-
-use std::ops::Range;
-pub trait TokenRange {
-    fn token_range(&self) -> Range<usize> {
-        Range {
-            start: self.token_start(),
-            end: self.token_end(),
-        }
-    }
-    fn token_start(&self) -> usize {
-        self.token_range().start
-    }
-    fn token_end(&self) -> usize {
-        self.token_range().end
-    }
-}
