@@ -8,6 +8,7 @@ References
 
 - [AST](http://erlang.org/doc/apps/erts/absform.html)
 - [Macro](http://erlang.org/doc/reference_manual/macros.html)
+- [Expression](http://erlang.org/doc/reference_manual/expressions.html)
 
 Limitations
 -----------

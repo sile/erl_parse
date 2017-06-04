@@ -188,6 +188,7 @@ macro_rules! derive_traits_for_token {
 pub mod commons;
 pub mod clauses;
 pub mod exprs;
+pub mod guard_tests;
 pub mod literals;
 pub mod patterns;
 
@@ -340,3 +341,97 @@ pub enum LeftPattern<'token, 'text: 'token> {
 derive_traits_for_enum!(LeftPattern, Paren, UnaryOpCall, Record, RecordFieldIndex,
                         Map, Tuple, List, TailConsList, BitStr,
                         Var, Atom, Char, Float, Int, Str);
+
+#[derive(Debug, Clone)]
+pub struct GuardSeq<'token, 'text:'token> {
+    pub guards: commons::NonEmptySeq<Guard<'token, 'text>, literals::S_SEMICOLON>
+}
+derive_parse!(GuardSeq, guards);
+derive_token_range!(GuardSeq, guards, guards);
+
+#[derive(Debug, Clone)]
+pub struct Guard<'token, 'text:'token> {
+    pub tests: commons::NonEmptySeq<GuardTest<'token, 'text>, literals::S_COMMA>
+}
+derive_parse!(Guard, tests);
+derive_token_range!(Guard, tests, tests);
+
+#[derive(Debug, Clone)]
+pub enum GuardTest<'token, 'text: 'token> {
+    // TODO: remote call
+    // TODO: local call
+    // TODO: binary op
+    // TODO: map update
+    // TODO: record field access
+    UnaryOpCall(Box<guard_tests::UnaryOpCall<'token, 'text>>),
+    Paren(Box<guard_tests::Parenthesized<'token, 'text>>),
+    BitStr(Box<guard_tests::BitStr<'token, 'text>>),
+    Record(Box<guard_tests::Record<'token, 'text>>),
+    RecordFieldIndex(guard_tests::RecordFieldIndex<'token, 'text>),
+    Map(Box<guard_tests::Map<'token, 'text>>),
+    List(Box<guard_tests::List<'token, 'text>>),
+    TailConsList(Box<guard_tests::TailConsList<'token, 'text>>),
+    Tuple(Box<guard_tests::Tuple<'token, 'text>>),
+    Var(commons::Var<'token, 'text>),
+    Atom(literals::Atom<'token, 'text>),
+    Char(literals::Char<'token, 'text>),
+    Float(literals::Float<'token, 'text>),
+    Int(literals::Int<'token, 'text>),
+    Str(literals::Str<'token, 'text>),
+}
+derive_traits_for_enum!(GuardTest,
+                        UnaryOpCall,
+                        Paren,
+                        BitStr,
+                        Record,
+                        RecordFieldIndex,
+                        Map,
+                        List,
+                        TailConsList,
+                        Tuple,
+                        Var,
+                        Atom,
+                        Char,
+                        Float,
+                        Int,
+                        Str);
+
+#[derive(Debug, Clone)]
+pub enum LeftGuardTest<'token, 'text: 'token> {
+    // TODO: remote call
+    // TODO: local call
+    // TODO: binary op
+    // TODO: map update
+    // TODO: record field access
+    UnaryOpCall(Box<guard_tests::UnaryOpCall<'token, 'text>>),
+    Paren(Box<guard_tests::Parenthesized<'token, 'text>>),
+    BitStr(Box<guard_tests::BitStr<'token, 'text>>),
+    Record(Box<guard_tests::Record<'token, 'text>>),
+    RecordFieldIndex(guard_tests::RecordFieldIndex<'token, 'text>),
+    Map(Box<guard_tests::Map<'token, 'text>>),
+    List(Box<guard_tests::List<'token, 'text>>),
+    TailConsList(Box<guard_tests::TailConsList<'token, 'text>>),
+    Tuple(Box<guard_tests::Tuple<'token, 'text>>),
+    Var(commons::Var<'token, 'text>),
+    Atom(literals::Atom<'token, 'text>),
+    Char(literals::Char<'token, 'text>),
+    Float(literals::Float<'token, 'text>),
+    Int(literals::Int<'token, 'text>),
+    Str(literals::Str<'token, 'text>),
+}
+derive_traits_for_enum!(LeftGuardTest,
+                        UnaryOpCall,
+                        Paren,
+                        BitStr,
+                        Record,
+                        RecordFieldIndex,
+                        Map,
+                        List,
+                        TailConsList,
+                        Tuple,
+                        Var,
+                        Atom,
+                        Char,
+                        Float,
+                        Int,
+                        Str);
