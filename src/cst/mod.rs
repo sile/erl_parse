@@ -196,6 +196,15 @@ pub mod terms;
 pub mod types;
 
 #[derive(Debug, Clone)]
+pub struct ModuleDecl<'token, 'text:'token> {
+    _start: commons::Void,
+    pub forms: Vec<Form<'token,'text>>,
+    _end: commons::Void,
+}
+derive_parse!(ModuleDecl, _start, forms, _end);
+derive_token_range!(ModuleDecl, _start, _end);
+
+#[derive(Debug, Clone)]
 pub enum Term<'token, 'text: 'token> {
     Paren(Box<terms::Parenthesized<'token, 'text>>),
     BitStr(Box<terms::BitStr<'token, 'text>>),

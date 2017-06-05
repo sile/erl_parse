@@ -1,7 +1,7 @@
 use erl_tokenize::{Token, Tokenizer};
 
 use {Result, TokenReader, Parse};
-use cst::{Expr, Pattern, Type, Form};
+use cst::{Expr, Pattern, Type, Form, ModuleDecl};
 
 pub struct Parser<'text> {
     tokens: Vec<Token<'text>>,
@@ -37,7 +37,11 @@ impl<'text> Parser<'text> {
         let form = track_try!(Form::parse(&mut reader), "line_num={}", reader.line_num());
         Ok(form)
     }
-    pub fn parse_module<'token>(&'token self) -> Result<()> {
-        panic!();
+    pub fn parse_module<'token>(&'token self) -> Result<ModuleDecl> {
+        let mut reader = TokenReader::new(&self.tokens);
+        let form = track_try!(ModuleDecl::parse(&mut reader),
+                              "line_num={}",
+                              reader.line_num());
+        Ok(form)
     }
 }
