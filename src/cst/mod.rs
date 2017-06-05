@@ -188,10 +188,72 @@ macro_rules! derive_traits_for_token {
 pub mod commons;
 pub mod clauses;
 pub mod exprs;
+pub mod forms;
 pub mod guard_tests;
 pub mod literals;
 pub mod patterns;
+pub mod terms;
 pub mod types;
+
+#[derive(Debug, Clone)]
+pub enum Term<'token, 'text: 'token> {
+    Paren(Box<terms::Parenthesized<'token, 'text>>),
+    BitStr(Box<terms::BitStr<'token, 'text>>),
+    Record(Box<terms::Record<'token, 'text>>),
+    Map(Box<terms::Map<'token, 'text>>),
+    List(Box<terms::List<'token, 'text>>),
+    TailConsList(Box<terms::TailConsList<'token, 'text>>),
+    Tuple(Box<terms::Tuple<'token, 'text>>),
+    Atom(literals::Atom<'token, 'text>),
+    Char(literals::Char<'token, 'text>),
+    Float(literals::Float<'token, 'text>),
+    Int(literals::Int<'token, 'text>),
+    Str(literals::Str<'token, 'text>),
+}
+derive_traits_for_enum!(Term,
+                        Paren,
+                        BitStr,
+                        Record,
+                        Map,
+                        List,
+                        TailConsList,
+                        Tuple,
+                        Atom,
+                        Char,
+                        Float,
+                        Int,
+                        Str);
+
+#[derive(Debug, Clone)]
+pub enum Form<'token, 'text: 'token> {
+    ModuleAttr(forms::ModuleAttr<'token, 'text>),
+    ExportAttr(forms::ExportAttr<'token, 'text>),
+    ExportTypeAttr(forms::ExportTypeAttr<'token, 'text>),
+    ImportAttr(forms::ImportAttr<'token, 'text>),
+    FileAttr(forms::FileAttr<'token, 'text>),
+    WildAttr(forms::WildAttr<'token, 'text>),
+    FunSpec(forms::FunSpec<'token, 'text>),
+    RemoteFunSpec(forms::RemoteFunSpec<'token, 'text>),
+    CallbackSpec(forms::CallbackSpec<'token, 'text>),
+    FunDecl(forms::FunDecl<'token, 'text>),
+    RecordDecl(forms::RecordDecl<'token, 'text>),
+    TypeDecl(forms::TypeDecl<'token, 'text>),
+    OpaqueDecl(forms::OpaqueDecl<'token, 'text>),
+}
+derive_traits_for_enum!(Form,
+                        ModuleAttr,
+                        ExportAttr,
+                        ExportTypeAttr,
+                        ImportAttr,
+                        FileAttr,
+                        WildAttr,
+                        FunSpec,
+                        RemoteFunSpec,
+                        CallbackSpec,
+                        FunDecl,
+                        RecordDecl,
+                        TypeDecl,
+                        OpaqueDecl);
 
 #[derive(Debug, Clone)]
 pub enum Type<'token, 'text: 'token> {

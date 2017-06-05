@@ -285,3 +285,64 @@ fn parse_type_works() {
     // union
     parse_type!("10 | 1 + 2 | (foo | {a, b, c}) | baz");
 }
+
+macro_rules! parse_form {
+    ($text:expr) => {
+        let parser = track_try_unwrap!(Parser::new($text));
+        let form = track_try_unwrap!(parser.parse_form(), "text={:?}", $text);
+        assert_eq!(form.token_end(), parser.tokens().len());
+    }
+ }
+
+#[test]
+fn parse_form_works() {
+    // module attribute
+    parse_form!("-module(foo).");
+
+    // export attribute
+    parse_form!("-export([]).");
+    parse_form!("-export([foo/0, bar/2]).");
+
+    // export type attribute
+    parse_form!("-export_type([foo/0]).");
+    parse_form!("-export_type([foo/0, bar/2]).");
+
+    // import attribute
+    parse_form!("-import(foo, []).");
+    parse_form!("-import(foo, [bar/0, baz/5]).");
+
+    // file attribute>
+    parse_form!(r#"-file("/path/to/file", 10)."#);
+
+    // wild attribute
+    parse_form!("-my_attr([1, {2, 3}, #{}]).");
+
+    // spec
+    parse_form!("-spec foo () -> ok.");
+    parse_form!("-spec foo (a) -> ok; (b) -> err.");
+    parse_form!("-spec foo (a) -> ok; (B) -> err when B :: integer().");
+
+    // remote spec
+    parse_form!("-spec foo:bar () -> ok.");
+    parse_form!("-spec foo:bar (a) -> ok when B :: integer(); (B) -> err.");
+
+    // callback
+    parse_form!("-callback foo () -> ok.");
+    parse_form!("-callback foo (a) -> ok; (b) -> err.");
+    parse_form!("-callback foo (a) -> ok; (B) -> err when B :: integer().");
+
+    // fun declaration
+    parse_form!("foo () -> ok.");
+    parse_form!("foo (A, {B, _}) -> A + B.");
+    parse_form!("foo (A) when is_integer(A) -> ok; (B) -> {error, B}.");
+
+    // record declaration
+    parse_form!("-record(foo, {}).");
+    parse_form!("-record(foo, {a, b, c}).");
+    parse_form!("-record(foo, {a = 10, b :: integer(), c = d :: atom()}).");
+
+    // type declaration
+    parse_form!("-type foo() :: integer().");
+    parse_form!("-type foo(A, B) :: {A, B}.");
+    parse_form!("-opaque foo() :: integer().");
+}

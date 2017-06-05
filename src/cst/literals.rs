@@ -550,6 +550,66 @@ pub struct A_IS_SUBTYPE {
 derive_traits_for_value!(A_IS_SUBTYPE, Atom, "is_subtype");
 
 #[derive(Debug, Clone)]
+pub struct A_MODULE {
+    position: usize,
+}
+derive_traits_for_value!(A_MODULE, Atom, "module");
+
+#[derive(Debug, Clone)]
+pub struct A_EXPORT {
+    position: usize,
+}
+derive_traits_for_value!(A_EXPORT, Atom, "export");
+
+#[derive(Debug, Clone)]
+pub struct A_IMPORT {
+    position: usize,
+}
+derive_traits_for_value!(A_IMPORT, Atom, "import");
+
+#[derive(Debug, Clone)]
+pub struct A_EXPORT_TYPE {
+    position: usize,
+}
+derive_traits_for_value!(A_EXPORT_TYPE, Atom, "export_type");
+
+#[derive(Debug, Clone)]
+pub struct A_FILE {
+    position: usize,
+}
+derive_traits_for_value!(A_FILE, Atom, "file");
+
+#[derive(Debug, Clone)]
+pub struct A_SPEC {
+    position: usize,
+}
+derive_traits_for_value!(A_SPEC, Atom, "spec");
+
+#[derive(Debug, Clone)]
+pub struct A_CALLBACK {
+    position: usize,
+}
+derive_traits_for_value!(A_CALLBACK, Atom, "callback");
+
+#[derive(Debug, Clone)]
+pub struct A_TYPE {
+    position: usize,
+}
+derive_traits_for_value!(A_TYPE, Atom, "type");
+
+#[derive(Debug, Clone)]
+pub struct A_OPAQUE {
+    position: usize,
+}
+derive_traits_for_value!(A_OPAQUE, Atom, "opaque");
+
+#[derive(Debug, Clone)]
+pub struct A_RECORD {
+    position: usize,
+}
+derive_traits_for_value!(A_RECORD, Atom, "record");
+
+#[derive(Debug, Clone)]
 pub struct V_ANY {
     position: usize,
 }
