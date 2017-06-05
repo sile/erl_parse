@@ -234,6 +234,20 @@ macro_rules! parse_type {
 
 #[test]
 fn parse_type_works() {
+    // integer
+    parse_type!("10");
+    parse_type!("-10");
+    parse_type!("(3)");
+    parse_type!("(10 - 2)");
+    parse_type!("1 + 2 - 3 rem 4");
+    parse_type!("(1 + 2) - 3");
+    parse_type!("1 + (2 - -3)");
+
+    // integer range
+    parse_type!("0..10");
+    parse_type!("-10..+10");
+    parse_type!("(1 + 2)..(10 * 30 - 1)");
+
     // annotated
     parse_type!("A :: 10");
 
@@ -243,4 +257,31 @@ fn parse_type_works() {
 
     // parenthesized
     parse_type!("([10])");
+
+    // tuple
+    parse_type!("{1, 2, 3}");
+
+    // map
+    parse_type!("#{a => 10, b := 20}");
+
+    // record
+    parse_type!("#foo{bar = integer()}");
+
+    // bitstring
+    parse_type!("<<>>");
+    parse_type!("<<_:1>>");
+    parse_type!("<<_:_*3>>");
+    parse_type!("<<_:10,_:_*3>>");
+
+    // call
+    parse_type!("foo()");
+    parse_type!("foo:bar(1,2,3)");
+
+    // fun
+    parse_type!("fun ((...) -> number())");
+    parse_type!("fun ((A, b) -> c:d())");
+    parse_type!("fun ((Ab) -> c:d() when V :: T, is_subtype(V, T))");
+
+    // union
+    parse_type!("10 | 1 + 2 | (foo | {a, b, c}) | baz");
 }

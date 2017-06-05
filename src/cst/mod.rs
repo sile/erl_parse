@@ -195,15 +195,17 @@ pub mod types;
 
 #[derive(Debug, Clone)]
 pub enum Type<'token, 'text: 'token> {
-    // TODO: union
-    // TODO: bitstring
-    // TODO: fun ((...) -> T), fun (clauses)
-    // TODO: intExpr..intExp
-    // TODO: map
-    // TODO: binary op, unary op
-    // TODO: record
-    // TODO: call
-    // TOOD: tuple
+    Union(Box<types::Union<'token, 'text>>),
+    IntRange(Box<types::IntRange<'token ,'text>>),
+    Int(types::IntType<'token, 'text>),
+    BitStr(Box<types::BitStr<'token, 'text>>),
+    AnyArgFun(Box<types::AnyArgFun<'token, 'text>>),
+    Fun(Box<types::Fun<'token, 'text>>),
+    RemoteCall(Box<types::RemoteCall<'token, 'text>>),
+    LocalCall(Box<types::LocalCall<'token, 'text>>),
+    Record(Box<types::Record<'token, 'text>>),
+    Map(Box<types::Map<'token, 'text>>),
+    Tuple(Box<types::Tuple<'token, 'text>>),
     Annotated(Box<types::Annotated<'token, 'text>>),
     Paren(Box<types::Parenthesized<'token, 'text>>),
     List(Box<types::List<'token,'text>>),
@@ -211,10 +213,20 @@ pub enum Type<'token, 'text: 'token> {
     Atom(literals::Atom<'token, 'text>),
     Char(literals::Char<'token, 'text>),
     Float(literals::Float<'token, 'text>),
-    Int(literals::Int<'token, 'text>),
     Str(literals::Str<'token, 'text>),
 }
 derive_traits_for_enum!(Type,
+                        Union,
+                        IntRange,
+                        Int,
+                        BitStr,
+                        AnyArgFun,
+                        Fun,
+                        RemoteCall,
+                        LocalCall,
+                        Record,
+                        Map,
+                        Tuple,
                         Annotated,
                         Paren,
                         List,
@@ -222,7 +234,6 @@ derive_traits_for_enum!(Type,
                         Atom,
                         Char,
                         Float,
-                        Int,
                         Str);
 
 #[derive(Debug, Clone)]

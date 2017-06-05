@@ -314,6 +314,7 @@ pub enum BinaryOp {
     Mul(literals::S_MULTIPLY),
     FloatDiv(literals::S_SLASH),
     IntDiv(literals::K_DIV),
+    Rem(literals::K_REM),
     Bor(literals::K_BOR),
     Bxor(literals::K_BXOR),
     Bsl(literals::K_BSL),
@@ -335,7 +336,7 @@ pub enum BinaryOp {
     Send(literals::S_NOT),
 }
 derive_traits_for_enum!(BinaryOp<>, Plus, Minus, Mul,
-                        FloatDiv, IntDiv, Bor, Bxor, Bsl, Bsr, Or, Xor, PlusPlus, MinusMinus,
+                        FloatDiv, IntDiv, Rem, Bor, Bxor, Bsl, Bsr, Or, Xor, PlusPlus, MinusMinus,
                         Eq, ExactEq, NotEq, ExactNotEq, Less, LessEq, Greater, GreaterEq,
                         AndAlso, OrElse, Send);
 

@@ -136,6 +136,12 @@ pub struct K_DIV {
 derive_traits_for_value!(K_DIV, Keyword, Keyword::Div);
 
 #[derive(Debug, Clone)]
+pub struct K_REM {
+    position: usize,
+}
+derive_traits_for_value!(K_REM, Keyword, Keyword::Rem);
+
+#[derive(Debug, Clone)]
 pub struct K_BOR {
     position: usize,
 }
@@ -358,6 +364,18 @@ pub struct S_DOT {
 derive_traits_for_value!(S_DOT, Symbol, Symbol::Dot);
 
 #[derive(Debug, Clone)]
+pub struct S_DOUBLE_DOT {
+    position: usize,
+}
+derive_traits_for_value!(S_DOUBLE_DOT, Symbol, Symbol::DoubleDot);
+
+#[derive(Debug, Clone)]
+pub struct S_TRIPLE_DOT {
+    position: usize,
+}
+derive_traits_for_value!(S_TRIPLE_DOT, Symbol, Symbol::TripleDot);
+
+#[derive(Debug, Clone)]
 pub struct S_MULTIPLY {
     position: usize,
 }
@@ -524,3 +542,15 @@ pub struct A_UNIT {
     position: usize,
 }
 derive_traits_for_value!(A_UNIT, Atom, "unit");
+
+#[derive(Debug, Clone)]
+pub struct A_IS_SUBTYPE {
+    position: usize,
+}
+derive_traits_for_value!(A_IS_SUBTYPE, Atom, "is_subtype");
+
+#[derive(Debug, Clone)]
+pub struct V_ANY {
+    position: usize,
+}
+derive_traits_for_value!(V_ANY, Variable, "_");
