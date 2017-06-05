@@ -15,7 +15,6 @@ travis-ci = {repository = "sile/erl_parse"}
 
 [dependencies]
 erl_tokenize = "0.1"
-num = "0.1"
 trackable = "0.1"
 
 [dev-dependencies]
