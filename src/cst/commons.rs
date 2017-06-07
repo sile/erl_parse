@@ -25,9 +25,9 @@ derive_parse!(RemoteCall<M, N, A>, module_name, _colon, name, args);
 derive_token_range!(RemoteCall<M, N, A>, module_name, args);
 
 #[derive(Debug, Clone)]
-pub struct Var<'token, 'text: 'token> {
+pub struct Var<'token> {
     position: usize,
-    value: &'token VariableToken<'text>,
+    value: &'token VariableToken,
 }
 derive_traits_for_token!(Var, Variable, VariableToken);
 
@@ -35,12 +35,12 @@ derive_traits_for_token!(Var, Variable, VariableToken);
 pub struct Void {
     position: usize,
 }
-impl<'token, 'text: 'token> Parse<'token, 'text> for Void {
-    fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+impl<'token> Parse<'token> for Void {
+    fn parse(reader: &mut TokenReader<'token>) -> Result<Self> {
         Ok(Void { position: reader.position() })
     }
 }
-impl<'token, 'text: 'token> TokenRange for Void {
+impl<'token> TokenRange for Void {
     fn token_start(&self) -> usize {
         self.position
     }
@@ -83,23 +83,23 @@ derive_parse!(Parenthesized<T>, _open, inner, _close);
 derive_token_range!(Parenthesized<T>, _open, _close);
 
 #[derive(Debug, Clone)]
-pub struct BitStr<'token, 'text: 'token, T, S> {
+pub struct BitStr<'token, T, S> {
     pub _open: literals::S_DOUBLE_LEFT_ANGLE,
-    pub elems: Seq<BitStrElem<'token, 'text, T, S>, literals::S_COMMA>,
+    pub elems: Seq<BitStrElem<'token, T, S>, literals::S_COMMA>,
     pub _close: literals::S_DOUBLE_RIGHT_ANGLE,
 }
-derive_parse!(BitStr<'token, 'text, T, S>, _open, elems, _close);
-derive_token_range!(BitStr<'token, 'text, T, S>, _open, _close);
+derive_parse!(BitStr<'token, T, S>, _open, elems, _close);
+derive_token_range!(BitStr<'token, T, S>, _open, _close);
 
 #[derive(Debug, Clone)]
-pub struct BitStrElem<'token, 'text: 'token, T, S> {
+pub struct BitStrElem<'token, T, S> {
     pub elem: T,
     pub size: Option<BitStrElemSize<S>>,
-    pub type_spec_list: Option<BitStrElemTypeSpecs<'token, 'text>>,
+    pub type_spec_list: Option<BitStrElemTypeSpecs<'token>>,
     _position: Void,
 }
-derive_parse!(BitStrElem<'token, 'text, T, S>, elem, size, type_spec_list, _position);
-derive_token_range!(BitStrElem<'token, 'text, T, S>, elem, _position);
+derive_parse!(BitStrElem<'token, T, S>, elem, size, type_spec_list, _position);
+derive_token_range!(BitStrElem<'token, T, S>, elem, _position);
 
 #[derive(Debug, Clone)]
 pub struct BitStrElemSize<S> {
@@ -110,15 +110,15 @@ derive_parse!(BitStrElemSize<T>, _colon, size);
 derive_token_range!(BitStrElemSize<T>, _colon, size);
 
 #[derive(Debug, Clone)]
-pub struct BitStrElemTypeSpecs<'token, 'text: 'token> {
+pub struct BitStrElemTypeSpecs<'token> {
     pub _slash: literals::S_SLASH,
-    pub specs: NonEmptySeq<BitStrElemTypeSpec<'token, 'text>, literals::S_HYPHEN>,
+    pub specs: NonEmptySeq<BitStrElemTypeSpec<'token>, literals::S_HYPHEN>,
 }
 derive_parse!(BitStrElemTypeSpecs, _slash, specs);
 derive_token_range!(BitStrElemTypeSpecs, _slash, specs);
 
 #[derive(Debug, Clone)]
-pub enum BitStrElemTypeSpec<'token, 'text: 'token> {
+pub enum BitStrElemTypeSpec<'token> {
     // Type
     Integer(literals::A_INTEGER),
     Float(literals::A_FLOAT),
@@ -140,17 +140,17 @@ pub enum BitStrElemTypeSpec<'token, 'text: 'token> {
     Native(literals::A_NATIVE),
 
     // Unit
-    Unit(BitStrElemTypeSpecUnit<'token, 'text>),
+    Unit(BitStrElemTypeSpecUnit<'token>),
 }
 derive_traits_for_enum!(BitStrElemTypeSpec, Integer, Float, Binary,
                         Bytes, Bitstring, Bits, Utf8, Utf16, Utf32,
                         Signed, Unsigned, Big, Little, Native, Unit);
 
 #[derive(Debug, Clone)]
-pub struct BitStrElemTypeSpecUnit<'token, 'text: 'token> {
+pub struct BitStrElemTypeSpecUnit<'token> {
     pub _unit: literals::A_UNIT,
     pub _colon: literals::S_COLON,
-    pub unit: literals::Int<'token, 'text>,
+    pub unit: literals::Int<'token>,
 }
 derive_parse!(BitStrElemTypeSpecUnit, _unit, _colon, unit);
 derive_token_range!(BitStrElemTypeSpecUnit, _unit, unit);
@@ -174,47 +174,47 @@ derive_parse!(Args<T>, _open, args, _close);
 derive_token_range!(Args<T>, _open, _close);
 
 #[derive(Debug, Clone)]
-pub struct Record<'token, 'text: 'token, T> {
+pub struct Record<'token, T> {
     pub _sharp: literals::S_SHARP,
-    pub record_name: literals::Atom<'token, 'text>,
+    pub record_name: literals::Atom<'token>,
     pub _open: literals::S_OPEN_BRACE,
-    pub fields: Seq<RecordField<'token, 'text, T>, literals::S_COMMA>,
+    pub fields: Seq<RecordField<'token, T>, literals::S_COMMA>,
     pub _close: literals::S_CLOSE_BRACE,
 }
-derive_parse!(Record<'token, 'text, T>, _sharp, record_name, _open, fields, _close);
-derive_token_range!(Record<'token, 'text, T>, _sharp, _close);
+derive_parse!(Record<'token, T>, _sharp, record_name, _open, fields, _close);
+derive_token_range!(Record<'token, T>, _sharp, _close);
 
 #[derive(Debug, Clone)]
-pub struct RecordFieldIndex<'token, 'text: 'token> {
+pub struct RecordFieldIndex<'token> {
     pub _sharp: literals::S_SHARP,
-    pub record_name: literals::Atom<'token, 'text>,
+    pub record_name: literals::Atom<'token>,
     pub _dot: literals::S_DOT,
-    pub field_name: literals::Atom<'token, 'text>,
+    pub field_name: literals::Atom<'token>,
 }
 derive_parse!(RecordFieldIndex, _sharp, record_name, _dot, field_name);
 derive_token_range!(RecordFieldIndex, _sharp, field_name);
 
 #[derive(Debug, Clone)]
-pub struct RecordFieldAccess<'token, 'text: 'token, T> {
+pub struct RecordFieldAccess<'token, T> {
     pub record: T,
     pub _sharp: literals::S_SHARP,
-    pub record_name: literals::Atom<'token, 'text>,
+    pub record_name: literals::Atom<'token>,
     pub _dot: literals::S_DOT,
-    pub field_name: literals::Atom<'token, 'text>,
+    pub field_name: literals::Atom<'token>,
 }
-derive_parse!(RecordFieldAccess<'token, 'text, T>, record, _sharp, record_name, _dot, field_name);
-derive_token_range!(RecordFieldAccess<'token, 'text, T>, record, field_name);
+derive_parse!(RecordFieldAccess<'token, T>, record, _sharp, record_name, _dot, field_name);
+derive_token_range!(RecordFieldAccess<'token, T>, record, field_name);
 
 #[derive(Debug, Clone)]
-pub struct RecordField<'token, 'text: 'token, T> {
+pub struct RecordField<'token, T> {
     // XXX: 実際には全ての変数が許容される訳ではない
     // '_'のみが特定ケースで使用可能になるだけ(TODO)
-    pub key: VarOrAtom<'token, 'text>,
+    pub key: VarOrAtom<'token>,
     pub _delim: literals::S_MATCH,
     pub value: T,
 }
-derive_parse!(RecordField<'token, 'text, T>, key, _delim, value);
-derive_token_range!(RecordField<'token, 'text, T>, key, value);
+derive_parse!(RecordField<'token, T>, key, _delim, value);
+derive_token_range!(RecordField<'token, T>, key, value);
 
 #[derive(Debug, Clone)]
 pub struct Map<T> {
@@ -290,13 +290,13 @@ pub enum UnaryOp {
 derive_traits_for_enum!(UnaryOp<>, Plus, Minus, Not, Bnot);
 
 #[derive(Debug, Clone)]
-pub struct Match<'token, 'text: 'token, T> {
-    pub pattern: LeftPattern<'token, 'text>,
+pub struct Match<'token, T> {
+    pub pattern: LeftPattern<'token>,
     pub _match: literals::S_MATCH,
     pub value: T,
 }
-derive_parse!(Match<'token, 'text, T>, pattern, _match, value);
-derive_token_range!(Match<'token, 'text, T>, pattern, value);
+derive_parse!(Match<'token, T>, pattern, _match, value);
+derive_token_range!(Match<'token, T>, pattern, value);
 
 #[derive(Debug, Clone)]
 pub struct BinaryOpCall<L, R> {
@@ -356,15 +356,15 @@ pub enum UnaryNumOp {
 derive_traits_for_enum!(UnaryNumOp<>, Plus, Minus);
 
 #[derive(Debug, Clone)]
-pub enum VarOrAtom<'token, 'text: 'token> {
-    Var(Var<'token, 'text>),
-    Atom(literals::Atom<'token, 'text>),
+pub enum VarOrAtom<'token> {
+    Var(Var<'token>),
+    Atom(literals::Atom<'token>),
 }
 derive_traits_for_enum!(VarOrAtom, Var, Atom);
 
 #[derive(Debug, Clone)]
-pub enum VarOrInt<'token, 'text: 'token> {
-    Var(Var<'token, 'text>),
-    Int(literals::Int<'token, 'text>),
+pub enum VarOrInt<'token> {
+    Var(Var<'token>),
+    Int(literals::Int<'token>),
 }
 derive_traits_for_enum!(VarOrInt, Var, Int);

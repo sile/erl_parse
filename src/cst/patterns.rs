@@ -1,18 +1,14 @@
 use cst::{LeftPattern, Pattern};
 use cst::commons;
 
-pub type BitStr<'token, 'text> = commons::BitStr<'token,
-                                                 'text,
-                                                 Pattern<'token, 'text>,
-                                                 LeftPattern<'token, 'text>>;
-pub type List<'token, 'text> = commons::List<Pattern<'token, 'text>>;
-pub type TailConsList<'token, 'text> = commons::TailConsList<Pattern<'token, 'text>>;
-pub type Map<'token, 'text> = commons::Map<Pattern<'token, 'text>>;
-pub type Parenthesized<'token, 'text> = commons::Parenthesized<Pattern<'token, 'text>>;
-pub type Tuple<'token, 'text> = commons::Tuple<Pattern<'token, 'text>>;
-pub type Record<'token, 'text> = commons::Record<'token, 'text, Pattern<'token, 'text>>;
-pub type RecordFieldIndex<'token, 'text> = commons::RecordFieldIndex<'token, 'text>;
-pub type UnaryOpCall<'token, 'text> = commons::UnaryNumOpCall<Pattern<'token, 'text>>;
-pub type BinaryOpCall<'token, 'text> = commons::BinaryOpCall<LeftPattern<'token, 'text>,
-                                                             Pattern<'token, 'text>>;
-pub type Match<'token, 'text> = commons::Match<'token, 'text, Pattern<'token, 'text>>;
+pub type BitStr<'token> = commons::BitStr<'token, Pattern<'token>, LeftPattern<'token>>;
+pub type List<'token> = commons::List<Pattern<'token>>;
+pub type TailConsList<'token> = commons::TailConsList<Pattern<'token>>;
+pub type Map<'token> = commons::Map<Pattern<'token>>;
+pub type Parenthesized<'token> = commons::Parenthesized<Pattern<'token>>;
+pub type Tuple<'token> = commons::Tuple<Pattern<'token>>;
+pub type Record<'token> = commons::Record<'token, Pattern<'token>>;
+pub type RecordFieldIndex<'token> = commons::RecordFieldIndex<'token>;
+pub type UnaryOpCall<'token> = commons::UnaryNumOpCall<Pattern<'token>>;
+pub type BinaryOpCall<'token> = commons::BinaryOpCall<LeftPattern<'token>, Pattern<'token>>;
+pub type Match<'token> = commons::Match<'token, Pattern<'token>>;

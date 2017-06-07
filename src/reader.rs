@@ -6,13 +6,13 @@ use {Result, ErrorKind};
 // TODO: Support macro expansions
 
 #[derive(Debug, Clone)]
-pub struct TokenReader<'token, 'text: 'token> {
-    tokens: &'token [Token<'text>],
+pub struct TokenReader<'token> {
+    tokens: &'token [Token],
     position: usize,
     line_num: usize,
 }
-impl<'token, 'text: 'token> TokenReader<'token, 'text> {
-    pub fn new(tokens: &'token [Token<'text>]) -> Self {
+impl<'token> TokenReader<'token> {
+    pub fn new(tokens: &'token [Token]) -> Self {
         let mut this = TokenReader {
             tokens,
             position: 0,
@@ -36,7 +36,7 @@ impl<'token, 'text: 'token> TokenReader<'token, 'text> {
     pub fn set_position(&mut self, position: usize) {
         self.position = position;
     }
-    pub fn read(&mut self) -> Result<&'token Token<'text>> {
+    pub fn read(&mut self) -> Result<&'token Token> {
         if let Some(token) = self.tokens.get(self.position) {
             self.position += 1;
             self.skip_hidden_tokens();

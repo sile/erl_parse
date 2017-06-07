@@ -8,8 +8,8 @@ use {Result, Parse, TokenRange, TokenReader, ErrorKind};
 
 macro_rules! derive_traits_for_value {
     ($name:ident, $variant:ident, $value:expr) => {
-        impl<'token, 'text: 'token> Parse<'token, 'text> for $name {
-            fn parse(reader: &mut TokenReader<'token, 'text>) -> Result<Self> {
+        impl<'token> Parse<'token> for $name {
+            fn parse(reader: &mut TokenReader<'token>) -> Result<Self> {
                 let position = reader.position();
                 let token = track_try!(reader.read());
                 if let Token::$variant(ref token) = *token {
@@ -23,7 +23,7 @@ macro_rules! derive_traits_for_value {
                 }
             }
         }
-        impl<'token, 'text: 'token> TokenRange for $name {
+        impl<'token> TokenRange for $name {
             fn token_start(&self) -> usize {
                 self.position
             }
@@ -35,37 +35,37 @@ macro_rules! derive_traits_for_value {
 }
 
 #[derive(Debug, Clone)]
-pub struct Atom<'token, 'text: 'token> {
+pub struct Atom<'token> {
     position: usize,
-    value: &'token AtomToken<'text>,
+    value: &'token AtomToken,
 }
 derive_traits_for_token!(Atom, Atom, AtomToken);
 
 #[derive(Debug, Clone)]
-pub struct Char<'token, 'text: 'token> {
+pub struct Char<'token> {
     position: usize,
-    value: &'token CharToken<'text>,
+    value: &'token CharToken,
 }
 derive_traits_for_token!(Char, Char, CharToken);
 
 #[derive(Debug, Clone)]
-pub struct Float<'token, 'text: 'token> {
+pub struct Float<'token> {
     position: usize,
-    value: &'token FloatToken<'text>,
+    value: &'token FloatToken,
 }
 derive_traits_for_token!(Float, Float, FloatToken);
 
 #[derive(Debug, Clone)]
-pub struct Int<'token, 'text: 'token> {
+pub struct Int<'token> {
     position: usize,
-    value: &'token IntegerToken<'text>,
+    value: &'token IntegerToken,
 }
 derive_traits_for_token!(Int, Integer, IntegerToken);
 
 #[derive(Debug, Clone)]
-pub struct Str<'token, 'text: 'token> {
+pub struct Str<'token> {
     position: usize,
-    value: &'token StringToken<'text>,
+    value: &'token StringToken,
 }
 derive_traits_for_token!(Str, String, StringToken);
 

@@ -1,7 +1,7 @@
 macro_rules! derive_traits_for_enum {
     ($name:ident <>, $($variant:ident),*) => {
-        impl<'token, 'text: 'token> ::Parse<'token, 'text> for $name {
-            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+        impl<'token> ::Parse<'token> for $name {
+            fn parse(reader: &mut ::TokenReader<'token>) -> ::Result<Self> {
                 $(if let Some(t) = ::Parse::try_parse(reader) {
                     return Ok($name::$variant(t));
                 })*
@@ -25,9 +25,9 @@ macro_rules! derive_traits_for_enum {
         }
     };
     ($name:ident <$($param:ident),*>, $($variant:ident),*) => {
-        impl<'token, 'text: 'token, $($param),*> ::Parse<'token, 'text> for $name<$($param),*>
-            where $($param: ::Parse<'token,'text>),* {
-            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+        impl<'token, $($param),*> ::Parse<'token> for $name<$($param),*>
+            where $($param: ::Parse<'token,>),* {
+            fn parse(reader: &mut ::TokenReader<'token>) -> ::Result<Self> {
                 $(if let Some(t) = ::Parse::try_parse(reader) {
                     return Ok($name::$variant(t));
                 })*
@@ -52,8 +52,8 @@ macro_rules! derive_traits_for_enum {
         }
     };
     ($name:ident, $($variant:ident),*) => {
-        impl<'token, 'text: 'token> ::Parse<'token, 'text> for $name<'token, 'text> {
-            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+        impl<'token> ::Parse<'token> for $name<'token> {
+            fn parse(reader: &mut ::TokenReader<'token>) -> ::Result<Self> {
                 $(if let Some(t) = ::Parse::try_parse(reader) {
                     return Ok($name::$variant(t));
                 })*
@@ -63,7 +63,7 @@ macro_rules! derive_traits_for_enum {
                              reader.read());
             }
         }
-        impl<'token, 'text: 'token> ::TokenRange for $name<'token, 'text> {
+        impl<'token> ::TokenRange for $name<'token> {
             fn token_start(&self) -> usize {
                 match *self {
                     $($name::$variant(ref t) => t.token_start()),*
@@ -78,11 +78,11 @@ macro_rules! derive_traits_for_enum {
     }
 }
 macro_rules! derive_parse {
-    ($name:ident <'token, 'text, $($param:ident),* >, $($field:ident),*) => {
-        impl <'token, 'text: 'token, $($param),*> ::Parse<'token, 'text> for
-            $name <'token, 'text, $($param),* >
-            where $($param: ::Parse<'token, 'text>),* {
-            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+    ($name:ident <'token, $($param:ident),* >, $($field:ident),*) => {
+        impl <'token, $($param),*> ::Parse<'token> for
+            $name <'token, $($param),* >
+            where $($param: ::Parse<'token>),* {
+            fn parse(reader: &mut ::TokenReader<'token>) -> ::Result<Self> {
                 Ok($name {
                     $($field: track_try!(::Parse::parse(reader),
                                          "struct={}, field={}",
@@ -93,9 +93,9 @@ macro_rules! derive_parse {
         }
     };
     ($name:ident < $($param:ident),* >, $($field:ident),*) => {
-        impl <'token, 'text: 'token, $($param),*> ::Parse<'token, 'text> for $name < $($param),* >
-            where $($param: ::Parse<'token, 'text>),* {
-            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+        impl <'token, $($param),*> ::Parse<'token> for $name < $($param),* >
+            where $($param: ::Parse<'token>),* {
+            fn parse(reader: &mut ::TokenReader<'token>) -> ::Result<Self> {
                 Ok($name {
                     $($field: track_try!(::Parse::parse(reader),
                                          "struct={}, field={}",
@@ -106,8 +106,8 @@ macro_rules! derive_parse {
         }
     };
     ($name:ident, $($field:ident),*) => {
-        impl <'token, 'text: 'token> ::Parse<'token, 'text> for $name<'token, 'text> {
-            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+        impl <'token> ::Parse<'token> for $name<'token> {
+            fn parse(reader: &mut ::TokenReader<'token>) -> ::Result<Self> {
                 Ok($name {
                     $($field: track_try!(::Parse::parse(reader),
                                          "struct={}, field={}",
@@ -119,8 +119,8 @@ macro_rules! derive_parse {
     }
 }
 macro_rules! derive_token_range {
-    ($name:ident <'token, 'text, $($param:ident),* >, $first:ident, $last:ident) => {
-        impl <'token, 'text: 'token, $($param),*> ::TokenRange for $name <'token, 'text, $($param),* >
+    ($name:ident <'token, $($param:ident),* >, $first:ident, $last:ident) => {
+        impl <'token, $($param),*> ::TokenRange for $name <'token, $($param),* >
             where $($param: ::TokenRange),* {
             fn token_start(&self) -> usize {
                 self.$first.token_start()
@@ -142,7 +142,7 @@ macro_rules! derive_token_range {
         }
     };
     ($name:ident, $first:ident, $last:ident) => {
-        impl <'token, 'text:'token> ::TokenRange for $name<'token, 'text> {
+        impl <'token:'token> ::TokenRange for $name<'token> {
             fn token_start(&self) -> usize {
                 self.$first.token_start()
             }
@@ -154,14 +154,14 @@ macro_rules! derive_token_range {
 }
 macro_rules! derive_traits_for_token {
     ($name:ident, $variant:ident, $token:ident) => {
-        impl<'token, 'text: 'token> Deref for $name<'token, 'text> {
-            type Target = $token<'text>;
+        impl<'token> Deref for $name<'token> {
+            type Target = $token<>;
             fn deref(&self) -> &Self::Target {
                 self.value
             }
         }
-        impl<'token, 'text: 'token> ::Parse<'token, 'text> for $name<'token, 'text> {
-            fn parse(reader: &mut ::TokenReader<'token, 'text>) -> ::Result<Self> {
+        impl<'token> ::Parse<'token> for $name<'token> {
+            fn parse(reader: &mut ::TokenReader<'token>) -> ::Result<Self> {
                 let position = reader.position();
                 let token = track_try!(reader.read());
                 if let Token::$variant(ref value) = *token {
@@ -174,7 +174,7 @@ macro_rules! derive_traits_for_token {
                 }
             }
         }
-        impl<'token, 'text: 'token> ::TokenRange for $name<'token, 'text> {
+        impl<'token> ::TokenRange for $name<'token> {
             fn token_start(&self) -> usize {
                 self.position
             }
@@ -196,28 +196,28 @@ pub mod terms;
 pub mod types;
 
 #[derive(Debug, Clone)]
-pub struct ModuleDecl<'token, 'text:'token> {
+pub struct ModuleDecl<'token: 'token> {
     _start: commons::Void,
-    pub forms: Vec<Form<'token,'text>>,
+    pub forms: Vec<Form<'token>>,
     _end: commons::Void,
 }
 derive_parse!(ModuleDecl, _start, forms, _end);
 derive_token_range!(ModuleDecl, _start, _end);
 
 #[derive(Debug, Clone)]
-pub enum Term<'token, 'text: 'token> {
-    Paren(Box<terms::Parenthesized<'token, 'text>>),
-    BitStr(Box<terms::BitStr<'token, 'text>>),
-    Record(Box<terms::Record<'token, 'text>>),
-    Map(Box<terms::Map<'token, 'text>>),
-    List(Box<terms::List<'token, 'text>>),
-    TailConsList(Box<terms::TailConsList<'token, 'text>>),
-    Tuple(Box<terms::Tuple<'token, 'text>>),
-    Atom(literals::Atom<'token, 'text>),
-    Char(literals::Char<'token, 'text>),
-    Float(literals::Float<'token, 'text>),
-    Int(literals::Int<'token, 'text>),
-    Str(literals::Str<'token, 'text>),
+pub enum Term<'token> {
+    Paren(Box<terms::Parenthesized<'token>>),
+    BitStr(Box<terms::BitStr<'token>>),
+    Record(Box<terms::Record<'token>>),
+    Map(Box<terms::Map<'token>>),
+    List(Box<terms::List<'token>>),
+    TailConsList(Box<terms::TailConsList<'token>>),
+    Tuple(Box<terms::Tuple<'token>>),
+    Atom(literals::Atom<'token>),
+    Char(literals::Char<'token>),
+    Float(literals::Float<'token>),
+    Int(literals::Int<'token>),
+    Str(literals::Str<'token>),
 }
 derive_traits_for_enum!(Term,
                         Paren,
@@ -234,20 +234,20 @@ derive_traits_for_enum!(Term,
                         Str);
 
 #[derive(Debug, Clone)]
-pub enum Form<'token, 'text: 'token> {
-    ModuleAttr(forms::ModuleAttr<'token, 'text>),
-    ExportAttr(forms::ExportAttr<'token, 'text>),
-    ExportTypeAttr(forms::ExportTypeAttr<'token, 'text>),
-    ImportAttr(forms::ImportAttr<'token, 'text>),
-    FileAttr(forms::FileAttr<'token, 'text>),
-    WildAttr(forms::WildAttr<'token, 'text>),
-    FunSpec(forms::FunSpec<'token, 'text>),
-    RemoteFunSpec(forms::RemoteFunSpec<'token, 'text>),
-    CallbackSpec(forms::CallbackSpec<'token, 'text>),
-    FunDecl(forms::FunDecl<'token, 'text>),
-    RecordDecl(forms::RecordDecl<'token, 'text>),
-    TypeDecl(forms::TypeDecl<'token, 'text>),
-    OpaqueDecl(forms::OpaqueDecl<'token, 'text>),
+pub enum Form<'token> {
+    ModuleAttr(forms::ModuleAttr<'token>),
+    ExportAttr(forms::ExportAttr<'token>),
+    ExportTypeAttr(forms::ExportTypeAttr<'token>),
+    ImportAttr(forms::ImportAttr<'token>),
+    FileAttr(forms::FileAttr<'token>),
+    WildAttr(forms::WildAttr<'token>),
+    FunSpec(forms::FunSpec<'token>),
+    RemoteFunSpec(forms::RemoteFunSpec<'token>),
+    CallbackSpec(forms::CallbackSpec<'token>),
+    FunDecl(forms::FunDecl<'token>),
+    RecordDecl(forms::RecordDecl<'token>),
+    TypeDecl(forms::TypeDecl<'token>),
+    OpaqueDecl(forms::OpaqueDecl<'token>),
 }
 derive_traits_for_enum!(Form,
                         ModuleAttr,
@@ -265,26 +265,26 @@ derive_traits_for_enum!(Form,
                         OpaqueDecl);
 
 #[derive(Debug, Clone)]
-pub enum Type<'token, 'text: 'token> {
-    Union(Box<types::Union<'token, 'text>>),
-    IntRange(Box<types::IntRange<'token ,'text>>),
-    Int(types::IntType<'token, 'text>),
-    BitStr(Box<types::BitStr<'token, 'text>>),
-    AnyArgFun(Box<types::AnyArgFun<'token, 'text>>),
-    Fun(Box<types::Fun<'token, 'text>>),
-    RemoteCall(Box<types::RemoteCall<'token, 'text>>),
-    LocalCall(Box<types::LocalCall<'token, 'text>>),
-    Record(Box<types::Record<'token, 'text>>),
-    Map(Box<types::Map<'token, 'text>>),
-    Tuple(Box<types::Tuple<'token, 'text>>),
-    Annotated(Box<types::Annotated<'token, 'text>>),
-    Paren(Box<types::Parenthesized<'token, 'text>>),
-    List(Box<types::List<'token,'text>>),
-    Var(commons::Var<'token, 'text>),
-    Atom(literals::Atom<'token, 'text>),
-    Char(literals::Char<'token, 'text>),
-    Float(literals::Float<'token, 'text>),
-    Str(literals::Str<'token, 'text>),
+pub enum Type<'token> {
+    Union(Box<types::Union<'token>>),
+    IntRange(Box<types::IntRange<'token>>),
+    Int(types::IntType<'token>),
+    BitStr(Box<types::BitStr<'token>>),
+    AnyArgFun(Box<types::AnyArgFun<'token>>),
+    Fun(Box<types::Fun<'token>>),
+    RemoteCall(Box<types::RemoteCall<'token>>),
+    LocalCall(Box<types::LocalCall<'token>>),
+    Record(Box<types::Record<'token>>),
+    Map(Box<types::Map<'token>>),
+    Tuple(Box<types::Tuple<'token>>),
+    Annotated(Box<types::Annotated<'token>>),
+    Paren(Box<types::Parenthesized<'token>>),
+    List(Box<types::List<'token>>),
+    Var(commons::Var<'token>),
+    Atom(literals::Atom<'token>),
+    Char(literals::Char<'token>),
+    Float(literals::Float<'token>),
+    Str(literals::Str<'token>),
 }
 derive_traits_for_enum!(Type,
                         Union,
@@ -308,41 +308,41 @@ derive_traits_for_enum!(Type,
                         Str);
 
 #[derive(Debug, Clone)]
-pub enum Expr<'token, 'text: 'token> {
-    BinaryOpCall(Box<exprs::BinaryOpCall<'token, 'text>>),
-    RemoteCall(Box<exprs::RemoteCall<'token, 'text>>),
-    LocalCall(Box<exprs::LocalCall<'token, 'text>>),
-    Match(Box<exprs::Match<'token, 'text>>),
-    MapUpdate(Box<exprs::MapUpdate<'token, 'text>>),
-    RecordUpdate(Box<exprs::RecordUpdate<'token, 'text>>),
-    RecordFieldAccess(Box<exprs::RecordFieldAccess<'token,'text>>),
-    NamedFun(Box<exprs::NamedFun<'token, 'text>>),
-    AnonymousFun(Box<exprs::AnonymousFun<'token, 'text>>),
-    RemoteFun(Box<exprs::RemoteFun<'token, 'text>>),
-    LocalFun(Box<exprs::LocalFun<'token, 'text>>),
-    UnaryOpCall(Box<exprs::UnaryOpCall<'token, 'text>>),
-    Catch(Box<exprs::Catch<'token, 'text>>),
-    Paren(Box<exprs::Parenthesized<'token, 'text>>),
-    Try(Box<exprs::Try<'token, 'text>>),
-    Receive(Box<exprs::Receive<'token, 'text>>),
-    Case(Box<exprs::Case<'token, 'text>>),
-    If(Box<exprs::If<'token, 'text>>),
-    Block(Box<exprs::Block<'token, 'text>>),
-    BitStr(Box<exprs::BitStr<'token, 'text>>),
-    BitStrComprehension(Box<exprs::BitStrComprehension<'token, 'text>>),
-    Record(Box<exprs::Record<'token, 'text>>),
-    RecordFieldIndex(exprs::RecordFieldIndex<'token, 'text>),
-    Map(Box<exprs::Map<'token, 'text>>),
-    List(Box<exprs::List<'token, 'text>>),
-    TailConsList(Box<exprs::TailConsList<'token, 'text>>),
-    ListComprehension(Box<exprs::ListComprehension<'token, 'text>>),
-    Tuple(Box<exprs::Tuple<'token, 'text>>),
-    Var(commons::Var<'token, 'text>),
-    Atom(literals::Atom<'token, 'text>),
-    Char(literals::Char<'token, 'text>),
-    Float(literals::Float<'token, 'text>),
-    Int(literals::Int<'token, 'text>),
-    Str(literals::Str<'token, 'text>),
+pub enum Expr<'token> {
+    BinaryOpCall(Box<exprs::BinaryOpCall<'token>>),
+    RemoteCall(Box<exprs::RemoteCall<'token>>),
+    LocalCall(Box<exprs::LocalCall<'token>>),
+    Match(Box<exprs::Match<'token>>),
+    MapUpdate(Box<exprs::MapUpdate<'token>>),
+    RecordUpdate(Box<exprs::RecordUpdate<'token>>),
+    RecordFieldAccess(Box<exprs::RecordFieldAccess<'token>>),
+    NamedFun(Box<exprs::NamedFun<'token>>),
+    AnonymousFun(Box<exprs::AnonymousFun<'token>>),
+    RemoteFun(Box<exprs::RemoteFun<'token>>),
+    LocalFun(Box<exprs::LocalFun<'token>>),
+    UnaryOpCall(Box<exprs::UnaryOpCall<'token>>),
+    Catch(Box<exprs::Catch<'token>>),
+    Paren(Box<exprs::Parenthesized<'token>>),
+    Try(Box<exprs::Try<'token>>),
+    Receive(Box<exprs::Receive<'token>>),
+    Case(Box<exprs::Case<'token>>),
+    If(Box<exprs::If<'token>>),
+    Block(Box<exprs::Block<'token>>),
+    BitStr(Box<exprs::BitStr<'token>>),
+    BitStrComprehension(Box<exprs::BitStrComprehension<'token>>),
+    Record(Box<exprs::Record<'token>>),
+    RecordFieldIndex(exprs::RecordFieldIndex<'token>),
+    Map(Box<exprs::Map<'token>>),
+    List(Box<exprs::List<'token>>),
+    TailConsList(Box<exprs::TailConsList<'token>>),
+    ListComprehension(Box<exprs::ListComprehension<'token>>),
+    Tuple(Box<exprs::Tuple<'token>>),
+    Var(commons::Var<'token>),
+    Atom(literals::Atom<'token>),
+    Char(literals::Char<'token>),
+    Float(literals::Float<'token>),
+    Int(literals::Int<'token>),
+    Str(literals::Str<'token>),
 }
 derive_traits_for_enum!(Expr,
                         BinaryOpCall,
@@ -381,39 +381,39 @@ derive_traits_for_enum!(Expr,
                         Str);
 
 #[derive(Debug, Clone)]
-pub enum LeftExpr<'token, 'text: 'token> {
-    RemoteCall(Box<exprs::RemoteCall<'token, 'text>>),
-    LocalCall(Box<exprs::LocalCall<'token, 'text>>),
-    MapUpdate(Box<exprs::MapUpdate<'token, 'text>>),
-    RecordUpdate(Box<exprs::RecordUpdate<'token, 'text>>),
-    RecordFieldAccess(Box<exprs::RecordFieldAccess<'token,'text>>),
-    NamedFun(Box<exprs::NamedFun<'token, 'text>>),
-    AnonymousFun(Box<exprs::AnonymousFun<'token, 'text>>),
-    RemoteFun(Box<exprs::RemoteFun<'token, 'text>>),
-    LocalFun(Box<exprs::LocalFun<'token, 'text>>),
-    UnaryOpCall(Box<exprs::UnaryOpCall<'token, 'text>>),
-    Catch(Box<exprs::Catch<'token, 'text>>),
-    Paren(Box<exprs::Parenthesized<'token, 'text>>),
-    Try(Box<exprs::Try<'token, 'text>>),
-    Receive(Box<exprs::Receive<'token, 'text>>),
-    Case(Box<exprs::Case<'token, 'text>>),
-    If(Box<exprs::If<'token, 'text>>),
-    Block(Box<exprs::Block<'token, 'text>>),
-    BitStr(Box<exprs::BitStr<'token, 'text>>),
-    BitStrComprehension(Box<exprs::BitStrComprehension<'token, 'text>>),
-    Record(Box<exprs::Record<'token, 'text>>),
-    RecordFieldIndex(exprs::RecordFieldIndex<'token, 'text>),
-    Map(Box<exprs::Map<'token, 'text>>),
-    List(Box<exprs::List<'token, 'text>>),
-    TailConsList(Box<exprs::TailConsList<'token, 'text>>),
-    ListComprehension(Box<exprs::ListComprehension<'token, 'text>>),
-    Tuple(Box<exprs::Tuple<'token, 'text>>),
-    Var(commons::Var<'token, 'text>),
-    Atom(literals::Atom<'token, 'text>),
-    Char(literals::Char<'token, 'text>),
-    Float(literals::Float<'token, 'text>),
-    Int(literals::Int<'token, 'text>),
-    Str(literals::Str<'token, 'text>),
+pub enum LeftExpr<'token> {
+    RemoteCall(Box<exprs::RemoteCall<'token>>),
+    LocalCall(Box<exprs::LocalCall<'token>>),
+    MapUpdate(Box<exprs::MapUpdate<'token>>),
+    RecordUpdate(Box<exprs::RecordUpdate<'token>>),
+    RecordFieldAccess(Box<exprs::RecordFieldAccess<'token>>),
+    NamedFun(Box<exprs::NamedFun<'token>>),
+    AnonymousFun(Box<exprs::AnonymousFun<'token>>),
+    RemoteFun(Box<exprs::RemoteFun<'token>>),
+    LocalFun(Box<exprs::LocalFun<'token>>),
+    UnaryOpCall(Box<exprs::UnaryOpCall<'token>>),
+    Catch(Box<exprs::Catch<'token>>),
+    Paren(Box<exprs::Parenthesized<'token>>),
+    Try(Box<exprs::Try<'token>>),
+    Receive(Box<exprs::Receive<'token>>),
+    Case(Box<exprs::Case<'token>>),
+    If(Box<exprs::If<'token>>),
+    Block(Box<exprs::Block<'token>>),
+    BitStr(Box<exprs::BitStr<'token>>),
+    BitStrComprehension(Box<exprs::BitStrComprehension<'token>>),
+    Record(Box<exprs::Record<'token>>),
+    RecordFieldIndex(exprs::RecordFieldIndex<'token>),
+    Map(Box<exprs::Map<'token>>),
+    List(Box<exprs::List<'token>>),
+    TailConsList(Box<exprs::TailConsList<'token>>),
+    ListComprehension(Box<exprs::ListComprehension<'token>>),
+    Tuple(Box<exprs::Tuple<'token>>),
+    Var(commons::Var<'token>),
+    Atom(literals::Atom<'token>),
+    Char(literals::Char<'token>),
+    Float(literals::Float<'token>),
+    Int(literals::Int<'token>),
+    Str(literals::Str<'token>),
 }
 derive_traits_for_enum!(LeftExpr,
                         RemoteCall,
@@ -450,88 +450,114 @@ derive_traits_for_enum!(LeftExpr,
                         Str);
 
 #[derive(Debug, Clone)]
-pub enum Pattern<'token, 'text: 'token> {
-    Match(Box<patterns::Match<'token, 'text>>),
-    BinaryOpCall(Box<patterns::BinaryOpCall<'token, 'text>>),
-    UnaryOpCall(Box<patterns::UnaryOpCall<'token,'text>>),
-    Paren(Box<patterns::Parenthesized<'token, 'text>>),    
-    Record(Box<patterns::Record<'token, 'text>>),
-    RecordFieldIndex(patterns::RecordFieldIndex<'token, 'text>),
-    Map(Box<patterns::Map<'token, 'text>>),
-    Tuple(Box<patterns::Tuple<'token, 'text>>),
-    List(Box<patterns::List<'token, 'text>>),
-    TailConsList(Box<patterns::TailConsList<'token, 'text>>),
-    BitStr(Box<patterns::BitStr<'token, 'text>>),
-    Var(commons::Var<'token, 'text>),
-    Atom(literals::Atom<'token, 'text>),
-    Char(literals::Char<'token, 'text>),
-    Float(literals::Float<'token, 'text>),
-    Int(literals::Int<'token, 'text>),
-    Str(literals::Str<'token, 'text>),
+pub enum Pattern<'token> {
+    Match(Box<patterns::Match<'token>>),
+    BinaryOpCall(Box<patterns::BinaryOpCall<'token>>),
+    UnaryOpCall(Box<patterns::UnaryOpCall<'token>>),
+    Paren(Box<patterns::Parenthesized<'token>>),
+    Record(Box<patterns::Record<'token>>),
+    RecordFieldIndex(patterns::RecordFieldIndex<'token>),
+    Map(Box<patterns::Map<'token>>),
+    Tuple(Box<patterns::Tuple<'token>>),
+    List(Box<patterns::List<'token>>),
+    TailConsList(Box<patterns::TailConsList<'token>>),
+    BitStr(Box<patterns::BitStr<'token>>),
+    Var(commons::Var<'token>),
+    Atom(literals::Atom<'token>),
+    Char(literals::Char<'token>),
+    Float(literals::Float<'token>),
+    Int(literals::Int<'token>),
+    Str(literals::Str<'token>),
 }
 derive_traits_for_enum!(Pattern,
-                        Match, BinaryOpCall,
-                        UnaryOpCall, Paren, Record, RecordFieldIndex,
-                        Map, Tuple, List, TailConsList, BitStr,
-                        Var, Atom, Char, Float, Int, Str);
+                        Match,
+                        BinaryOpCall,
+                        UnaryOpCall,
+                        Paren,
+                        Record,
+                        RecordFieldIndex,
+                        Map,
+                        Tuple,
+                        List,
+                        TailConsList,
+                        BitStr,
+                        Var,
+                        Atom,
+                        Char,
+                        Float,
+                        Int,
+                        Str);
 
 #[derive(Debug, Clone)]
-pub enum LeftPattern<'token, 'text: 'token> {
-    Paren(Box<patterns::Parenthesized<'token, 'text>>),
-    UnaryOpCall(Box<patterns::UnaryOpCall<'token,'text>>),
-    Record(Box<patterns::Record<'token, 'text>>),
-    RecordFieldIndex(patterns::RecordFieldIndex<'token, 'text>),
-    Map(Box<patterns::Map<'token, 'text>>),
-    Tuple(Box<patterns::Tuple<'token, 'text>>),
-    List(Box<patterns::List<'token, 'text>>),
-    TailConsList(Box<patterns::TailConsList<'token, 'text>>),
-    BitStr(Box<patterns::BitStr<'token, 'text>>),
-    Var(commons::Var<'token, 'text>),
-    Atom(literals::Atom<'token, 'text>),
-    Char(literals::Char<'token, 'text>),
-    Float(literals::Float<'token, 'text>),
-    Int(literals::Int<'token, 'text>),
-    Str(literals::Str<'token, 'text>),
+pub enum LeftPattern<'token> {
+    Paren(Box<patterns::Parenthesized<'token>>),
+    UnaryOpCall(Box<patterns::UnaryOpCall<'token>>),
+    Record(Box<patterns::Record<'token>>),
+    RecordFieldIndex(patterns::RecordFieldIndex<'token>),
+    Map(Box<patterns::Map<'token>>),
+    Tuple(Box<patterns::Tuple<'token>>),
+    List(Box<patterns::List<'token>>),
+    TailConsList(Box<patterns::TailConsList<'token>>),
+    BitStr(Box<patterns::BitStr<'token>>),
+    Var(commons::Var<'token>),
+    Atom(literals::Atom<'token>),
+    Char(literals::Char<'token>),
+    Float(literals::Float<'token>),
+    Int(literals::Int<'token>),
+    Str(literals::Str<'token>),
 }
-derive_traits_for_enum!(LeftPattern, Paren, UnaryOpCall, Record, RecordFieldIndex,
-                        Map, Tuple, List, TailConsList, BitStr,
-                        Var, Atom, Char, Float, Int, Str);
+derive_traits_for_enum!(LeftPattern,
+                        Paren,
+                        UnaryOpCall,
+                        Record,
+                        RecordFieldIndex,
+                        Map,
+                        Tuple,
+                        List,
+                        TailConsList,
+                        BitStr,
+                        Var,
+                        Atom,
+                        Char,
+                        Float,
+                        Int,
+                        Str);
 
 #[derive(Debug, Clone)]
-pub struct GuardSeq<'token, 'text:'token> {
-    pub guards: commons::NonEmptySeq<Guard<'token, 'text>, literals::S_SEMICOLON>
+pub struct GuardSeq<'token: 'token> {
+    pub guards: commons::NonEmptySeq<Guard<'token>, literals::S_SEMICOLON>,
 }
 derive_parse!(GuardSeq, guards);
 derive_token_range!(GuardSeq, guards, guards);
 
 #[derive(Debug, Clone)]
-pub struct Guard<'token, 'text:'token> {
-    pub tests: commons::NonEmptySeq<GuardTest<'token, 'text>, literals::S_COMMA>
+pub struct Guard<'token: 'token> {
+    pub tests: commons::NonEmptySeq<GuardTest<'token>, literals::S_COMMA>,
 }
 derive_parse!(Guard, tests);
 derive_token_range!(Guard, tests, tests);
 
 #[derive(Debug, Clone)]
-pub enum GuardTest<'token, 'text: 'token> {
-    BinaryOpCall(Box<guard_tests::BinaryOpCall<'token, 'text>>),
-    RemoteCall(Box<guard_tests::RemoteCall<'token, 'text>>),
-    LocalCall(Box<guard_tests::LocalCall<'token, 'text>>),
-    RecordFieldAccess(guard_tests::RecordFieldAccess<'token, 'text>),
-    UnaryOpCall(Box<guard_tests::UnaryOpCall<'token, 'text>>),
-    Paren(Box<guard_tests::Parenthesized<'token, 'text>>),
-    BitStr(Box<guard_tests::BitStr<'token, 'text>>),
-    Record(Box<guard_tests::Record<'token, 'text>>),
-    RecordFieldIndex(guard_tests::RecordFieldIndex<'token, 'text>),
-    Map(Box<guard_tests::Map<'token, 'text>>),
-    List(Box<guard_tests::List<'token, 'text>>),
-    TailConsList(Box<guard_tests::TailConsList<'token, 'text>>),
-    Tuple(Box<guard_tests::Tuple<'token, 'text>>),
-    Var(commons::Var<'token, 'text>),
-    Atom(literals::Atom<'token, 'text>),
-    Char(literals::Char<'token, 'text>),
-    Float(literals::Float<'token, 'text>),
-    Int(literals::Int<'token, 'text>),
-    Str(literals::Str<'token, 'text>),
+pub enum GuardTest<'token> {
+    BinaryOpCall(Box<guard_tests::BinaryOpCall<'token>>),
+    RemoteCall(Box<guard_tests::RemoteCall<'token>>),
+    LocalCall(Box<guard_tests::LocalCall<'token>>),
+    RecordFieldAccess(guard_tests::RecordFieldAccess<'token>),
+    UnaryOpCall(Box<guard_tests::UnaryOpCall<'token>>),
+    Paren(Box<guard_tests::Parenthesized<'token>>),
+    BitStr(Box<guard_tests::BitStr<'token>>),
+    Record(Box<guard_tests::Record<'token>>),
+    RecordFieldIndex(guard_tests::RecordFieldIndex<'token>),
+    Map(Box<guard_tests::Map<'token>>),
+    List(Box<guard_tests::List<'token>>),
+    TailConsList(Box<guard_tests::TailConsList<'token>>),
+    Tuple(Box<guard_tests::Tuple<'token>>),
+    Var(commons::Var<'token>),
+    Atom(literals::Atom<'token>),
+    Char(literals::Char<'token>),
+    Float(literals::Float<'token>),
+    Int(literals::Int<'token>),
+    Str(literals::Str<'token>),
 }
 derive_traits_for_enum!(GuardTest,
                         BinaryOpCall,
@@ -555,22 +581,22 @@ derive_traits_for_enum!(GuardTest,
                         Str);
 
 #[derive(Debug, Clone)]
-pub enum LeftGuardTest<'token, 'text: 'token> {
-    UnaryOpCall(Box<guard_tests::UnaryOpCall<'token, 'text>>),
-    Paren(Box<guard_tests::Parenthesized<'token, 'text>>),
-    BitStr(Box<guard_tests::BitStr<'token, 'text>>),
-    Record(Box<guard_tests::Record<'token, 'text>>),
-    RecordFieldIndex(guard_tests::RecordFieldIndex<'token, 'text>),
-    Map(Box<guard_tests::Map<'token, 'text>>),
-    List(Box<guard_tests::List<'token, 'text>>),
-    TailConsList(Box<guard_tests::TailConsList<'token, 'text>>),
-    Tuple(Box<guard_tests::Tuple<'token, 'text>>),
-    Var(commons::Var<'token, 'text>),
-    Atom(literals::Atom<'token, 'text>),
-    Char(literals::Char<'token, 'text>),
-    Float(literals::Float<'token, 'text>),
-    Int(literals::Int<'token, 'text>),
-    Str(literals::Str<'token, 'text>),
+pub enum LeftGuardTest<'token> {
+    UnaryOpCall(Box<guard_tests::UnaryOpCall<'token>>),
+    Paren(Box<guard_tests::Parenthesized<'token>>),
+    BitStr(Box<guard_tests::BitStr<'token>>),
+    Record(Box<guard_tests::Record<'token>>),
+    RecordFieldIndex(guard_tests::RecordFieldIndex<'token>),
+    Map(Box<guard_tests::Map<'token>>),
+    List(Box<guard_tests::List<'token>>),
+    TailConsList(Box<guard_tests::TailConsList<'token>>),
+    Tuple(Box<guard_tests::Tuple<'token>>),
+    Var(commons::Var<'token>),
+    Atom(literals::Atom<'token>),
+    Char(literals::Char<'token>),
+    Float(literals::Float<'token>),
+    Int(literals::Int<'token>),
+    Str(literals::Str<'token>),
 }
 derive_traits_for_enum!(LeftGuardTest,
                         UnaryOpCall,

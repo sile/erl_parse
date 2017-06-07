@@ -19,3 +19,6 @@ trackable = "0.1"
 
 [dev-dependencies]
 clap = "2"
+
+[replace]
+"erl_tokenize:0.1.4" = {git = "https://github.com/sile/erl_tokenize.git", branch = "owned"}
