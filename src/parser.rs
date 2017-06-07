@@ -17,29 +17,29 @@ impl Parser {
     pub fn tokens(&self) -> &[Token] {
         &self.tokens
     }
-    pub fn parse_expr<'token>(&'token self) -> Result<Expr<'token>> {
+    pub fn parse_expr(&self) -> Result<Expr> {
         let mut reader = TokenReader::new(&self.tokens);
         let expr = track_try!(Expr::parse(&mut reader), "line_num={}", reader.line_num());
         Ok(expr)
     }
-    pub fn parse_pattern<'token>(&'token self) -> Result<Pattern<'token>> {
+    pub fn parse_pattern(&self) -> Result<Pattern> {
         let mut reader = TokenReader::new(&self.tokens);
         let pattern = track_try!(Pattern::parse(&mut reader),
                                  "line_num={}",
                                  reader.line_num());
         Ok(pattern)
     }
-    pub fn parse_type<'token>(&'token self) -> Result<Type<'token>> {
+    pub fn parse_type(&self) -> Result<Type> {
         let mut reader = TokenReader::new(&self.tokens);
         let ty = track_try!(Type::parse(&mut reader), "line_num={}", reader.line_num());
         Ok(ty)
     }
-    pub fn parse_form<'token>(&'token self) -> Result<Form<'token>> {
+    pub fn parse_form(&self) -> Result<Form> {
         let mut reader = TokenReader::new(&self.tokens);
         let form = track_try!(Form::parse(&mut reader), "line_num={}", reader.line_num());
         Ok(form)
     }
-    pub fn parse_module<'token>(&'token self) -> Result<ModuleDecl> {
+    pub fn parse_module(&self) -> Result<ModuleDecl> {
         let mut reader = TokenReader::new(&self.tokens);
         let form = track_try!(ModuleDecl::parse(&mut reader),
                               "line_num={}",

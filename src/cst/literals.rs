@@ -8,8 +8,8 @@ use {Result, Parse, TokenRange, TokenReader, ErrorKind};
 
 macro_rules! derive_traits_for_value {
     ($name:ident, $variant:ident, $value:expr) => {
-        impl<'token> Parse<'token> for $name {
-            fn parse(reader: &mut TokenReader<'token>) -> Result<Self> {
+        impl Parse for $name {
+            fn parse(reader: &mut TokenReader) -> Result<Self> {
                 let position = reader.position();
                 let token = track_try!(reader.read());
                 if let Token::$variant(ref token) = *token {
@@ -23,7 +23,7 @@ macro_rules! derive_traits_for_value {
                 }
             }
         }
-        impl<'token> TokenRange for $name {
+        impl TokenRange for $name {
             fn token_start(&self) -> usize {
                 self.position
             }
@@ -35,37 +35,37 @@ macro_rules! derive_traits_for_value {
 }
 
 #[derive(Debug, Clone)]
-pub struct Atom<'token> {
+pub struct Atom {
     position: usize,
-    value: &'token AtomToken,
+    value: AtomToken,
 }
 derive_traits_for_token!(Atom, Atom, AtomToken);
 
 #[derive(Debug, Clone)]
-pub struct Char<'token> {
+pub struct Char {
     position: usize,
-    value: &'token CharToken,
+    value: CharToken,
 }
 derive_traits_for_token!(Char, Char, CharToken);
 
 #[derive(Debug, Clone)]
-pub struct Float<'token> {
+pub struct Float {
     position: usize,
-    value: &'token FloatToken,
+    value: FloatToken,
 }
 derive_traits_for_token!(Float, Float, FloatToken);
 
 #[derive(Debug, Clone)]
-pub struct Int<'token> {
+pub struct Int {
     position: usize,
-    value: &'token IntegerToken,
+    value: IntegerToken,
 }
 derive_traits_for_token!(Int, Integer, IntegerToken);
 
 #[derive(Debug, Clone)]
-pub struct Str<'token> {
+pub struct Str {
     position: usize,
-    value: &'token StringToken,
+    value: StringToken,
 }
 derive_traits_for_token!(Str, String, StringToken);
 

@@ -1,8 +1,8 @@
 use {Result, TokenReader};
 
-pub trait Parse<'token>: Sized {
-    fn parse(reader: &mut TokenReader<'token>) -> Result<Self>;
-    fn try_parse(reader: &mut TokenReader<'token>) -> Option<Self> {
+pub trait Parse: Sized {
+    fn parse(reader: &mut TokenReader) -> Result<Self>;
+    fn try_parse(reader: &mut TokenReader) -> Option<Self> {
         let position = reader.position();
         if let Ok(value) = Self::parse(reader) {
             Some(value)
@@ -12,17 +12,17 @@ pub trait Parse<'token>: Sized {
         }
     }
 }
-impl<'token, P> Parse<'token> for Option<P>
-    where P: Parse<'token>
+impl<P> Parse for Option<P>
+    where P: Parse
 {
-    fn parse(reader: &mut TokenReader<'token>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader) -> Result<Self> {
         Ok(P::try_parse(reader))
     }
 }
-impl<'token, P> Parse<'token> for Vec<P>
-    where P: Parse<'token>
+impl<P> Parse for Vec<P>
+    where P: Parse
 {
-    fn parse(reader: &mut TokenReader<'token>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader) -> Result<Self> {
         let mut vec = Vec::new();
         while let Some(v) = P::try_parse(reader) {
             vec.push(v);
@@ -30,10 +30,10 @@ impl<'token, P> Parse<'token> for Vec<P>
         Ok(vec)
     }
 }
-impl<'token, P> Parse<'token> for Box<P>
-    where P: Parse<'token>
+impl<P> Parse for Box<P>
+    where P: Parse
 {
-    fn parse(reader: &mut TokenReader<'token>) -> Result<Self> {
+    fn parse(reader: &mut TokenReader) -> Result<Self> {
         let v = track_try!(P::parse(reader));
         Ok(Box::new(v))
     }
