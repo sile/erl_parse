@@ -1,6 +1,6 @@
 [package]
 name = "erl_parse"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Takeru Ohta <phjgt308@gmail.com>"]
 description = "Erlang source code parser"
 homepage = "https://github.com/sile/erl_parse"
