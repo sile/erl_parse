@@ -20,6 +20,3 @@ trackable = "0.2"
 
 [dev-dependencies]
 clap = "2"
-
-[replace]
-"erl_pp:0.1.0" = {path = "../erl_pp/"}
