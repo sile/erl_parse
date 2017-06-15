@@ -37,7 +37,7 @@ where
     P: Parse,
 {
     fn parse(reader: &mut TokenReader) -> Result<Self> {
-        let v = track_try!(P::parse(reader));
+        let v = track!(P::parse(reader))?;
         Ok(Box::new(v))
     }
 }

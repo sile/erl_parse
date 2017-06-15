@@ -1,3 +1,4 @@
+extern crate erl_pp;
 extern crate erl_tokenize;
 #[macro_use]
 extern crate trackable;

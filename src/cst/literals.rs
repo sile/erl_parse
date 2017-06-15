@@ -11,7 +11,7 @@ macro_rules! derive_traits_for_value {
         impl Parse for $name {
             fn parse(reader: &mut TokenReader) -> Result<Self> {
                 let position = reader.position();
-                let token = track_try!(reader.read());
+                let token = track!(reader.read())?;
                 if let Token::$variant(ref token) = *token {
                     track_assert_eq!(token.value(), $value, ErrorKind::Other);
                     Ok($name { position })

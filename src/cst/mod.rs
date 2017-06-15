@@ -84,10 +84,10 @@ macro_rules! derive_parse {
             where $($param: ::Parse),* {
             fn parse(reader: &mut ::TokenReader) -> ::Result<Self> {
                 Ok($name {
-                    $($field: track_try!(::Parse::parse(reader),
-                                         "struct={}, field={}",
-                                         stringify!($name),
-                                         stringify!($field))),*
+                    $($field: track!(::Parse::parse(reader),
+                                     "struct={}, field={}",
+                                     stringify!($name),
+                                     stringify!($field))?),*
                 })
             }
         }
@@ -97,10 +97,10 @@ macro_rules! derive_parse {
             where $($param: ::Parse),* {
             fn parse(reader: &mut ::TokenReader) -> ::Result<Self> {
                 Ok($name {
-                    $($field: track_try!(::Parse::parse(reader),
-                                         "struct={}, field={}",
-                                         stringify!($name),
-                                         stringify!($field))),*
+                    $($field: track!(::Parse::parse(reader),
+                                     "struct={}, field={}",
+                                     stringify!($name),
+                                     stringify!($field))?),*
                 })
             }
         }
@@ -109,10 +109,10 @@ macro_rules! derive_parse {
         impl ::Parse for $name {
             fn parse(reader: &mut ::TokenReader) -> ::Result<Self> {
                 Ok($name {
-                    $($field: track_try!(::Parse::parse(reader),
-                                         "struct={}, field={}",
-                                         stringify!($name),
-                                         stringify!($field))),*
+                    $($field: track!(::Parse::parse(reader),
+                                     "struct={}, field={}",
+                                     stringify!($name),
+                                     stringify!($field))?),*
                 })
             }
         }
@@ -163,7 +163,7 @@ macro_rules! derive_traits_for_token {
         impl ::Parse for $name {
             fn parse(reader: &mut ::TokenReader) -> ::Result<Self> {
                 let position = reader.position();
-                let token = track_try!(reader.read());
+                let token = track!(reader.read())?;
                 if let Token::$variant(ref value) = *token {
                     Ok($name { position, value: value.clone() })
                  } else {

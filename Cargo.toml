@@ -14,8 +14,12 @@ license = "MIT"
 travis-ci = {repository = "sile/erl_parse"}
 
 [dependencies]
-erl_tokenize = "0.2"
-trackable = "0.1"
+erl_pp = "0.1"
+erl_tokenize = "0.3"
+trackable = "0.2"
 
 [dev-dependencies]
 clap = "2"
+
+[replace]
+"erl_pp:0.1.0" = {path = "../erl_pp/"}
