@@ -141,13 +141,15 @@ pub struct RemoteFun {
     pub _slash: literals::S_SLASH,
     pub arity: commons::VarOrInt,
 }
-derive_parse!(RemoteFun,
-              _fun,
-              module_name,
-              _colon,
-              fun_name,
-              _slash,
-              arity);
+derive_parse!(
+    RemoteFun,
+    _fun,
+    module_name,
+    _colon,
+    fun_name,
+    _slash,
+    arity
+);
 derive_token_range!(RemoteFun, _fun, arity);
 
 #[derive(Debug, Clone)]
@@ -170,13 +172,15 @@ pub struct RecordUpdate {
     pub fields: commons::Seq<commons::RecordField<Expr>, literals::S_COMMA>,
     pub _close: literals::S_CLOSE_BRACE,
 }
-derive_parse!(RecordUpdate,
-              record,
-              _sharp,
-              record_name,
-              _open,
-              fields,
-              _close);
+derive_parse!(
+    RecordUpdate,
+    record,
+    _sharp,
+    record_name,
+    _open,
+    fields,
+    _close
+);
 derive_token_range!(RecordUpdate, record, _close);
 
 #[derive(Debug, Clone)]
@@ -257,34 +261,36 @@ pub enum NonLeftRecurExpr {
     Int(literals::Int),
     Str(literals::Str),
 }
-derive_traits_for_enum!(NonLeftRecurExpr,
-                        NamedFun,
-                        AnonymousFun,
-                        RemoteFun,
-                        LocalFun,
-                        UnaryOpCall,
-                        Catch,
-                        Paren,
-                        Try,
-                        Receive,
-                        Case,
-                        If,
-                        Block,
-                        BitStr,
-                        BitStrComprehension,
-                        Record,
-                        RecordFieldIndex,
-                        Map,
-                        List,
-                        TailConsList,
-                        ListComprehension,
-                        Tuple,
-                        Var,
-                        Atom,
-                        Char,
-                        Float,
-                        Int,
-                        Str);
+derive_traits_for_enum!(
+    NonLeftRecurExpr,
+    NamedFun,
+    AnonymousFun,
+    RemoteFun,
+    LocalFun,
+    UnaryOpCall,
+    Catch,
+    Paren,
+    Try,
+    Receive,
+    Case,
+    If,
+    Block,
+    BitStr,
+    BitStrComprehension,
+    Record,
+    RecordFieldIndex,
+    Map,
+    List,
+    TailConsList,
+    ListComprehension,
+    Tuple,
+    Var,
+    Atom,
+    Char,
+    Float,
+    Int,
+    Str
+);
 
 pub type Parenthesized = commons::Parenthesized<Expr>;
 pub type BitStr = commons::BitStr<Expr, NonLeftRecurExpr>;

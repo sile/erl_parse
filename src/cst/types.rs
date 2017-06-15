@@ -31,15 +31,17 @@ pub struct AnyArgFun {
     pub return_type: Type,
     pub _close: literals::S_CLOSE_PAREN,
 }
-derive_parse!(AnyArgFun,
-              _fun,
-              _open,
-              _args_open,
-              _args,
-              _args_close,
-              _arrow,
-              return_type,
-              _close);
+derive_parse!(
+    AnyArgFun,
+    _fun,
+    _open,
+    _args_open,
+    _args,
+    _args_close,
+    _arrow,
+    return_type,
+    _close
+);
 derive_token_range!(AnyArgFun, _fun, _close);
 
 #[derive(Debug, Clone)]
@@ -52,14 +54,16 @@ pub struct Fun {
     pub constraints: Option<FunConstraints>,
     pub _close: literals::S_CLOSE_PAREN,
 }
-derive_parse!(Fun,
-              _fun,
-              _open,
-              args,
-              _arrow,
-              return_type,
-              constraints,
-              _close);
+derive_parse!(
+    Fun,
+    _fun,
+    _open,
+    args,
+    _arrow,
+    return_type,
+    constraints,
+    _close
+);
 derive_token_range!(Fun, _fun, _close);
 
 #[derive(Debug, Clone)]
@@ -124,12 +128,14 @@ pub struct BitsSpec {
     pub _asterisk: literals::S_MULTIPLY,
     pub bits: literals::Int,
 }
-derive_parse!(BitsSpec,
-              _underscore0,
-              _colon,
-              _underscore1,
-              _asterisk,
-              bits);
+derive_parse!(
+    BitsSpec,
+    _underscore0,
+    _colon,
+    _underscore1,
+    _asterisk,
+    bits
+);
 derive_token_range!(BitsSpec, _underscore0, bits);
 
 #[derive(Debug, Clone)]
@@ -231,25 +237,27 @@ pub enum LeftType {
     Float(literals::Float),
     Str(literals::Str),
 }
-derive_traits_for_enum!(LeftType,
-                        IntRange,
-                        Int,
-                        BitStr,
-                        AnyArgFun,
-                        Fun,
-                        RemoteCall,
-                        LocalCall,
-                        Record,
-                        Map,
-                        Tuple,
-                        Annotated,
-                        Paren,
-                        List,
-                        Var,
-                        Atom,
-                        Char,
-                        Float,
-                        Str);
+derive_traits_for_enum!(
+    LeftType,
+    IntRange,
+    Int,
+    BitStr,
+    AnyArgFun,
+    Fun,
+    RemoteCall,
+    LocalCall,
+    Record,
+    Map,
+    Tuple,
+    Annotated,
+    Paren,
+    List,
+    Var,
+    Atom,
+    Char,
+    Float,
+    Str
+);
 
 pub type Tuple = commons::Tuple<Type>;
 pub type Map = commons::Map<Type>;

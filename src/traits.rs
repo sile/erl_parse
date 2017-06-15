@@ -13,14 +13,16 @@ pub trait Parse: Sized {
     }
 }
 impl<P> Parse for Option<P>
-    where P: Parse
+where
+    P: Parse,
 {
     fn parse(reader: &mut TokenReader) -> Result<Self> {
         Ok(P::try_parse(reader))
     }
 }
 impl<P> Parse for Vec<P>
-    where P: Parse
+where
+    P: Parse,
 {
     fn parse(reader: &mut TokenReader) -> Result<Self> {
         let mut vec = Vec::new();
@@ -31,7 +33,8 @@ impl<P> Parse for Vec<P>
     }
 }
 impl<P> Parse for Box<P>
-    where P: Parse
+where
+    P: Parse,
 {
     fn parse(reader: &mut TokenReader) -> Result<Self> {
         let v = track_try!(P::parse(reader));

@@ -25,9 +25,9 @@ impl<'a> TokenReader<'a> {
         self.tokens[..self.position]
             .iter()
             .filter(|t| match **t {
-                        Token::Whitespace(ref t) if t.value() == Whitespace::Newline => true,
-                        _ => false,
-                    })
+                Token::Whitespace(ref t) if t.value() == Whitespace::Newline => true,
+                _ => false,
+            })
             .count() + 1
     }
     pub fn position(&self) -> usize {
@@ -51,10 +51,10 @@ impl<'a> TokenReader<'a> {
             .iter()
             .skip(self.position)
             .take_while(|&t| match *t {
-                            Token::Comment(_) |
-                            Token::Whitespace(_) => true,
-                            _ => false,
-                        })
+                Token::Comment(_) |
+                Token::Whitespace(_) => true,
+                _ => false,
+            })
             .count();
         self.position += count;
     }

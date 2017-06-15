@@ -13,13 +13,15 @@ pub struct ModuleAttr {
     pub _close: literals::S_CLOSE_PAREN,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(ModuleAttr,
-              _hyphen,
-              _module,
-              _open,
-              module_name,
-              _close,
-              _dot);
+derive_parse!(
+    ModuleAttr,
+    _hyphen,
+    _module,
+    _open,
+    module_name,
+    _close,
+    _dot
+);
 derive_token_range!(ModuleAttr, _hyphen, _dot);
 
 #[derive(Debug, Clone)]
@@ -43,13 +45,15 @@ pub struct ExportTypeAttr {
     pub _close: literals::S_CLOSE_PAREN,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(ExportTypeAttr,
-              _hyphen,
-              _export_type,
-              _open,
-              exports,
-              _close,
-              _dot);
+derive_parse!(
+    ExportTypeAttr,
+    _hyphen,
+    _export_type,
+    _open,
+    exports,
+    _close,
+    _dot
+);
 derive_token_range!(ExportTypeAttr, _hyphen, _dot);
 
 #[derive(Debug, Clone)]
@@ -72,15 +76,17 @@ pub struct ImportAttr {
     pub _close: literals::S_CLOSE_PAREN,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(ImportAttr,
-              _hyphen,
-              _import,
-              _open,
-              module_name,
-              _comma,
-              imports,
-              _close,
-              _dot);
+derive_parse!(
+    ImportAttr,
+    _hyphen,
+    _import,
+    _open,
+    module_name,
+    _comma,
+    imports,
+    _close,
+    _dot
+);
 derive_token_range!(ImportAttr, _hyphen, _dot);
 
 #[derive(Debug, Clone)]
@@ -103,15 +109,17 @@ pub struct FileAttr {
     pub _close: literals::S_CLOSE_PAREN,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(FileAttr,
-              _hyphen,
-              _file,
-              _open,
-              file_name,
-              _comma,
-              line_num,
-              _close,
-              _dot);
+derive_parse!(
+    FileAttr,
+    _hyphen,
+    _file,
+    _open,
+    file_name,
+    _comma,
+    line_num,
+    _close,
+    _dot
+);
 derive_token_range!(FileAttr, _hyphen, _dot);
 
 #[derive(Debug, Clone)]
@@ -123,13 +131,15 @@ pub struct WildAttr {
     pub _close: literals::S_CLOSE_PAREN,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(WildAttr,
-              _hyphen,
-              attr_name,
-              _open,
-              attr_value,
-              _close,
-              _dot);
+derive_parse!(
+    WildAttr,
+    _hyphen,
+    attr_name,
+    _open,
+    attr_value,
+    _close,
+    _dot
+);
 derive_token_range!(WildAttr, _hyphen, _dot);
 
 #[derive(Debug, Clone)]
@@ -153,14 +163,16 @@ pub struct RemoteFunSpec {
     pub clauses: commons::NonEmptySeq<FunClause, literals::S_SEMICOLON>,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(RemoteFunSpec,
-              _hyphen,
-              _spec,
-              module_name,
-              _colon,
-              fun_name,
-              clauses,
-              _dot);
+derive_parse!(
+    RemoteFunSpec,
+    _hyphen,
+    _spec,
+    module_name,
+    _colon,
+    fun_name,
+    clauses,
+    _dot
+);
 derive_token_range!(RemoteFunSpec, _hyphen, _dot);
 
 #[derive(Debug, Clone)]
@@ -171,12 +183,14 @@ pub struct CallbackSpec {
     pub clauses: commons::NonEmptySeq<FunClause, literals::S_SEMICOLON>,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(CallbackSpec,
-              _hyphen,
-              _callback,
-              callback_name,
-              clauses,
-              _dot);
+derive_parse!(
+    CallbackSpec,
+    _hyphen,
+    _callback,
+    callback_name,
+    clauses,
+    _dot
+);
 derive_token_range!(CallbackSpec, _hyphen, _dot);
 
 #[derive(Debug, Clone)]
@@ -212,17 +226,19 @@ pub struct RecordDecl {
     pub _close: literals::S_CLOSE_PAREN,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(RecordDecl,
-              _hyphen,
-              _record,
-              _open,
-              record_name,
-              _comma,
-              _fields_start,
-              fields,
-              _fields_end,
-              _close,
-              _dot);
+derive_parse!(
+    RecordDecl,
+    _hyphen,
+    _record,
+    _open,
+    record_name,
+    _comma,
+    _fields_start,
+    fields,
+    _fields_end,
+    _close,
+    _dot
+);
 derive_token_range!(RecordDecl, _hyphen, _dot);
 
 #[derive(Debug, Clone)]
@@ -232,11 +248,13 @@ pub struct RecordField {
     pub field_type: Option<RecordFieldType>,
     _position: commons::Void,
 }
-derive_parse!(RecordField,
-              field_name,
-              field_default,
-              field_type,
-              _position);
+derive_parse!(
+    RecordField,
+    field_name,
+    field_default,
+    field_type,
+    _position
+);
 derive_token_range!(RecordField, field_name, _position);
 
 #[derive(Debug, Clone)]
@@ -265,14 +283,16 @@ pub struct TypeDecl {
     pub ty: Type,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(TypeDecl,
-              _hyphen,
-              _type,
-              name,
-              vars,
-              _double_colon,
-              ty,
-              _dot);
+derive_parse!(
+    TypeDecl,
+    _hyphen,
+    _type,
+    name,
+    vars,
+    _double_colon,
+    ty,
+    _dot
+);
 derive_token_range!(TypeDecl, _hyphen, _dot);
 
 #[derive(Debug, Clone)]
@@ -285,12 +305,14 @@ pub struct OpaqueDecl {
     pub ty: Type,
     pub _dot: literals::S_DOT,
 }
-derive_parse!(OpaqueDecl,
-              _hyphen,
-              _opaque,
-              name,
-              vars,
-              _double_colon,
-              ty,
-              _dot);
+derive_parse!(
+    OpaqueDecl,
+    _hyphen,
+    _opaque,
+    name,
+    vars,
+    _double_colon,
+    ty,
+    _dot
+);
 derive_token_range!(OpaqueDecl, _hyphen, _dot);

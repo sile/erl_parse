@@ -24,9 +24,11 @@ impl Parser {
     }
     pub fn parse_pattern(&self) -> Result<Pattern> {
         let mut reader = TokenReader::new(&self.tokens);
-        let pattern = track_try!(Pattern::parse(&mut reader),
-                                 "line_num={}",
-                                 reader.line_num());
+        let pattern = track_try!(
+            Pattern::parse(&mut reader),
+            "line_num={}",
+            reader.line_num()
+        );
         Ok(pattern)
     }
     pub fn parse_type(&self) -> Result<Type> {
@@ -41,9 +43,11 @@ impl Parser {
     }
     pub fn parse_module(&self) -> Result<ModuleDecl> {
         let mut reader = TokenReader::new(&self.tokens);
-        let form = track_try!(ModuleDecl::parse(&mut reader),
-                              "line_num={}",
-                              reader.line_num());
+        let form = track_try!(
+            ModuleDecl::parse(&mut reader),
+            "line_num={}",
+            reader.line_num()
+        );
         Ok(form)
     }
 }
