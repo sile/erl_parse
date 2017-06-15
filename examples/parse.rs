@@ -19,7 +19,7 @@ fn main() {
     let mut text = String::new();
     track_try_unwrap!(file.read_to_string(&mut text).map_err(|e| Failed.cause(e)));
 
-    let parser = track_try_unwrap!(Parser::new(&text));
+    let parser = track_try_unwrap!(Parser::from_text(&text));
     let module = track_try_unwrap!(parser.parse_module());
     println!("{:?}", module);
 }

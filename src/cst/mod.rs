@@ -164,7 +164,7 @@ macro_rules! derive_traits_for_token {
             fn parse(reader: &mut ::TokenReader) -> ::Result<Self> {
                 let position = reader.position();
                 let token = track!(reader.read())?;
-                if let Token::$variant(ref value) = *token {
+                if let ::erl_tokenize::LexicalToken::$variant(ref value) = *token {
                     Ok($name { position, value: value.clone() })
                  } else {
                     track_panic!(::ErrorKind::Other,

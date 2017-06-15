@@ -1,5 +1,4 @@
 use std::ops::Deref;
-use erl_tokenize::Token;
 use erl_tokenize::tokens::VariableToken;
 
 use {Result, Parse, TokenRange, TokenReader};

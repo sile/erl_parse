@@ -6,7 +6,7 @@ use erl_parse::{Parser, TokenRange};
 
 macro_rules! parse_expr {
     ($text:expr) => {
-        let parser = track_try_unwrap!(Parser::new($text));
+        let parser = track_try_unwrap!(Parser::from_text($text));
         let expr = track_try_unwrap!(parser.parse_expr(), "text={:?}", $text);
         assert_eq!(expr.token_end(), parser.tokens().len());
     }
@@ -157,7 +157,7 @@ fn parse_expr_works() {
 
 macro_rules! parse_pattern {
     ($text:expr) => {
-        let parser = track_try_unwrap!(Parser::new($text));
+        let parser = track_try_unwrap!(Parser::from_text($text));
         let pattern = track_try_unwrap!(parser.parse_pattern(), "text={:?}", $text);
         assert_eq!(pattern.token_end(), parser.tokens().len());
     }
@@ -226,7 +226,7 @@ fn parse_pattern_works() {
 
 macro_rules! parse_type {
     ($text:expr) => {
-        let parser = track_try_unwrap!(Parser::new($text));
+        let parser = track_try_unwrap!(Parser::from_text($text));
         let ty = track_try_unwrap!(parser.parse_type(), "text={:?}", $text);
         assert_eq!(ty.token_end(), parser.tokens().len());
     }
@@ -288,7 +288,7 @@ fn parse_type_works() {
 
 macro_rules! parse_form {
     ($text:expr) => {
-        let parser = track_try_unwrap!(Parser::new($text));
+        let parser = track_try_unwrap!(Parser::from_text($text));
         let form = track_try_unwrap!(parser.parse_form(), "text={:?}", $text);
         assert_eq!(form.token_end(), parser.tokens().len());
     }

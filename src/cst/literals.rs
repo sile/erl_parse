@@ -1,6 +1,5 @@
 #![allow(non_camel_case_types)]
 use std::ops::Deref;
-use erl_tokenize::Token;
 use erl_tokenize::tokens::{AtomToken, CharToken, IntegerToken, FloatToken, StringToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
@@ -12,7 +11,7 @@ macro_rules! derive_traits_for_value {
             fn parse(reader: &mut TokenReader) -> Result<Self> {
                 let position = reader.position();
                 let token = track!(reader.read())?;
-                if let Token::$variant(ref token) = *token {
+                if let ::erl_tokenize::LexicalToken::$variant(ref token) = *token {
                     track_assert_eq!(token.value(), $value, ErrorKind::Other);
                     Ok($name { position })
                  } else {
