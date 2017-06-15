@@ -14,8 +14,7 @@ impl From<erl_tokenize::Error> for Error {
 }
 impl From<erl_pp::Error> for Error {
     fn from(f: erl_pp::Error) -> Self {
-        // TODO: takes_over
-        ErrorKind::Other.cause(f.to_string()).into()
+        ErrorKind::Other.takes_over(f).into()
     }
 }
 
