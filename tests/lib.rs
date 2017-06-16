@@ -1,14 +1,20 @@
+extern crate erl_pp;
 extern crate erl_parse;
+extern crate erl_tokenize;
 #[macro_use]
 extern crate trackable;
 
-use erl_parse::{Parser, TokenRange};
+use erl_pp::Preprocessor;
+use erl_parse::{TokenReader, Tokens, Parse};
+use erl_parse::cst::Expr;
+use erl_tokenize::{Lexer, PositionRange};
 
 macro_rules! parse_expr {
     ($text:expr) => {
-        let parser = track_try_unwrap!(Parser::from_text($text));
-        let expr = track_try_unwrap!(parser.parse_expr(), "text={:?}", $text);
-        assert_eq!(expr.token_end(), parser.tokens().len());
+        let mut tokens = TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text))));
+        let value = track_try_unwrap!(Expr::parse(&mut tokens),
+                                      "text={:?}, next={:?}", $text, tokens.read_token());
+        assert_eq!(value.end_position().offset(), $text.len());
     }
  }
 
@@ -35,25 +41,10 @@ fn parse_expr_works() {
     parse_expr!("#{a := b}");
     parse_expr!("#{a => b, 1 := 2}");
 
-    // map update
-    parse_expr!("M#{}");
-    parse_expr!("(#{a => 10})#{a := b, 1 => 2}");
-
     // record
     parse_expr!("#foo{}");
     parse_expr!("#foo{a = b}");
     parse_expr!("#foo{a = b, _ = 10}");
-
-    // record update
-    parse_expr!("R#foo{bar = 10}");
-    parse_expr!("(#foo{})#foo{bar = 10, baz = 20}");
-
-    // record field access
-    parse_expr!("R#foo.bar");
-    parse_expr!("(#foo{})#foo.bar");
-
-    // record field index
-    parse_expr!("#foo.bar");
 
     // proper list
     parse_expr!("[]");
@@ -64,285 +55,301 @@ fn parse_expr_works() {
     parse_expr!("[1 | 2]");
     parse_expr!("[1, 2 | 3]");
 
-    // list comprehension
-    parse_expr!("[x || _ <- [1,2,3]]");
-    parse_expr!("[x || X <- [1,2,3], filter(X), _ <= <<1,2,3>>]");
-
-    // bitstring
-    parse_expr!("<<>>");
-    parse_expr!("<<10>>");
-    parse_expr!("<<1, 2, 3>>");
-    parse_expr!("<<100:2>>");
-    parse_expr!("<<1/little>>");
-    parse_expr!("<<1:2/little-unit:8>>");
-
-    // bitstring comprehension
-    parse_expr!("<< <<x>> || _ <- [1,2,3]>>");
-    parse_expr!("<< <<x>> || X <- [1,2,3], filter(X), _ <= <<1,2,3>> >>");
-
     // block
     parse_expr!("begin 1, 2, 3 end");
-
-    // parenthesized
-    parse_expr!("( 1 )");
-
-    // catch
-    parse_expr!("catch [1,2,3]");
-
-    // unary op
-    parse_expr!("+10");
-    parse_expr!("-20");
-    parse_expr!("not false");
-    parse_expr!("bnot Foo");
-
-    // binary op
-    parse_expr!("1 =:= 2");
-    parse_expr!("Pid ! [1, 2] ++ [3] -- [1]");
-    parse_expr!("foo() ++ bar()");
-
-    // local call
-    parse_expr!("foo()");
-    parse_expr!("Foo(1)");
-    parse_expr!(r#"(list_to_atom("foo"))(1, 2, [3])"#);
-
-    // remote call
-    parse_expr!("foo:bar()");
-    parse_expr!("Foo:Bar(1)");
-    parse_expr!(r#"(list_to_atom("foo")):bar(1, 2, [3])"#);
-
-    // local fun
-    parse_expr!("fun foo/2");
-
-    // remote fun
-    parse_expr!("fun foo:bar/2");
-    parse_expr!("fun Foo:Bar/Baz");
-
-    // anonymous fun
-    parse_expr!("fun () -> ok end");
-    parse_expr!("fun (a) -> ok; (B) -> err end");
-    parse_expr!("fun (a) when true -> ok; (B) -> err end");
-
-    // named fun
-    parse_expr!("fun Foo() -> ok end");
-    parse_expr!("fun Foo(a) -> ok; Foo(B) -> err end");
-    parse_expr!("fun Foo(a) when true -> Foo(b); Foo(B) -> err end");
-
-    // match
-    parse_expr!("1 = 2");
-    parse_expr!("[A, 2, {}] = [10 | B]");
-
-    // if
-    parse_expr!("if true -> 1, 2, 3 end");
-    parse_expr!("if true; false, true -> 1, 2, 3 end");
-    parse_expr!("if true -> 1; false -> 2; _ -> ok end");
-
-    // case
-    parse_expr!("case 1 of 2 -> 3 end");
-    parse_expr!("case 1 of 2 -> 3; _ -> ok end");
-    parse_expr!("case 1 of A when A == 2; true; 1, 2, false -> 3 end");
-
-    // receive
-    parse_expr!("receive foo -> bar end");
-    parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 end");
-    parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 after 10 * 2 -> foo(), done end");
-
-    // try
-    parse_expr!("try foo, bar catch baz -> 1; _ -> qux end");
-    parse_expr!("try foo, bar of 10 -> 2; _ -> 30 catch baz -> 1; _:_ -> qux end");
-    parse_expr!("try foo, bar after baz, qux end");
-    parse_expr!("try foo of _ -> 1 catch throw:_ -> ok end");
-    parse_expr!("try foo of _ -> 1 after ok end");
-    parse_expr!("try foo of _ -> 1 catch _ -> err after ok end");
 }
 
-macro_rules! parse_pattern {
-    ($text:expr) => {
-        let parser = track_try_unwrap!(Parser::from_text($text));
-        let pattern = track_try_unwrap!(parser.parse_pattern(), "text={:?}", $text);
-        assert_eq!(pattern.token_end(), parser.tokens().len());
-    }
- }
+//     // map update
+//     parse_expr!("M#{}");
+//     parse_expr!("(#{a => 10})#{a := b, 1 => 2}");
 
-#[test]
-fn parse_pattern_works() {
-    // literals
-    parse_pattern!("foo");
-    parse_pattern!("$c");
-    parse_pattern!("1.2");
-    parse_pattern!("123");
-    parse_pattern!(r#""foo""#);
+//     // record update
+//     parse_expr!("R#foo{bar = 10}");
+//     parse_expr!("(#foo{})#foo{bar = 10, baz = 20}");
 
-    // variable
-    parse_pattern!("Foo");
+//     // record field access
+//     parse_expr!("R#foo.bar");
+//     parse_expr!("(#foo{})#foo.bar");
 
-    // bitstring
-    parse_pattern!("<<>>");
-    parse_pattern!("<<10>>");
-    parse_pattern!("<<1, 2, 3>>");
-    parse_pattern!("<<100:2>>");
-    parse_pattern!("<<1/little>>");
-    parse_pattern!("<<1:2/little-unit:8>>");
+//     // record field index
+//     parse_expr!("#foo.bar");
 
-    // proper list
-    parse_pattern!("[]");
-    parse_pattern!("[1]");
-    parse_pattern!("[1, 2, 3]");
+//     // list comprehension
+//     parse_expr!("[x || _ <- [1,2,3]]");
+//     parse_expr!("[x || X <- [1,2,3], filter(X), _ <= <<1,2,3>>]");
 
-    // improper list
-    parse_pattern!("[1 | 2]");
-    parse_pattern!("[1, 2 | 3]");
+//     // bitstring
+//     parse_expr!("<<>>");
+//     parse_expr!("<<10>>");
+//     parse_expr!("<<1, 2, 3>>");
+//     parse_expr!("<<100:2>>");
+//     parse_expr!("<<1/little>>");
+//     parse_expr!("<<1:2/little-unit:8>>");
 
-    // map
-    parse_pattern!("#{}");
-    parse_pattern!("#{a := b}");
-    parse_pattern!("#{a := B, 1 := 2}");
+//     // bitstring comprehension
+//     parse_expr!("<< <<x>> || _ <- [1,2,3]>>");
+//     parse_expr!("<< <<x>> || X <- [1,2,3], filter(X), _ <= <<1,2,3>> >>");
 
-    // tuple
-    parse_pattern!("{}");
-    parse_pattern!("{1}");
-    parse_pattern!("{1, 2, 3}");
+//     // parenthesized
+//     parse_expr!("( 1 )");
 
-    // unary op
-    parse_pattern!("+10");
-    parse_pattern!("-20");
+//     // catch
+//     parse_expr!("catch [1,2,3]");
 
-    // binary op
-    parse_pattern!("[1] ++ [2,3]");
+//     // unary op
+//     parse_expr!("+10");
+//     parse_expr!("-20");
+//     parse_expr!("not false");
+//     parse_expr!("bnot Foo");
 
-    // parenthesized
-    parse_pattern!("( [1,2,3] )");
+//     // binary op
+//     parse_expr!("1 =:= 2");
+//     parse_expr!("Pid ! [1, 2] ++ [3] -- [1]");
+//     parse_expr!("foo() ++ bar()");
 
-    // record
-    parse_pattern!("#foo{}");
-    parse_pattern!("#foo{a = b}");
-    parse_pattern!("#foo{a = b, _ = 10}");
+//     // local call
+//     parse_expr!("foo()");
+//     parse_expr!("Foo(1)");
+//     parse_expr!(r#"(list_to_atom("foo"))(1, 2, [3])"#);
 
-    // record field index
-    parse_pattern!("#foo.bar");
+//     // remote call
+//     parse_expr!("foo:bar()");
+//     parse_expr!("Foo:Bar(1)");
+//     parse_expr!(r#"(list_to_atom("foo")):bar(1, 2, [3])"#);
 
-    // match
-    parse_pattern!("{A, B = 2, 3} = {1, 2, 3}");
-}
+//     // local fun
+//     parse_expr!("fun foo/2");
 
-macro_rules! parse_type {
-    ($text:expr) => {
-        let parser = track_try_unwrap!(Parser::from_text($text));
-        let ty = track_try_unwrap!(parser.parse_type(), "text={:?}", $text);
-        assert_eq!(ty.token_end(), parser.tokens().len());
-    }
- }
+//     // remote fun
+//     parse_expr!("fun foo:bar/2");
+//     parse_expr!("fun Foo:Bar/Baz");
 
-#[test]
-fn parse_type_works() {
-    // integer
-    parse_type!("10");
-    parse_type!("-10");
-    parse_type!("(3)");
-    parse_type!("(10 - 2)");
-    parse_type!("1 + 2 - 3 rem 4");
-    parse_type!("(1 + 2) - 3");
-    parse_type!("1 + (2 - -3)");
+//     // anonymous fun
+//     parse_expr!("fun () -> ok end");
+//     parse_expr!("fun (a) -> ok; (B) -> err end");
+//     parse_expr!("fun (a) when true -> ok; (B) -> err end");
 
-    // integer range
-    parse_type!("0..10");
-    parse_type!("-10..+10");
-    parse_type!("(1 + 2)..(10 * 30 - 1)");
+//     // named fun
+//     parse_expr!("fun Foo() -> ok end");
+//     parse_expr!("fun Foo(a) -> ok; Foo(B) -> err end");
+//     parse_expr!("fun Foo(a) when true -> Foo(b); Foo(B) -> err end");
 
-    // annotated
-    parse_type!("A :: 10");
+//     // match
+//     parse_expr!("1 = 2");
+//     parse_expr!("[A, 2, {}] = [10 | B]");
 
-    // list
-    parse_type!("[]");
-    parse_type!("[foo]");
+//     // if
+//     parse_expr!("if true -> 1, 2, 3 end");
+//     parse_expr!("if true; false, true -> 1, 2, 3 end");
+//     parse_expr!("if true -> 1; false -> 2; _ -> ok end");
 
-    // parenthesized
-    parse_type!("([10])");
+//     // case
+//     parse_expr!("case 1 of 2 -> 3 end");
+//     parse_expr!("case 1 of 2 -> 3; _ -> ok end");
+//     parse_expr!("case 1 of A when A == 2; true; 1, 2, false -> 3 end");
 
-    // tuple
-    parse_type!("{1, 2, 3}");
+//     // receive
+//     parse_expr!("receive foo -> bar end");
+//     parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 end");
+//     parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 after 10 * 2 -> foo(), done end");
 
-    // map
-    parse_type!("#{a => 10, b := 20}");
+//     // try
+//     parse_expr!("try foo, bar catch baz -> 1; _ -> qux end");
+//     parse_expr!("try foo, bar of 10 -> 2; _ -> 30 catch baz -> 1; _:_ -> qux end");
+//     parse_expr!("try foo, bar after baz, qux end");
+//     parse_expr!("try foo of _ -> 1 catch throw:_ -> ok end");
+//     parse_expr!("try foo of _ -> 1 after ok end");
+//     parse_expr!("try foo of _ -> 1 catch _ -> err after ok end");
+// }
 
-    // record
-    parse_type!("#foo{bar = integer()}");
+// macro_rules! parse_pattern {
+//     ($text:expr) => {
+//         let parser = track_try_unwrap!(Parser::from_text($text));
+//         let pattern = track_try_unwrap!(parser.parse_pattern(), "text={:?}", $text);
+//         assert_eq!(pattern.token_end(), parser.tokens().len());
+//     }
+//  }
 
-    // bitstring
-    parse_type!("<<>>");
-    parse_type!("<<_:1>>");
-    parse_type!("<<_:_*3>>");
-    parse_type!("<<_:10,_:_*3>>");
+// #[test]
+// fn parse_pattern_works() {
+//     // literals
+//     parse_pattern!("foo");
+//     parse_pattern!("$c");
+//     parse_pattern!("1.2");
+//     parse_pattern!("123");
+//     parse_pattern!(r#""foo""#);
 
-    // call
-    parse_type!("foo()");
-    parse_type!("foo:bar(1,2,3)");
+//     // variable
+//     parse_pattern!("Foo");
 
-    // fun
-    parse_type!("fun ((...) -> number())");
-    parse_type!("fun ((A, b) -> c:d())");
-    parse_type!("fun ((Ab) -> c:d() when V :: T, is_subtype(V, T))");
+//     // bitstring
+//     parse_pattern!("<<>>");
+//     parse_pattern!("<<10>>");
+//     parse_pattern!("<<1, 2, 3>>");
+//     parse_pattern!("<<100:2>>");
+//     parse_pattern!("<<1/little>>");
+//     parse_pattern!("<<1:2/little-unit:8>>");
 
-    // union
-    parse_type!("10 | 1 + 2 | (foo | {a, b, c}) | baz");
-}
+//     // proper list
+//     parse_pattern!("[]");
+//     parse_pattern!("[1]");
+//     parse_pattern!("[1, 2, 3]");
 
-macro_rules! parse_form {
-    ($text:expr) => {
-        let parser = track_try_unwrap!(Parser::from_text($text));
-        let form = track_try_unwrap!(parser.parse_form(), "text={:?}", $text);
-        assert_eq!(form.token_end(), parser.tokens().len());
-    }
- }
+//     // improper list
+//     parse_pattern!("[1 | 2]");
+//     parse_pattern!("[1, 2 | 3]");
 
-#[test]
-fn parse_form_works() {
-    // module attribute
-    parse_form!("-module(foo).");
+//     // map
+//     parse_pattern!("#{}");
+//     parse_pattern!("#{a := b}");
+//     parse_pattern!("#{a := B, 1 := 2}");
 
-    // export attribute
-    parse_form!("-export([]).");
-    parse_form!("-export([foo/0, bar/2]).");
+//     // tuple
+//     parse_pattern!("{}");
+//     parse_pattern!("{1}");
+//     parse_pattern!("{1, 2, 3}");
 
-    // export type attribute
-    parse_form!("-export_type([foo/0]).");
-    parse_form!("-export_type([foo/0, bar/2]).");
+//     // unary op
+//     parse_pattern!("+10");
+//     parse_pattern!("-20");
 
-    // import attribute
-    parse_form!("-import(foo, []).");
-    parse_form!("-import(foo, [bar/0, baz/5]).");
+//     // binary op
+//     parse_pattern!("[1] ++ [2,3]");
 
-    // file attribute>
-    parse_form!(r#"-file("/path/to/file", 10)."#);
+//     // parenthesized
+//     parse_pattern!("( [1,2,3] )");
 
-    // wild attribute
-    parse_form!("-my_attr([1, {2, 3}, #{}]).");
+//     // record
+//     parse_pattern!("#foo{}");
+//     parse_pattern!("#foo{a = b}");
+//     parse_pattern!("#foo{a = b, _ = 10}");
 
-    // spec
-    parse_form!("-spec foo () -> ok.");
-    parse_form!("-spec foo (a) -> ok; (b) -> err.");
-    parse_form!("-spec foo (a) -> ok; (B) -> err when B :: integer().");
+//     // record field index
+//     parse_pattern!("#foo.bar");
 
-    // remote spec
-    parse_form!("-spec foo:bar () -> ok.");
-    parse_form!("-spec foo:bar (a) -> ok when B :: integer(); (B) -> err.");
+//     // match
+//     parse_pattern!("{A, B = 2, 3} = {1, 2, 3}");
+// }
 
-    // callback
-    parse_form!("-callback foo () -> ok.");
-    parse_form!("-callback foo (a) -> ok; (b) -> err.");
-    parse_form!("-callback foo (a) -> ok; (B) -> err when B :: integer().");
+// macro_rules! parse_type {
+//     ($text:expr) => {
+//         let parser = track_try_unwrap!(Parser::from_text($text));
+//         let ty = track_try_unwrap!(parser.parse_type(), "text={:?}", $text);
+//         assert_eq!(ty.token_end(), parser.tokens().len());
+//     }
+//  }
 
-    // fun declaration
-    parse_form!("foo () -> ok.");
-    parse_form!("foo (A, {B, _}) -> A + B.");
-    parse_form!("foo (A) when is_integer(A) -> ok; (B) -> {error, B}.");
+// #[test]
+// fn parse_type_works() {
+//     // integer
+//     parse_type!("10");
+//     parse_type!("-10");
+//     parse_type!("(3)");
+//     parse_type!("(10 - 2)");
+//     parse_type!("1 + 2 - 3 rem 4");
+//     parse_type!("(1 + 2) - 3");
+//     parse_type!("1 + (2 - -3)");
 
-    // record declaration
-    parse_form!("-record(foo, {}).");
-    parse_form!("-record(foo, {a, b, c}).");
-    parse_form!("-record(foo, {a = 10, b :: integer(), c = d :: atom()}).");
+//     // integer range
+//     parse_type!("0..10");
+//     parse_type!("-10..+10");
+//     parse_type!("(1 + 2)..(10 * 30 - 1)");
 
-    // type declaration
-    parse_form!("-type foo() :: integer().");
-    parse_form!("-type foo(A, B) :: {A, B}.");
-    parse_form!("-opaque foo() :: integer().");
-}
+//     // annotated
+//     parse_type!("A :: 10");
+
+//     // list
+//     parse_type!("[]");
+//     parse_type!("[foo]");
+
+//     // parenthesized
+//     parse_type!("([10])");
+
+//     // tuple
+//     parse_type!("{1, 2, 3}");
+
+//     // map
+//     parse_type!("#{a => 10, b := 20}");
+
+//     // record
+//     parse_type!("#foo{bar = integer()}");
+
+//     // bitstring
+//     parse_type!("<<>>");
+//     parse_type!("<<_:1>>");
+//     parse_type!("<<_:_*3>>");
+//     parse_type!("<<_:10,_:_*3>>");
+
+//     // call
+//     parse_type!("foo()");
+//     parse_type!("foo:bar(1,2,3)");
+
+//     // fun
+//     parse_type!("fun ((...) -> number())");
+//     parse_type!("fun ((A, b) -> c:d())");
+//     parse_type!("fun ((Ab) -> c:d() when V :: T, is_subtype(V, T))");
+
+//     // union
+//     parse_type!("10 | 1 + 2 | (foo | {a, b, c}) | baz");
+// }
+
+// macro_rules! parse_form {
+//     ($text:expr) => {
+//         let parser = track_try_unwrap!(Parser::from_text($text));
+//         let form = track_try_unwrap!(parser.parse_form(), "text={:?}", $text);
+//         assert_eq!(form.token_end(), parser.tokens().len());
+//     }
+//  }
+
+// #[test]
+// fn parse_form_works() {
+//     // module attribute
+//     parse_form!("-module(foo).");
+
+//     // export attribute
+//     parse_form!("-export([]).");
+//     parse_form!("-export([foo/0, bar/2]).");
+
+//     // export type attribute
+//     parse_form!("-export_type([foo/0]).");
+//     parse_form!("-export_type([foo/0, bar/2]).");
+
+//     // import attribute
+//     parse_form!("-import(foo, []).");
+//     parse_form!("-import(foo, [bar/0, baz/5]).");
+
+//     // file attribute>
+//     parse_form!(r#"-file("/path/to/file", 10)."#);
+
+//     // wild attribute
+//     parse_form!("-my_attr([1, {2, 3}, #{}]).");
+
+//     // spec
+//     parse_form!("-spec foo () -> ok.");
+//     parse_form!("-spec foo (a) -> ok; (b) -> err.");
+//     parse_form!("-spec foo (a) -> ok; (B) -> err when B :: integer().");
+
+//     // remote spec
+//     parse_form!("-spec foo:bar () -> ok.");
+//     parse_form!("-spec foo:bar (a) -> ok when B :: integer(); (B) -> err.");
+
+//     // callback
+//     parse_form!("-callback foo () -> ok.");
+//     parse_form!("-callback foo (a) -> ok; (b) -> err.");
+//     parse_form!("-callback foo (a) -> ok; (B) -> err when B :: integer().");
+
+//     // fun declaration
+//     parse_form!("foo () -> ok.");
+//     parse_form!("foo (A, {B, _}) -> A + B.");
+//     parse_form!("foo (A) when is_integer(A) -> ok; (B) -> {error, B}.");
+
+//     // record declaration
+//     parse_form!("-record(foo, {}).");
+//     parse_form!("-record(foo, {a, b, c}).");
+//     parse_form!("-record(foo, {a = 10, b :: integer(), c = d :: atom()}).");
+
+//     // type declaration
+//     parse_form!("-type foo() :: integer().");
+//     parse_form!("-type foo(A, B) :: {A, B}.");
+//     parse_form!("-opaque foo() :: integer().");
+// }
