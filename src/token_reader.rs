@@ -2,7 +2,7 @@ use std;
 use erl_pp::{self, MacroDef};
 use erl_tokenize::{LexicalToken, Lexer};
 
-use {Result, Error, ErrorKind, IntoTokens};
+use {Result, Error, ErrorKind};
 
 #[derive(Debug)]
 pub struct Tokens<T, E>(T)
@@ -32,7 +32,7 @@ where
 #[derive(Debug)]
 pub struct TokenReader<T> {
     tokens: T,
-    unread: Vec<LexicalToken>,
+    pub unread: Vec<LexicalToken>, // TODO: private
 }
 impl<T, E> TokenReader<Tokens<T, E>>
 where
@@ -51,15 +51,6 @@ impl<T> TokenReader<T>
 where
     T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
 {
-    pub fn peek_token(&mut self) -> Result<Option<LexicalToken>> {
-        match track!(self.try_read_token())? {
-            None => Ok(None),
-            Some(t) => {
-                self.unread_token(t.clone());
-                Ok(Some(t))
-            }
-        }
-    }
     pub fn read_token(&mut self) -> Result<LexicalToken> {
         if let Some(token) = track!(self.try_read_token())? {
             Ok(token)
@@ -77,13 +68,13 @@ where
     pub fn unread_token(&mut self, token: LexicalToken) {
         self.unread.push(token);
     }
-    pub fn unread_tokens<I: IntoTokens>(&mut self, tokens: I) {
-        let mut tokens = tokens.into_tokens().collect::<Vec<_>>();
-        tokens.reverse();
-        for t in tokens {
-            self.unread_token(t);
-        }
-    }
+    // pub fn unread_tokens<I: IntoTokens>(&mut self, tokens: I) {
+    //     let mut tokens = tokens.into_tokens().collect::<Vec<_>>();
+    //     tokens.reverse();
+    //     for t in tokens {
+    //         self.unread_token(t);
+    //     }
+    // }
 }
 
 pub trait Preprocessor {

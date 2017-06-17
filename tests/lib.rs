@@ -21,7 +21,7 @@ macro_rules! parse_expr {
 
 #[test]
 fn parse_expr_works() {
-    // literals
+    // // literals
     parse_expr!("foo");
     parse_expr!("$c");
     parse_expr!("1.2");
@@ -73,7 +73,7 @@ fn parse_expr_works() {
 
     // list comprehension
     parse_expr!("[x || _ <- [1,2,3]]");
-    //   parse_expr!("[x || X <- [1,2,3], filter(X), _ <= <<1,2,3>>]");
+    parse_expr!("[x || X <- [1,2,3], filter(X), _ <= <<1,2,3>>]");
 
     // block
     parse_expr!("begin 1, 2, 3 end");
@@ -84,15 +84,15 @@ fn parse_expr_works() {
     // catch
     parse_expr!("catch [1,2,3]");
 
-    // // local call
-    // parse_expr!("foo()");
-    // parse_expr!("Foo(1)");
-    // parse_expr!(r#"(list_to_atom("foo"))(1, 2, [3])"#);
+    // local call
+    parse_expr!("foo()");
+    parse_expr!("Foo(1)");
+    parse_expr!(r#"(list_to_atom("foo"))(1, 2, [3])"#);
 
-    // // remote call
-    // parse_expr!("foo:bar()");
-    // parse_expr!("Foo:Bar(1)");
-    // parse_expr!(r#"(list_to_atom("foo")):bar(1, 2, [3])"#);
+    // remote call
+    parse_expr!("foo:bar()");
+    parse_expr!("Foo:Bar(1)");
+    parse_expr!(r#"(list_to_atom("foo")):bar(1, 2, [3])"#);
 }
 
 //     // bitstring

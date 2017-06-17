@@ -1,9 +1,8 @@
-use std::iter;
 use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
-use {Result, Parser, Preprocessor, Parse, IntoTokens, ErrorKind};
+use {Result, Parser, Preprocessor, Parse};
 use cst::{Expr, Pattern};
 use cst::building_blocks::{self, Sequence};
 use cst::collections;
@@ -38,18 +37,6 @@ impl PositionRange for ListComprehension {
         self._close_square.end_position()
     }
 }
-impl IntoTokens for ListComprehension {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self._open_square
-                .into_tokens()
-                .chain(self.element.into_tokens())
-                .chain(self._bar.into_tokens())
-                .chain(self.qualifiers.into_tokens())
-                .chain(self._close_square.into_tokens()),
-        )
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum Qualifier {
@@ -61,21 +48,10 @@ impl Parse for Qualifier {
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        if let Ok(expr) = parser.transaction(|parser| {
-            let expr = track!(parser.parse())?;
-            if track!(parser.peek_token())?
-                .and_then(|t| t.as_symbol_token().map(|t| t.value() == Symbol::Comma))
-                .unwrap_or(false)
-            {
-                Ok(expr)
-            } else {
-                track_panic!(ErrorKind::InvalidInput);
-            }
-        })
-        {
-            Ok(Qualifier::Filter(expr))
+        if let Ok(generator) = parser.transaction(|parser| parser.parse()) {
+            Ok(Qualifier::Generator(generator))
         } else {
-            Ok(Qualifier::Generator(track!(parser.parse())?))
+            Ok(Qualifier::Filter(track!(parser.parse())?))
         }
     }
 }
@@ -90,14 +66,6 @@ impl PositionRange for Qualifier {
         match *self {
             Qualifier::Generator(ref x) => x.end_position(),
             Qualifier::Filter(ref x) => x.end_position(),
-        }
-    }
-}
-impl IntoTokens for Qualifier {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        match self {
-            Qualifier::Generator(x) => x.into_tokens(),
-            Qualifier::Filter(x) => x.into_tokens(),
         }
     }
 }
@@ -130,16 +98,6 @@ impl PositionRange for Generator {
         self.source.end_position()
     }
 }
-impl IntoTokens for Generator {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self.pattern
-                .into_tokens()
-                .chain(self._arrow.into_tokens())
-                .chain(self.source.into_tokens()),
-        )
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct Catch {
@@ -163,13 +121,6 @@ impl PositionRange for Catch {
     }
     fn end_position(&self) -> Position {
         self.expr.end_position()
-    }
-}
-impl IntoTokens for Catch {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(iter::once(self._catch.into()).chain(
-            self.expr.into_tokens(),
-        ))
     }
 }
 
@@ -199,16 +150,6 @@ impl PositionRange for Block {
         self._end.end_position()
     }
 }
-impl IntoTokens for Block {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self._begin
-                .into_tokens()
-                .chain(self.body.into_tokens())
-                .chain(self._end.into_tokens()),
-        )
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct Body {
@@ -231,15 +172,11 @@ impl PositionRange for Body {
         self.exprs.end_position()
     }
 }
-impl IntoTokens for Body {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(self.exprs.into_tokens())
-    }
-}
 
 pub type Tuple = collections::Tuple<Expr>;
 pub type Map = collections::Map<Expr>;
 pub type Record = collections::Record<Expr>;
 pub type List = collections::List<Expr>;
 pub type Parenthesized = building_blocks::Parenthesized<Expr>;
-pub type FunCall = building_blocks::FunCall<Expr>;
+pub type LocalCall = building_blocks::LocalCall<Expr>;
+pub type RemoteCall = building_blocks::RemoteCall<Expr>;

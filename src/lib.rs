@@ -5,7 +5,7 @@ extern crate num;
 extern crate trackable;
 
 pub use error::{Error, ErrorKind};
-pub use parse::{Parse, Expect};
+pub use parse::{Parse, ParseLeftRecur, Expect};
 pub use parser::Parser;
 pub use token_reader::{TokenReader, Tokens, Preprocessor};
 // pub use parser::Parser;
@@ -35,6 +35,6 @@ mod token_reader;
 /// This crate specific `Result` type.
 pub type Result<T> = ::std::result::Result<T, Error>;
 
-pub trait IntoTokens {
-    fn into_tokens(self) -> Box<Iterator<Item = erl_tokenize::LexicalToken>>;
+pub trait TryInto<T>: Sized {
+    fn try_into(self) -> Result<T>;
 }

@@ -3,7 +3,7 @@ use erl_tokenize::{Position, PositionRange, LexicalToken};
 use erl_tokenize::tokens::{AtomToken, SymbolToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parse, Preprocessor, Parser, IntoTokens};
+use {Result, Parse, Preprocessor, Parser};
 use cst::building_blocks::{Sequence, MapField, RecordField, ConsCell};
 
 #[derive(Debug, Clone)]
@@ -32,16 +32,6 @@ impl<T> PositionRange for Tuple<T> {
         self._close_brace.end_position()
     }
 }
-impl<T: IntoTokens> IntoTokens for Tuple<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self._open_brace
-                .into_tokens()
-                .chain(self.elements.into_tokens())
-                .chain(self._close_brace.into_tokens()),
-        )
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct List<T> {
@@ -49,7 +39,7 @@ pub struct List<T> {
     pub elements: Option<ConsCell<T>>,
     pub _close_square: SymbolToken,
 }
-impl<T: Parse + IntoTokens> Parse for List<T> {
+impl<T: Parse> Parse for List<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
@@ -67,16 +57,6 @@ impl<T> PositionRange for List<T> {
     }
     fn end_position(&self) -> Position {
         self._close_square.end_position()
-    }
-}
-impl<T: IntoTokens> IntoTokens for List<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self._open_square
-                .into_tokens()
-                .chain(self.elements.into_tokens())
-                .chain(self._close_square.into_tokens()),
-        )
     }
 }
 
@@ -110,18 +90,6 @@ impl<T> PositionRange for Record<T> {
         self._close_brace.end_position()
     }
 }
-impl<T: IntoTokens> IntoTokens for Record<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self._sharp
-                .into_tokens()
-                .chain(self.name.into_tokens())
-                .chain(self._open_brace.into_tokens())
-                .chain(self.fields.into_tokens())
-                .chain(self._close_brace.into_tokens()),
-        )
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct Map<T> {
@@ -149,16 +117,5 @@ impl<T> PositionRange for Map<T> {
     }
     fn end_position(&self) -> Position {
         self._close_brace.end_position()
-    }
-}
-impl<T: IntoTokens> IntoTokens for Map<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self._sharp
-                .into_tokens()
-                .chain(self._open_brace.into_tokens())
-                .chain(self.fields.into_tokens())
-                .chain(self._close_brace.into_tokens()),
-        )
     }
 }

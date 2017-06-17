@@ -2,75 +2,59 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parse, Preprocessor, IntoTokens, Parser, ErrorKind};
+use {Result, Parse, Preprocessor, Parser, ErrorKind, ParseLeftRecur, TryInto};
 
 #[derive(Debug, Clone)]
-pub struct FunCall<T> {
-    pub module: Option<ModulePrefix<T>>,
-    pub fun_name: T,
+pub struct LocalCall<T> {
+    pub name: T,
     pub args: Args<T>,
 }
-impl<T: Parse + IntoTokens> Parse for FunCall<T> {
-    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+impl<T: Parse> ParseLeftRecur for LocalCall<T> {
+    type Left = T;
+    fn parse_left_recur<U>(parser: &mut Parser<U>, left: Self::Left) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(FunCall {
-            module: track!(parser.parse())?,
-            fun_name: track!(parser.parse())?,
+        Ok(LocalCall {
+            name: left,
             args: track!(parser.parse())?,
         })
     }
 }
-impl<T: PositionRange> PositionRange for FunCall<T> {
+impl<T: PositionRange> PositionRange for LocalCall<T> {
     fn start_position(&self) -> Position {
-        self.module
-            .as_ref()
-            .map(|x| x.start_position())
-            .unwrap_or_else(|| self.fun_name.start_position())
+        self.name.start_position()
     }
     fn end_position(&self) -> Position {
         self.args.end_position()
     }
 }
-impl<T: IntoTokens> IntoTokens for FunCall<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self.module
-                .into_tokens()
-                .chain(self.fun_name.into_tokens())
-                .chain(self.args.into_tokens()),
-        )
-    }
-}
 
 #[derive(Debug, Clone)]
-pub struct ModulePrefix<T> {
-    pub name: T,
+pub struct RemoteCall<T> {
+    pub module_name: T,
     pub _colon: SymbolToken,
+    pub fun: LocalCall<T>,
 }
-impl<T: Parse + IntoTokens> Parse for ModulePrefix<T> {
-    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+impl<T: Parse + TryInto<LocalCall<T>>> ParseLeftRecur for RemoteCall<T> {
+    type Left = T;
+    fn parse_left_recur<U>(parser: &mut Parser<U>, left: Self::Left) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(ModulePrefix {
-            name: track!(parser.parse())?,
-            _colon: track!(parser.parse())?,
+        Ok(RemoteCall {
+            module_name: left,
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+            fun: track!(parser.parse::<T>().and_then(|t| t.try_into()))?,
         })
     }
 }
-impl<T: PositionRange> PositionRange for ModulePrefix<T> {
+impl<T: PositionRange> PositionRange for RemoteCall<T> {
     fn start_position(&self) -> Position {
-        self.name.start_position()
+        self.module_name.start_position()
     }
     fn end_position(&self) -> Position {
-        self._colon.end_position()
-    }
-}
-impl<T: IntoTokens> IntoTokens for ModulePrefix<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(self.name.into_tokens().chain(self._colon.into_tokens()))
+        self.fun.end_position()
     }
 }
 
@@ -85,10 +69,13 @@ impl<T: Parse> Parse for Args<T> {
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
+        let _open_paren = track!(parser.expect(&Symbol::OpenParen))?;
+        let args = track!(parser.parse())?;
+        let _close_paren = track!(parser.expect(&Symbol::CloseParen))?;
         Ok(Args {
-            _open_paren: track!(parser.expect(&Symbol::OpenParen))?,
-            args: track!(parser.parse())?,
-            _close_paren: track!(parser.expect(&Symbol::CloseParen))?,
+            _open_paren, //: track!(parser.expect(&Symbol::OpenParen))?,
+            args, //: track!(parser.parse())?,
+            _close_paren, //: track!(parser.expect(&Symbol::CloseParen))?,
         })
     }
 }
@@ -97,17 +84,7 @@ impl<T> PositionRange for Args<T> {
         self._open_paren.start_position()
     }
     fn end_position(&self) -> Position {
-        self._close_paren.start_position()
-    }
-}
-impl<T: IntoTokens> IntoTokens for Args<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self._open_paren
-                .into_tokens()
-                .chain(self.args.into_tokens())
-                .chain(self._close_paren.into_tokens()),
-        )
+        self._close_paren.end_position()
     }
 }
 
@@ -135,16 +112,6 @@ impl<T> PositionRange for Parenthesized<T> {
     }
     fn end_position(&self) -> Position {
         self._close_paren.end_position()
-    }
-}
-impl<T: IntoTokens> IntoTokens for Parenthesized<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self._open_paren
-                .into_tokens()
-                .chain(self.item.into_tokens())
-                .chain(self._close_paren.into_tokens()),
-        )
     }
 }
 
@@ -181,11 +148,6 @@ impl<T: PositionRange> PositionRange for Sequence<T> {
             .unwrap_or_else(|| self.item.end_position())
     }
 }
-impl<T: IntoTokens> IntoTokens for Sequence<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(self.item.into_tokens().chain(self.tail.into_tokens()))
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct SequenceTail<T> {
@@ -214,16 +176,6 @@ impl<T: PositionRange> PositionRange for SequenceTail<T> {
             .as_ref()
             .map(|t| t.end_position())
             .unwrap_or_else(|| self.item.end_position())
-    }
-}
-impl<T: IntoTokens> IntoTokens for SequenceTail<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self._comma
-                .into_tokens()
-                .chain(self.item.into_tokens())
-                .chain(self.tail.into_tokens()),
-        )
     }
 }
 
@@ -294,11 +246,6 @@ impl<T: PositionRange> PositionRange for ConsCell<T> {
             .unwrap_or_else(|| self.item.end_position())
     }
 }
-impl<T: IntoTokens> IntoTokens for ConsCell<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(self.item.into_tokens().chain(self.tail.into_tokens()))
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum ConsCellTail<T> {
@@ -353,20 +300,6 @@ impl<T: PositionRange> PositionRange for ConsCellTail<T> {
         }
     }
 }
-impl<T: IntoTokens> IntoTokens for ConsCellTail<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        match self {
-            ConsCellTail::Proper { _comma, item, tail } => {
-                Box::new(_comma.into_tokens().chain(item.into_tokens()).chain(
-                    tail.into_tokens(),
-                ))
-            }
-            ConsCellTail::Improper { _bar, item } => {
-                Box::new(_bar.into_tokens().chain(item.into_tokens()))
-            }
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct MapField<T> {
@@ -396,16 +329,6 @@ impl<T: PositionRange> PositionRange for MapField<T> {
         self.value.end_position()
     }
 }
-impl<T: IntoTokens> IntoTokens for MapField<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self.key
-                .into_tokens()
-                .chain(self._relation.into_tokens())
-                .chain(self.value.into_tokens()),
-        )
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct RecordField<T> {
@@ -431,16 +354,6 @@ impl<T: PositionRange> PositionRange for RecordField<T> {
     }
     fn end_position(&self) -> Position {
         self.value.end_position()
-    }
-}
-impl<T: IntoTokens> IntoTokens for RecordField<T> {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        Box::new(
-            self.key
-                .into_tokens()
-                .chain(self._bind.into_tokens())
-                .chain(self.value.into_tokens()),
-        )
     }
 }
 
@@ -487,14 +400,6 @@ impl PositionRange for AtomOrVariable {
         match *self {
             AtomOrVariable::Atom(ref t) => t.end_position(),
             AtomOrVariable::Variable(ref t) => t.end_position(),
-        }
-    }
-}
-impl IntoTokens for AtomOrVariable {
-    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
-        match self {
-            AtomOrVariable::Atom(x) => Box::new(x.into_tokens()),
-            AtomOrVariable::Variable(x) => Box::new(x.into_tokens()),
         }
     }
 }
