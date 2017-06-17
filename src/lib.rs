@@ -6,6 +6,7 @@ extern crate trackable;
 
 pub use error::{Error, ErrorKind};
 pub use parse::{Parse, Expect};
+pub use parser::Parser;
 pub use token_reader::{TokenReader, Tokens, Preprocessor};
 // pub use parser::Parser;
 // pub use reader::TokenReader;
@@ -25,6 +26,7 @@ pub mod cst;
 
 mod error;
 mod parse;
+mod parser;
 mod token_reader;
 // mod parser;
 // mod reader;

@@ -3,7 +3,7 @@ use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, Strin
                            VariableToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parse, Preprocessor, TokenReader, IntoTokens};
+use {Result, Parse, Preprocessor, Parser, IntoTokens};
 
 pub mod building_blocks;
 pub mod collections;
@@ -24,7 +24,7 @@ pub enum Expr {
     FunCall(Box<exprs::FunCall>),
 }
 impl Parse for Expr {
-    fn try_parse<T>(reader: &mut TokenReader<T>) -> Result<Option<Self>>
+    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -120,7 +120,7 @@ pub enum Pattern {
     Variable(VariableToken),
 }
 impl Parse for Pattern {
-    fn try_parse<T>(reader: &mut TokenReader<T>) -> Result<Option<Self>>
+    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -166,7 +166,7 @@ pub enum Literal {
     String(StringToken),
 }
 impl Parse for Literal {
-    fn try_parse<T>(reader: &mut TokenReader<T>) -> Result<Option<Self>>
+    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {

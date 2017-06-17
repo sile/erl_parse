@@ -5,13 +5,14 @@ extern crate erl_tokenize;
 extern crate trackable;
 
 use erl_pp::Preprocessor;
-use erl_parse::{TokenReader, Tokens, Parse};
+use erl_parse::{TokenReader, Tokens, Parse, Parser};
 use erl_parse::cst::Expr;
 use erl_tokenize::{Lexer, PositionRange};
 
 macro_rules! parse_expr {
     ($text:expr) => {
-        let mut tokens = TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text))));
+        let mut tokens = Parser::new(
+            TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text)))));
         let value = track_try_unwrap!(Expr::parse(&mut tokens),
                                       "text={:?}, next={:?}", $text, tokens.read_token());
         assert_eq!(value.end_position().offset(), $text.len());

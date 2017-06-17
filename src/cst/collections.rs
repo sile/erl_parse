@@ -3,7 +3,7 @@ use erl_tokenize::{Position, PositionRange, LexicalToken};
 use erl_tokenize::tokens::{AtomToken, SymbolToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parse, Preprocessor, TokenReader, IntoTokens};
+use {Result, Parse, Preprocessor, Parser, IntoTokens};
 use cst::building_blocks::{Sequence, MapField, RecordField, ConsCell};
 
 #[derive(Debug, Clone)]
@@ -13,7 +13,7 @@ pub struct Tuple<T> {
     pub _close_brace: SymbolToken,
 }
 impl<T: Parse> Parse for Tuple<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -51,7 +51,7 @@ pub struct List<T> {
     pub _close_square: SymbolToken,
 }
 impl<T: Parse + IntoTokens> Parse for List<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -100,7 +100,7 @@ pub struct Record<T> {
     pub _close_brace: SymbolToken,
 }
 impl<T: Parse> Parse for Record<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -157,7 +157,7 @@ pub struct Map<T> {
     pub _close_brace: SymbolToken,
 }
 impl<T: Parse> Parse for Map<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {

@@ -3,7 +3,7 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
-use {Result, TokenReader, Preprocessor, Parse, IntoTokens};
+use {Result, Parser, Preprocessor, Parse, IntoTokens};
 use cst::{Expr, Pattern};
 use cst::building_blocks::{self, Sequence};
 use cst::collections;
@@ -17,7 +17,7 @@ pub struct ListComprehension {
     pub _close_square: SymbolToken,
 }
 impl Parse for ListComprehension {
-    fn try_parse<T>(reader: &mut TokenReader<T>) -> Result<Option<Self>>
+    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -73,7 +73,7 @@ pub enum Qualifier {
     Filter(Expr),
 }
 impl Parse for Qualifier {
-    fn try_parse<T>(reader: &mut TokenReader<T>) -> Result<Option<Self>>
+    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -116,7 +116,7 @@ pub struct Generator {
     pub source: Expr,
 }
 impl Parse for Generator {
-    fn try_parse<T>(reader: &mut TokenReader<T>) -> Result<Option<Self>>
+    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -164,7 +164,7 @@ pub struct Catch {
     pub expr: Body,
 }
 impl Parse for Catch {
-    fn try_parse<T>(reader: &mut TokenReader<T>) -> Result<Option<Self>>
+    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -198,7 +198,7 @@ pub struct Block {
     pub _end: KeywordToken,
 }
 impl Parse for Block {
-    fn try_parse<T>(reader: &mut TokenReader<T>) -> Result<Option<Self>>
+    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -234,7 +234,7 @@ pub struct Body {
     pub exprs: Sequence<Expr>,
 }
 impl Parse for Body {
-    fn try_parse<T>(reader: &mut TokenReader<T>) -> Result<Option<Self>>
+    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {

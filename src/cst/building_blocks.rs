@@ -2,7 +2,7 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parse, Preprocessor, TokenReader, IntoTokens};
+use {Result, Parse, Preprocessor, IntoTokens, Parser};
 
 #[derive(Debug, Clone)]
 pub struct FunCall<T> {
@@ -11,7 +11,7 @@ pub struct FunCall<T> {
     pub args: Args<T>,
 }
 impl<T: Parse + IntoTokens> Parse for FunCall<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -56,7 +56,7 @@ pub struct ModulePrefix<T> {
     pub _colon: SymbolToken,
 }
 impl<T: Parse + IntoTokens> Parse for ModulePrefix<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -90,7 +90,7 @@ pub struct Args<T> {
     pub _close_paren: SymbolToken,
 }
 impl<T: Parse> Parse for Args<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -127,7 +127,7 @@ pub struct Parenthesized<T> {
     pub _close_paren: SymbolToken,
 }
 impl<T: Parse> Parse for Parenthesized<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -170,7 +170,7 @@ impl<T> Sequence<T> {
     }
 }
 impl<T: Parse> Parse for Sequence<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -205,7 +205,7 @@ pub struct SequenceTail<T> {
     pub tail: Option<Box<SequenceTail<T>>>,
 }
 impl<T: Parse> Parse for SequenceTail<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -285,7 +285,7 @@ pub struct ConsCell<T> {
     pub tail: Option<ConsCellTail<T>>,
 }
 impl<T: Parse> Parse for ConsCell<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -323,7 +323,7 @@ pub enum ConsCellTail<T> {
     Improper { _bar: SymbolToken, item: T },
 }
 impl<T: Parse> Parse for ConsCellTail<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -382,7 +382,7 @@ pub struct MapField<T> {
     pub value: T,
 }
 impl<T: Parse> Parse for MapField<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -428,7 +428,7 @@ pub struct RecordField<T> {
     pub value: T,
 }
 impl<T: Parse> Parse for RecordField<T> {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -479,7 +479,7 @@ impl AtomOrVariable {
     }
 }
 impl Parse for AtomOrVariable {
-    fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
+    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
