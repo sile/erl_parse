@@ -24,44 +24,45 @@ pub enum Expr {
     FunCall(Box<exprs::FunCall>),
 }
 impl Parse for Expr {
-    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(reader: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        // TODO: optimize
-        let expr = if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::Tuple(e)
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::List(e)
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::ListComprehension(e)
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::Map(e)
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::Record(e)
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::Block(e)
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::Parenthesized(e)
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::Catch(e)
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::Variable(e)
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Expr::Literal(e)
-        } else {
-            return Ok(None);
-        };
+        panic!()
+        // // TODO: optimize
+        // let expr = if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::Tuple(e)
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::List(e)
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::ListComprehension(e)
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::Map(e)
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::Record(e)
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::Block(e)
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::Parenthesized(e)
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::Catch(e)
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::Variable(e)
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Expr::Literal(e)
+        // } else {
+        //     return Ok(None);
+        // };
 
-        // TODO: optimize
-        match track!(reader.peek_token())? {
-            Some(LexicalToken::Symbol(ref s))
-                if s.value() == Symbol::OpenParen || s.value() == Symbol::Colon => {
-                let e = track!(Parse::parse(reader))?;
-                Ok(Some(Expr::FunCall(e)))
-            }
-            _ => Ok(Some(expr)),
-        }
+        // // TODO: optimize
+        // match track!(reader.peek_token())? {
+        //     Some(LexicalToken::Symbol(ref s))
+        //         if s.value() == Symbol::OpenParen || s.value() == Symbol::Colon => {
+        //         let e = track!(Parse::parse(reader))?;
+        //         Ok(Some(Expr::FunCall(e)))
+        //     }
+        //     _ => Ok(Some(expr)),
+        // }
     }
 }
 impl PositionRange for Expr {
@@ -120,18 +121,19 @@ pub enum Pattern {
     Variable(VariableToken),
 }
 impl Parse for Pattern {
-    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(reader: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        // TODO: optimize
-        if let Some(e) = track!(Parse::try_parse(reader))? {
-            Ok(Some(Pattern::Variable(e)))
-        } else if let Some(e) = track!(Parse::try_parse(reader))? {
-            Ok(Some(Pattern::Literal(e)))
-        } else {
-            Ok(None)
-        }
+        panic!()
+        // // TODO: optimize
+        // if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Ok(Some(Pattern::Variable(e)))
+        // } else if let Some(e) = track!(Parse::try_parse(reader))? {
+        //     Ok(Some(Pattern::Literal(e)))
+        // } else {
+        //     Ok(None)
+        // }
     }
 }
 impl PositionRange for Pattern {
@@ -166,23 +168,24 @@ pub enum Literal {
     String(StringToken),
 }
 impl Parse for Literal {
-    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(reader: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(track!(reader.try_read_token())?.and_then(
-            |token| match token {
-                LexicalToken::Atom(t) => Some(Literal::Atom(t)),
-                LexicalToken::Char(t) => Some(Literal::Char(t)),
-                LexicalToken::Float(t) => Some(Literal::Float(t)),
-                LexicalToken::Integer(t) => Some(Literal::Integer(t)),
-                LexicalToken::String(t) => Some(Literal::String(t)),
-                _ => {
-                    reader.unread_token(token);
-                    None
-                }
-            },
-        ))
+        panic!()
+        // Ok(track!(reader.try_read_token())?.and_then(
+        //     |token| match token {
+        //         LexicalToken::Atom(t) => Some(Literal::Atom(t)),
+        //         LexicalToken::Char(t) => Some(Literal::Char(t)),
+        //         LexicalToken::Float(t) => Some(Literal::Float(t)),
+        //         LexicalToken::Integer(t) => Some(Literal::Integer(t)),
+        //         LexicalToken::String(t) => Some(Literal::String(t)),
+        //         _ => {
+        //             reader.unread_token(token);
+        //             None
+        //         }
+        //     },
+        // ))
     }
 }
 impl PositionRange for Literal {

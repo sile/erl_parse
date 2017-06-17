@@ -5,162 +5,151 @@ use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, Keywo
                            StringToken, SymbolToken, VariableToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, ErrorKind, Preprocessor, IntoTokens, Parser};
+use {Result, ErrorKind, Preprocessor, IntoTokens, Parser, Error};
 
 pub trait Parse: Sized {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
-    {
-        if let Some(value) = track!(parser.try_parse())? {
-            Ok(value)
-        } else {
-            track_panic!(ErrorKind::InvalidInput);
-        }
-    }
-
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
-    where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor;
-
-    fn try_parse_expect<T>(parser: &mut Parser<T>, expected: &Self::Value) -> Result<Option<Self>>
-    where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
-        Self: Expect,
-    {
-        let actual = track_try_some!(Self::try_parse(parser));
-        if actual.expect(expected).is_ok() {
-            Ok(Some(actual))
-        } else {
-            parser.unread_token(actual.into());
-            Ok(None)
-        }
-    }
-
-    fn parse_expect<T>(parser: &mut Parser<T>, expected: &Self::Value) -> Result<Self>
-    where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
-        Self: Expect,
-    {
-        let actual = track!(Self::parse(parser))?;
-        track!(actual.expect(expected))?;
-        Ok(actual)
-    }
 }
 impl<U: Parse> Parse for Box<U> {
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(Parse::try_parse(parser)?.map(Box::new))
+        parser.parse().map(Box::new)
+    }
+}
+impl<T: Parse> Parse for Option<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(parser.transaction(|parser| parser.parse()).ok())
     }
 }
 impl Parse for AtomToken {
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(track!(parser.try_read_token())?.and_then(|token| {
+        let token = track!(parser.read_token())?;
+        let token = track!(
             token
                 .into_atom_token()
-                .map_err(|token| parser.unread_token(token))
-                .ok()
-        }))
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
+        Ok(token)
     }
 }
 impl Parse for CharToken {
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(track!(parser.try_read_token())?.and_then(|token| {
+        let token = track!(parser.read_token())?;
+        let token = track!(
             token
                 .into_char_token()
-                .map_err(|token| parser.unread_token(token))
-                .ok()
-        }))
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
+        Ok(token)
     }
 }
 impl Parse for FloatToken {
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(track!(parser.try_read_token())?.and_then(|token| {
+        let token = track!(parser.read_token())?;
+        let token = track!(
             token
                 .into_float_token()
-                .map_err(|token| parser.unread_token(token))
-                .ok()
-        }))
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
+        Ok(token)
     }
 }
 impl Parse for IntegerToken {
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(track!(parser.try_read_token())?.and_then(|token| {
+        let token = track!(parser.read_token())?;
+        let token = track!(
             token
                 .into_integer_token()
-                .map_err(|token| parser.unread_token(token))
-                .ok()
-        }))
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
+        Ok(token)
     }
 }
 impl Parse for KeywordToken {
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(track!(parser.try_read_token())?.and_then(|token| {
+        let token = track!(parser.read_token())?;
+        let token = track!(
             token
                 .into_keyword_token()
-                .map_err(|token| parser.unread_token(token))
-                .ok()
-        }))
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
+        Ok(token)
     }
 }
 impl Parse for StringToken {
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(track!(parser.try_read_token())?.and_then(|token| {
+        let token = track!(parser.read_token())?;
+        let token = track!(
             token
                 .into_string_token()
-                .map_err(|token| parser.unread_token(token))
-                .ok()
-        }))
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
+        Ok(token)
     }
 }
 impl Parse for SymbolToken {
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(track!(parser.try_read_token())?.and_then(|token| {
+        let token = track!(parser.read_token())?;
+        let token = track!(
             token
                 .into_symbol_token()
-                .map_err(|token| parser.unread_token(token))
-                .ok()
-        }))
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
+        Ok(token)
     }
 }
 impl Parse for VariableToken {
-    fn try_parse<T>(parser: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(track!(parser.try_read_token())?.and_then(|token| {
+        let token = track!(parser.read_token())?;
+        let token = track!(
             token
                 .into_variable_token()
-                .map_err(|token| parser.unread_token(token))
-                .ok()
-        }))
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
+        Ok(token)
     }
 }
 
-pub trait Expect: Sized + Into<LexicalToken> {
+pub trait Expect: Sized + IntoTokens {
     type Value: ?Sized;
     fn expect(&self, expected: &Self::Value) -> Result<()>;
 }
@@ -220,7 +209,6 @@ impl Expect for VariableToken {
         Ok(())
     }
 }
-
 
 impl IntoTokens for AtomToken {
     fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {

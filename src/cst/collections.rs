@@ -13,16 +13,15 @@ pub struct Tuple<T> {
     pub _close_brace: SymbolToken,
 }
 impl<T: Parse> Parse for Tuple<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _open_brace = track_try_some!(Parse::try_parse_expect(reader, &Symbol::OpenBrace));
-        Ok(Some(Tuple {
-            _open_brace,
-            elements: track!(Parse::try_parse(reader))?,
-            _close_brace: track!(Parse::parse_expect(reader, &Symbol::CloseBrace))?,
-        }))
+        Ok(Tuple {
+            _open_brace: track!(parser.expect(&Symbol::OpenBrace))?,
+            elements: track!(parser.parse())?,
+            _close_brace: track!(parser.expect(&Symbol::CloseBrace))?,
+        })
     }
 }
 impl<T> PositionRange for Tuple<T> {
@@ -51,25 +50,15 @@ pub struct List<T> {
     pub _close_square: SymbolToken,
 }
 impl<T: Parse + IntoTokens> Parse for List<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _open_square = track_try_some!(Parse::try_parse_expect(reader, &Symbol::OpenSquare));
-        let elements = track!(Parse::try_parse(reader))?;
-        let _close_square =
-            if let Some(token) = track!(Parse::try_parse_expect(reader, &Symbol::CloseSquare))? {
-                token
-            } else {
-                reader.unread_tokens(elements);
-                reader.unread_tokens(_open_square);
-                return Ok(None);
-            };
-        Ok(Some(List {
-            _open_square,
-            elements,
-            _close_square,
-        }))
+        Ok(List {
+            _open_square: track!(parser.expect(&Symbol::OpenSquare))?,
+            elements: track!(parser.parse())?,
+            _close_square: track!(parser.expect(&Symbol::CloseSquare))?,
+        })
     }
 }
 impl<T> PositionRange for List<T> {
@@ -100,32 +89,17 @@ pub struct Record<T> {
     pub _close_brace: SymbolToken,
 }
 impl<T: Parse> Parse for Record<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _sharp: SymbolToken = track_try_some!(Parse::try_parse_expect(reader, &Symbol::Sharp));
-        let name: AtomToken = if let Some(token) = track!(Parse::try_parse(reader))? {
-            token
-        } else {
-            reader.unread_token(_sharp.into());
-            return Ok(None);
-        };
-        let _open_brace =
-            if let Some(token) = track!(Parse::try_parse_expect(reader, &Symbol::OpenBrace))? {
-                token
-            } else {
-                reader.unread_token(name.into());
-                reader.unread_token(_sharp.into());
-                return Ok(None);
-            };
-        Ok(Some(Record {
-            _sharp,
-            name,
-            _open_brace,
-            fields: track!(Parse::try_parse(reader))?,
-            _close_brace: track!(Parse::parse_expect(reader, &Symbol::CloseBrace))?,
-        }))
+        Ok(Record {
+            _sharp: track!(parser.expect(&Symbol::Sharp))?,
+            name: track!(parser.parse())?,
+            _open_brace: track!(parser.expect(&Symbol::OpenBrace))?,
+            fields: track!(parser.parse())?,
+            _close_brace: track!(parser.expect(&Symbol::CloseBrace))?,
+        })
     }
 }
 impl<T> PositionRange for Record<T> {
@@ -157,24 +131,16 @@ pub struct Map<T> {
     pub _close_brace: SymbolToken,
 }
 impl<T: Parse> Parse for Map<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _sharp: SymbolToken = track_try_some!(Parse::try_parse_expect(reader, &Symbol::Sharp));
-        let _open_brace =
-            if let Some(token) = track!(Parse::try_parse_expect(reader, &Symbol::OpenBrace))? {
-                token
-            } else {
-                reader.unread_token(_sharp.into());
-                return Ok(None);
-            };
-        Ok(Some(Map {
-            _sharp,
-            _open_brace,
-            fields: track!(Parse::try_parse(reader))?,
-            _close_brace: track!(Parse::parse_expect(reader, &Symbol::CloseBrace))?,
-        }))
+        Ok(Map {
+            _sharp: track!(parser.expect(&Symbol::Sharp))?,
+            _open_brace: track!(parser.expect(&Symbol::OpenBrace))?,
+            fields: track!(parser.parse())?,
+            _close_brace: track!(parser.expect(&Symbol::CloseBrace))?,
+        })
     }
 }
 impl<T> PositionRange for Map<T> {

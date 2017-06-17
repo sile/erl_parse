@@ -2,7 +2,7 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parse, Preprocessor, IntoTokens, Parser};
+use {Result, Parse, Preprocessor, IntoTokens, Parser, ErrorKind};
 
 #[derive(Debug, Clone)]
 pub struct FunCall<T> {
@@ -11,21 +11,15 @@ pub struct FunCall<T> {
     pub args: Args<T>,
 }
 impl<T: Parse + IntoTokens> Parse for FunCall<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let module = track!(Parse::try_parse(reader))?;
-        let fun_name = if module.is_some() {
-            track!(Parse::parse(reader))?
-        } else {
-            track_try_some!(Parse::try_parse(reader))
-        };
-        Ok(Some(FunCall {
-            module,
-            fun_name,
-            args: track!(Parse::parse(reader))?,
-        }))
+        Ok(FunCall {
+            module: track!(parser.parse())?,
+            fun_name: track!(parser.parse())?,
+            args: track!(parser.parse())?,
+        })
     }
 }
 impl<T: PositionRange> PositionRange for FunCall<T> {
@@ -56,17 +50,14 @@ pub struct ModulePrefix<T> {
     pub _colon: SymbolToken,
 }
 impl<T: Parse + IntoTokens> Parse for ModulePrefix<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let name = track_try_some!(Parse::try_parse(reader));
-        if let Some(_colon) = track!(Parse::try_parse_expect(reader, &Symbol::Colon))? {
-            Ok(Some(ModulePrefix { name, _colon }))
-        } else {
-            reader.unread_tokens(name);
-            Ok(None)
-        }
+        Ok(ModulePrefix {
+            name: track!(parser.parse())?,
+            _colon: track!(parser.parse())?,
+        })
     }
 }
 impl<T: PositionRange> PositionRange for ModulePrefix<T> {
@@ -90,15 +81,15 @@ pub struct Args<T> {
     pub _close_paren: SymbolToken,
 }
 impl<T: Parse> Parse for Args<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(Some(Args {
-            _open_paren: track!(Parse::parse_expect(reader, &Symbol::OpenParen))?,
-            args: track!(Parse::try_parse(reader))?,
-            _close_paren: track!(Parse::parse_expect(reader, &Symbol::CloseParen))?,
-        }))
+        Ok(Args {
+            _open_paren: track!(parser.expect(&Symbol::OpenParen))?,
+            args: track!(parser.parse())?,
+            _close_paren: track!(parser.expect(&Symbol::CloseParen))?,
+        })
     }
 }
 impl<T> PositionRange for Args<T> {
@@ -127,16 +118,15 @@ pub struct Parenthesized<T> {
     pub _close_paren: SymbolToken,
 }
 impl<T: Parse> Parse for Parenthesized<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _open_paren = track_try_some!(Parse::try_parse_expect(reader, &Symbol::OpenParen));
-        Ok(Some(Parenthesized {
-            _open_paren,
-            item: track!(Parse::parse(reader))?,
-            _close_paren: track!(Parse::parse_expect(reader, &Symbol::CloseParen))?,
-        }))
+        Ok(Parenthesized {
+            _open_paren: track!(parser.expect(&Symbol::OpenParen))?,
+            item: track!(parser.parse())?,
+            _close_paren: track!(parser.expect(&Symbol::CloseParen))?,
+        })
     }
 }
 impl<T> PositionRange for Parenthesized<T> {
@@ -170,15 +160,14 @@ impl<T> Sequence<T> {
     }
 }
 impl<T: Parse> Parse for Sequence<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let item = track_try_some!(Parse::try_parse(reader));
-        Ok(Some(Sequence {
-            item,
-            tail: track!(Parse::try_parse(reader))?,
-        }))
+        Ok(Sequence {
+            item: track!(parser.parse())?,
+            tail: track!(parser.parse())?,
+        })
     }
 }
 impl<T: PositionRange> PositionRange for Sequence<T> {
@@ -205,16 +194,15 @@ pub struct SequenceTail<T> {
     pub tail: Option<Box<SequenceTail<T>>>,
 }
 impl<T: Parse> Parse for SequenceTail<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _comma = track_try_some!(Parse::try_parse_expect(reader, &Symbol::Comma));
-        Ok(Some(SequenceTail {
-            _comma,
-            item: track!(Parse::parse(reader))?,
-            tail: track!(Parse::try_parse(reader))?,
-        }))
+        Ok(SequenceTail {
+            _comma: track!(parser.expect(&Symbol::Comma))?,
+            item: track!(parser.parse())?,
+            tail: track!(parser.parse())?,
+        })
     }
 }
 impl<T: PositionRange> PositionRange for SequenceTail<T> {
@@ -285,15 +273,14 @@ pub struct ConsCell<T> {
     pub tail: Option<ConsCellTail<T>>,
 }
 impl<T: Parse> Parse for ConsCell<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let item = track_try_some!(Parse::try_parse(reader));
-        Ok(Some(ConsCell {
-            item,
-            tail: track!(Parse::try_parse(reader))?,
-        }))
+        Ok(ConsCell {
+            item: track!(parser.parse())?,
+            tail: track!(parser.parse())?,
+        })
     }
 }
 impl<T: PositionRange> PositionRange for ConsCell<T> {
@@ -323,23 +310,29 @@ pub enum ConsCellTail<T> {
     Improper { _bar: SymbolToken, item: T },
 }
 impl<T: Parse> Parse for ConsCellTail<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let cell = if let Some(_comma) = track!(Parse::try_parse_expect(reader, &Symbol::Comma))? {
-            ConsCellTail::Proper {
-                _comma,
-                item: track!(Parse::parse(reader))?,
-                tail: track!(Parse::try_parse(reader))?,
+        let symbol: SymbolToken = track!(parser.parse())?;
+        match symbol.value() {
+            Symbol::Comma => {
+                Ok(ConsCellTail::Proper {
+                    _comma: symbol,
+                    item: track!(parser.parse())?,
+                    tail: track!(parser.parse())?,
+                })
             }
-        } else {
-            ConsCellTail::Improper {
-                _bar: track_try_some!(Parse::try_parse_expect(reader, &Symbol::VerticalBar)),
-                item: track!(Parse::parse(reader))?,
+            Symbol::VerticalBar => {
+                Ok(ConsCellTail::Improper {
+                    _bar: symbol,
+                    item: track!(parser.parse())?,
+                })
             }
-        };
-        Ok(Some(cell))
+            _ => {
+                track_panic!(ErrorKind::InvalidInput, "Unexpected symbol: {:?}", symbol);
+            }
+        }
     }
 }
 impl<T: PositionRange> PositionRange for ConsCellTail<T> {
@@ -382,24 +375,17 @@ pub struct MapField<T> {
     pub value: T,
 }
 impl<T: Parse> Parse for MapField<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let key = track_try_some!(Parse::try_parse(reader));
-
-        let maybe_assoc_field = track!(Parse::try_parse_expect(reader, &Symbol::DoubleRightArrow))?;
-        let _relation = if let Some(token) = maybe_assoc_field {
-            token
-        } else {
-            track!(Parse::parse_expect(reader, &Symbol::MapMatch))?
-        };
-
-        Ok(Some(MapField {
-            key,
-            _relation,
-            value: track!(Parse::parse(reader))?,
-        }))
+        Ok(MapField {
+            key: track!(parser.parse())?,
+            _relation: track!(parser.expect_any(
+                &[&Symbol::DoubleRightArrow, &Symbol::MapMatch],
+            ))?,
+            value: track!(parser.parse())?,
+        })
     }
 }
 impl<T: PositionRange> PositionRange for MapField<T> {
@@ -428,16 +414,15 @@ pub struct RecordField<T> {
     pub value: T,
 }
 impl<T: Parse> Parse for RecordField<T> {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let key = track_try_some!(Parse::try_parse(reader));
-        Ok(Some(RecordField {
-            key,
-            _bind: track!(Parse::parse(reader))?,
-            value: track!(Parse::parse(reader))?,
-        }))
+        Ok(RecordField {
+            key: track!(parser.parse())?,
+            _bind: track!(parser.parse())?,
+            value: track!(parser.parse())?,
+        })
     }
 }
 impl<T: PositionRange> PositionRange for RecordField<T> {
@@ -479,16 +464,15 @@ impl AtomOrVariable {
     }
 }
 impl Parse for AtomOrVariable {
-    fn try_parse<U>(reader: &mut Parser<U>) -> Result<Option<Self>>
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        if let Some(token) = track!(Parse::try_parse(reader))? {
-            Ok(Some(AtomOrVariable::Atom(token)))
-        } else if let Some(token) = track!(Parse::try_parse(reader))? {
-            Ok(Some(AtomOrVariable::Variable(token)))
-        } else {
-            Ok(None)
+        let token = track!(parser.read_token())?;
+        match token {
+            LexicalToken::Atom(token) => Ok(AtomOrVariable::Atom(token)),
+            LexicalToken::Variable(token) => Ok(AtomOrVariable::Variable(token)),
+            _ => track_panic!(ErrorKind::UnexpectedToken(token)),
         }
     }
 }

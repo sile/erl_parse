@@ -1,5 +1,5 @@
 use erl_pp;
-use erl_tokenize;
+use erl_tokenize::{self, LexicalToken};
 use trackable::error::TrackableError;
 use trackable::error::{ErrorKind as TrackableErrorKind, ErrorKindExt};
 
@@ -19,10 +19,11 @@ impl From<erl_pp::Error> for Error {
 }
 
 /// The list of the possible error kinds
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum ErrorKind {
     TokenizationFailed,
     InvalidInput,
+    UnexpectedToken(LexicalToken),
     UnexpectedEos,
     Other,
 }

@@ -3,7 +3,7 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
-use {Result, Parser, Preprocessor, Parse, IntoTokens};
+use {Result, Parser, Preprocessor, Parse, IntoTokens, ErrorKind};
 use cst::{Expr, Pattern};
 use cst::building_blocks::{self, Sequence};
 use cst::collections;
@@ -17,33 +17,17 @@ pub struct ListComprehension {
     pub _close_square: SymbolToken,
 }
 impl Parse for ListComprehension {
-    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _open_square =
-            track_try_some!(SymbolToken::try_parse_expect(reader, &Symbol::OpenSquare));
-        let element = if let Some(x) = track!(Parse::try_parse(reader))? {
-            x
-        } else {
-            reader.unread_token(_open_square.into());
-            return Ok(None);
-        };
-        let _bar =
-            if let Some(x) = track!(Parse::try_parse_expect(reader, &Symbol::DoubleVerticalBar))? {
-                x
-            } else {
-                reader.unread_tokens(element);
-                reader.unread_token(_open_square.into());
-                return Ok(None);
-            };
-        Ok(Some(ListComprehension {
-            _open_square,
-            element,
-            _bar,
-            qualifiers: track!(Parse::parse(reader))?,
-            _close_square: track!(Parse::parse_expect(reader, &Symbol::CloseSquare))?,
-        }))
+        Ok(ListComprehension {
+            _open_square: track!(parser.expect(&Symbol::OpenSquare))?,
+            element: track!(parser.parse())?,
+            _bar: track!(parser.expect(&Symbol::DoubleVerticalBar))?,
+            qualifiers: track!(parser.parse())?,
+            _close_square: track!(parser.expect(&Symbol::CloseSquare))?,
+        })
     }
 }
 impl PositionRange for ListComprehension {
@@ -73,16 +57,25 @@ pub enum Qualifier {
     Filter(Expr),
 }
 impl Parse for Qualifier {
-    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        if let Some(x) = track!(Parse::try_parse(reader))? {
-            Ok(Some(Qualifier::Generator(x)))
-        } else if let Some(x) = track!(Parse::try_parse(reader))? {
-            Ok(Some(Qualifier::Filter(x)))
+        if let Ok(expr) = parser.transaction(|parser| {
+            let expr = track!(parser.parse())?;
+            if track!(parser.peek_token())?
+                .and_then(|t| t.as_symbol_token().map(|t| t.value() == Symbol::Comma))
+                .unwrap_or(false)
+            {
+                Ok(expr)
+            } else {
+                track_panic!(ErrorKind::InvalidInput);
+            }
+        })
+        {
+            Ok(Qualifier::Filter(expr))
         } else {
-            Ok(None)
+            Ok(Qualifier::Generator(track!(parser.parse())?))
         }
     }
 }
@@ -116,27 +109,17 @@ pub struct Generator {
     pub source: Expr,
 }
 impl Parse for Generator {
-    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let pattern = track_try_some!(Parse::try_parse(reader));
-        let _arrow = if let Some(x) = track!(
-            Parse::try_parse_expect(reader, &Symbol::LeftArrow)
-        )?
-        {
-            x
-        } else if let Some(x) = track!(Parse::try_parse_expect(reader, &Symbol::DoubleLeftArrow))? {
-            x
-        } else {
-            reader.unread_tokens(pattern);
-            return Ok(None);
-        };
-        Ok(Some(Generator {
-            pattern,
-            _arrow,
-            source: track!(Parse::parse(reader))?,
-        }))
+        Ok(Generator {
+            pattern: track!(parser.parse())?,
+            _arrow: track!(parser.expect_any(
+                &[&Symbol::LeftArrow, &Symbol::DoubleLeftArrow],
+            ))?,
+            source: track!(parser.parse())?,
+        })
     }
 }
 impl PositionRange for Generator {
@@ -164,15 +147,14 @@ pub struct Catch {
     pub expr: Body,
 }
 impl Parse for Catch {
-    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _catch = track_try_some!(Parse::try_parse_expect(reader, &Keyword::Catch));
-        Ok(Some(Catch {
-            _catch,
-            expr: track!(Parse::parse(reader))?,
-        }))
+        Ok(Catch {
+            _catch: track!(parser.expect(&Keyword::Catch))?,
+            expr: track!(parser.parse())?,
+        })
     }
 }
 impl PositionRange for Catch {
@@ -198,16 +180,15 @@ pub struct Block {
     pub _end: KeywordToken,
 }
 impl Parse for Block {
-    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _begin = track_try_some!(Parse::try_parse_expect(reader, &Keyword::Begin));
-        Ok(Some(Block {
-            _begin,
-            body: track!(Parse::parse(reader))?,
-            _end: track!(Parse::parse(reader))?,
-        }))
+        Ok(Block {
+            _begin: track!(parser.expect(&Keyword::Begin))?,
+            body: track!(parser.parse())?,
+            _end: track!(parser.expect(&Keyword::End))?,
+        })
     }
 }
 impl PositionRange for Block {
@@ -234,12 +215,12 @@ pub struct Body {
     pub exprs: Sequence<Expr>,
 }
 impl Parse for Body {
-    fn try_parse<T>(reader: &mut Parser<T>) -> Result<Option<Self>>
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let exprs = track_try_some!(Parse::try_parse(reader));
-        Ok(Some(Body { exprs }))
+        let exprs = track!(parser.parse())?;
+        Ok(Body { exprs })
     }
 }
 impl PositionRange for Body {
