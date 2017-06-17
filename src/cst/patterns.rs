@@ -1,14 +1,14 @@
-use cst::{LeftPattern, Pattern};
-use cst::commons;
+use cst::Pattern;
+use cst::building_blocks;
+use cst::collections;
 
-pub type BitStr = commons::BitStr<Pattern, LeftPattern>;
-pub type List = commons::List<Pattern>;
-pub type TailConsList = commons::TailConsList<Pattern>;
-pub type Map = commons::Map<Pattern>;
-pub type Parenthesized = commons::Parenthesized<Pattern>;
-pub type Tuple = commons::Tuple<Pattern>;
-pub type Record = commons::Record<Pattern>;
-pub type RecordFieldIndex = commons::RecordFieldIndex;
-pub type UnaryOpCall = commons::UnaryNumOpCall<Pattern>;
-pub type BinaryOpCall = commons::BinaryOpCall<LeftPattern, Pattern>;
-pub type Match = commons::Match<Pattern>;
+pub type Tuple = collections::Tuple<Pattern>;
+pub type Map = collections::Map<Pattern>;
+pub type Record = collections::Record<Pattern>;
+pub type RecordFieldIndex = collections::RecordFieldIndex;
+pub type List = collections::List<Pattern>;
+pub type Bits = collections::Bits<Pattern>;
+pub type Parenthesized = building_blocks::Parenthesized<Pattern>;
+pub type UnaryOpCall = building_blocks::UnaryOpCall<Pattern>;
+pub type BinaryOpCall = building_blocks::BinaryOpCall<Pattern>;
+pub type Match = building_blocks::Match<Pattern>;

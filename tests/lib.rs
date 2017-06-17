@@ -6,7 +6,7 @@ extern crate trackable;
 
 use erl_pp::Preprocessor;
 use erl_parse::{TokenReader, Tokens, Parse, Parser};
-use erl_parse::cst::Expr;
+use erl_parse::cst::{Expr, Pattern};
 use erl_tokenize::{Lexer, PositionRange};
 
 macro_rules! parse_expr {
@@ -14,6 +14,16 @@ macro_rules! parse_expr {
         let mut tokens = Parser::new(
             TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text)))));
         let value = track_try_unwrap!(Expr::parse(&mut tokens),
+                                      "text={:?}, next={:?}", $text, tokens.read_token());
+        assert_eq!(value.end_position().offset(), $text.len());
+    }
+ }
+
+macro_rules! parse_pattern {
+    ($text:expr) => {
+        let mut tokens = Parser::new(
+            TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text)))));
+        let value = track_try_unwrap!(Pattern::parse(&mut tokens),
                                       "text={:?}, next={:?}", $text, tokens.read_token());
         assert_eq!(value.end_position().offset(), $text.len());
     }
@@ -130,7 +140,8 @@ fn parse_expr_works() {
 
     // match
     parse_expr!("1 = 2");
-    // parse_expr!("[A, 2, {}] = [10 | B]");
+    parse_expr!("1 = 2 = 3");
+    parse_expr!("[A, 2, {}] = [10 | B]");
 
     // block
     parse_expr!("begin 1, 2, 3 end");
@@ -158,78 +169,71 @@ fn parse_expr_works() {
     parse_expr!("try foo, bar of 10 -> 2; _ -> 30 catch baz -> 1; _:_ -> qux end");
     parse_expr!("try foo, bar after baz, qux end");
     parse_expr!("try foo of _ -> 1 catch throw:_ -> ok end");
+
     parse_expr!("try foo of _ -> 1 after ok end");
     parse_expr!("try foo of _ -> 1 catch _ -> err after ok end");
 }
 
-// macro_rules! parse_pattern {
-//     ($text:expr) => {
-//         let parser = track_try_unwrap!(Parser::from_text($text));
-//         let pattern = track_try_unwrap!(parser.parse_pattern(), "text={:?}", $text);
-//         assert_eq!(pattern.token_end(), parser.tokens().len());
-//     }
-//  }
+#[test]
+fn parse_pattern_works() {
+    // literals
+    parse_pattern!("foo");
+    parse_pattern!("$c");
+    parse_pattern!("1.2");
+    parse_pattern!("123");
+    parse_pattern!(r#""foo""#);
 
-// #[test]
-// fn parse_pattern_works() {
-//     // literals
-//     parse_pattern!("foo");
-//     parse_pattern!("$c");
-//     parse_pattern!("1.2");
-//     parse_pattern!("123");
-//     parse_pattern!(r#""foo""#);
+    // variable
+    parse_pattern!("Foo");
 
-//     // variable
-//     parse_pattern!("Foo");
+    // bitstring
+    parse_pattern!("<<>>");
+    parse_pattern!("<<10>>");
+    parse_pattern!("<<1, 2, 3>>");
+    parse_pattern!("<<100:2>>");
+    parse_pattern!("<<1/little>>");
+    parse_pattern!("<<1:2/little-unit:8>>");
 
-//     // bitstring
-//     parse_pattern!("<<>>");
-//     parse_pattern!("<<10>>");
-//     parse_pattern!("<<1, 2, 3>>");
-//     parse_pattern!("<<100:2>>");
-//     parse_pattern!("<<1/little>>");
-//     parse_pattern!("<<1:2/little-unit:8>>");
+    // proper list
+    parse_pattern!("[]");
+    parse_pattern!("[1]");
+    parse_pattern!("[1, 2, 3]");
 
-//     // proper list
-//     parse_pattern!("[]");
-//     parse_pattern!("[1]");
-//     parse_pattern!("[1, 2, 3]");
+    // improper list
+    parse_pattern!("[1 | 2]");
+    parse_pattern!("[1, 2 | 3]");
 
-//     // improper list
-//     parse_pattern!("[1 | 2]");
-//     parse_pattern!("[1, 2 | 3]");
+    // map
+    parse_pattern!("#{}");
+    parse_pattern!("#{a := b}");
+    parse_pattern!("#{a := B, 1 := 2}");
 
-//     // map
-//     parse_pattern!("#{}");
-//     parse_pattern!("#{a := b}");
-//     parse_pattern!("#{a := B, 1 := 2}");
+    // tuple
+    parse_pattern!("{}");
+    parse_pattern!("{1}");
+    parse_pattern!("{1, 2, 3}");
 
-//     // tuple
-//     parse_pattern!("{}");
-//     parse_pattern!("{1}");
-//     parse_pattern!("{1, 2, 3}");
+    // unary op
+    parse_pattern!("+10");
+    parse_pattern!("-20");
 
-//     // unary op
-//     parse_pattern!("+10");
-//     parse_pattern!("-20");
+    // binary op
+    parse_pattern!("[1] ++ [2,3]");
 
-//     // binary op
-//     parse_pattern!("[1] ++ [2,3]");
+    // parenthesized
+    parse_pattern!("( [1,2,3] )");
 
-//     // parenthesized
-//     parse_pattern!("( [1,2,3] )");
+    // record
+    parse_pattern!("#foo{}");
+    parse_pattern!("#foo{a = b}");
+    parse_pattern!("#foo{a = b, _ = 10}");
 
-//     // record
-//     parse_pattern!("#foo{}");
-//     parse_pattern!("#foo{a = b}");
-//     parse_pattern!("#foo{a = b, _ = 10}");
+    // record field index
+    parse_pattern!("#foo.bar");
 
-//     // record field index
-//     parse_pattern!("#foo.bar");
-
-//     // match
-//     parse_pattern!("{A, B = 2, 3} = {1, 2, 3}");
-// }
+    // match
+    parse_pattern!("{A, B = 2, 3} = {1, 2, 3}");
+}
 
 // macro_rules! parse_type {
 //     ($text:expr) => {

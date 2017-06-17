@@ -17,7 +17,20 @@ impl<T: Parse> Parse for Match<T> {
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(Match {
-            pattern: track!(parser.parse())?,
+            pattern: track!(Pattern::parse_non_left_recor(parser))?,
+            _match: track!(parser.expect(&Symbol::Match))?,
+            value: track!(parser.parse())?,
+        })
+    }
+}
+impl<T: Parse> ParseLeftRecur for Match<T> {
+    type Left = Pattern;
+    fn parse_left_recur<U>(parser: &mut Parser<U>, left: Pattern) -> Result<Self>
+    where
+        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Match {
+            pattern: left,
             _match: track!(parser.expect(&Symbol::Match))?,
             value: track!(parser.parse())?,
         })

@@ -10,6 +10,7 @@ pub mod clauses;
 pub mod collections;
 pub mod exprs;
 pub mod guard_tests;
+pub mod patterns;
 
 #[derive(Debug)]
 pub enum RightKind {
@@ -64,6 +65,7 @@ impl RightKind {
 #[derive(Debug)]
 pub enum RightKind2 {
     BinaryOpCall,
+    Match,
     None,
 }
 impl RightKind2 {
@@ -74,6 +76,7 @@ impl RightKind2 {
         match parser.read_token() {
             Ok(LexicalToken::Symbol(t)) => {
                 match t.value() {
+                    Symbol::Match => RightKind2::Match,
                     Symbol::Plus | Symbol::Hyphen | Symbol::Multiply | Symbol::Slash |
                     Symbol::PlusPlus | Symbol::MinusMinus | Symbol::Eq | Symbol::ExactEq |
                     Symbol::NotEq | Symbol::ExactNotEq | Symbol::Less | Symbol::LessEq |
@@ -303,6 +306,7 @@ impl Parse for Expr {
             RightKind2::BinaryOpCall => Ok(
                 Expr::BinaryOpCall(track!(parser.parse_left_recur(left))?),
             ),
+            RightKind2::Match => track_panic!(ErrorKind::InvalidInput, "unreachable"),
             RightKind2::None => Ok(left),
         }
     }
@@ -380,9 +384,19 @@ impl PositionRange for Expr {
 pub enum Pattern {
     Literal(Literal),
     Variable(VariableToken),
+    Tuple(Box<patterns::Tuple>),
+    Map(Box<patterns::Map>),
+    Record(Box<patterns::Record>),
+    RecordFieldIndex(Box<patterns::RecordFieldIndex>),
+    List(Box<patterns::List>),
+    Bits(Box<patterns::Bits>),
+    Parenthesized(Box<patterns::Parenthesized>),
+    UnaryOpCall(Box<patterns::UnaryOpCall>),
+    BinaryOpCall(Box<patterns::BinaryOpCall>),
+    Match(Box<patterns::Match>),
 }
 impl Parse for Pattern {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -390,9 +404,34 @@ impl Parse for Pattern {
         let pattern = match kind {
             LeftKind::Literal => Pattern::Literal(track!(parser.parse())?),
             LeftKind::Variable => Pattern::Variable(track!(parser.parse())?),
-            _ => track_panic!(ErrorKind::UnexpectedToken(track!(parser.read_token())?)),
+            LeftKind::Tuple => Pattern::Tuple(track!(parser.parse())?),
+            LeftKind::Map => Pattern::Map(track!(parser.parse())?),
+            LeftKind::Record => Pattern::Record(track!(parser.parse())?),
+            LeftKind::RecordFieldIndex => Pattern::RecordFieldIndex(track!(parser.parse())?),
+            LeftKind::List => Pattern::List(track!(parser.parse())?),            
+            LeftKind::Bits => Pattern::Bits(track!(parser.parse())?),
+            LeftKind::UnaryOpCall => Pattern::UnaryOpCall(track!(parser.parse())?),
+            LeftKind::Parenthesized => Pattern::Parenthesized(track!(parser.parse())?),
+            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
         };
         Ok(pattern)
+    }
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let left = track!(Pattern::parse_non_left_recor(parser))?;
+
+        let kind = parser.peek(|parser| Ok(RightKind2::guess(parser))).expect(
+            "Never fails",
+        );
+        match kind {
+            RightKind2::BinaryOpCall => Ok(Pattern::BinaryOpCall(
+                track!(parser.parse_left_recur(left))?,
+            )),
+            RightKind2::Match => Ok(Pattern::Match(track!(parser.parse_left_recur(left))?)),
+            RightKind2::None => Ok(left),
+        }
     }
 }
 impl PositionRange for Pattern {
@@ -400,12 +439,32 @@ impl PositionRange for Pattern {
         match *self {
             Pattern::Literal(ref x) => x.start_position(),
             Pattern::Variable(ref x) => x.start_position(),
+            Pattern::Tuple(ref x) => x.start_position(),
+            Pattern::Map(ref x) => x.start_position(),
+            Pattern::Record(ref x) => x.start_position(),
+            Pattern::RecordFieldIndex(ref x) => x.start_position(),
+            Pattern::List(ref x) => x.start_position(),
+            Pattern::Bits(ref x) => x.start_position(),
+            Pattern::Parenthesized(ref x) => x.start_position(),
+            Pattern::UnaryOpCall(ref x) => x.start_position(),
+            Pattern::BinaryOpCall(ref x) => x.start_position(),
+            Pattern::Match(ref x) => x.start_position(),
         }
     }
     fn end_position(&self) -> Position {
         match *self {
             Pattern::Literal(ref x) => x.end_position(),
             Pattern::Variable(ref x) => x.end_position(),
+            Pattern::Tuple(ref x) => x.end_position(),
+            Pattern::Map(ref x) => x.end_position(),
+            Pattern::Record(ref x) => x.end_position(),
+            Pattern::RecordFieldIndex(ref x) => x.end_position(),
+            Pattern::List(ref x) => x.end_position(),
+            Pattern::Bits(ref x) => x.end_position(),
+            Pattern::Parenthesized(ref x) => x.end_position(),
+            Pattern::UnaryOpCall(ref x) => x.end_position(),
+            Pattern::BinaryOpCall(ref x) => x.end_position(),
+            Pattern::Match(ref x) => x.end_position(),
         }
     }
 }
@@ -520,7 +579,7 @@ impl Parse for GuardTest {
         let kind = track!(parser.peek(
             |parser| LeftKind::guess::<T, GuardTest>(parser),
         ))?;
-        let expr = match kind {
+        let test = match kind {
             LeftKind::Literal => GuardTest::Literal(track!(parser.parse())?),
             LeftKind::Variable => GuardTest::Variable(track!(parser.parse())?),
             LeftKind::Tuple => GuardTest::Tuple(track!(parser.parse())?),
@@ -533,7 +592,7 @@ impl Parse for GuardTest {
             LeftKind::Parenthesized => GuardTest::Parenthesized(track!(parser.parse())?),
             _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
         };
-        Ok(expr)
+        Ok(test)
     }
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
@@ -558,6 +617,7 @@ impl Parse for GuardTest {
                 track!(parser.parse_left_recur(left))?,
             )),
             RightKind2::None => Ok(left),
+            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
         }
     }
 }
