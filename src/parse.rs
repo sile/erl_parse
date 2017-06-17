@@ -23,6 +23,12 @@ impl<T: ParseLeftRecur> ParseLeftRecur for Box<T> {
 }
 
 pub trait Parse: Sized {
+    fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        parser.parse()
+    }
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor;

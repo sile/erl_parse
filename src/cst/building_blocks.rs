@@ -60,39 +60,39 @@ impl<T: PositionRange> PositionRange for RemoteCall<T> {
 
 #[derive(Debug, Clone)]
 pub struct Args<T> {
-    pub _open_paren: SymbolToken,
+    pub _open: SymbolToken,
     pub args: Option<Sequence<T>>,
-    pub _close_paren: SymbolToken,
+    pub _close: SymbolToken,
 }
 impl<T: Parse> Parse for Args<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let _open_paren = track!(parser.expect(&Symbol::OpenParen))?;
+        let _open = track!(parser.expect(&Symbol::OpenParen))?;
         let args = track!(parser.parse())?;
-        let _close_paren = track!(parser.expect(&Symbol::CloseParen))?;
+        let _close = track!(parser.expect(&Symbol::CloseParen))?;
         Ok(Args {
-            _open_paren, //: track!(parser.expect(&Symbol::OpenParen))?,
+            _open, //: track!(parser.expect(&Symbol::OpenParen))?,
             args, //: track!(parser.parse())?,
-            _close_paren, //: track!(parser.expect(&Symbol::CloseParen))?,
+            _close, //: track!(parser.expect(&Symbol::CloseParen))?,
         })
     }
 }
 impl<T> PositionRange for Args<T> {
     fn start_position(&self) -> Position {
-        self._open_paren.start_position()
+        self._open.start_position()
     }
     fn end_position(&self) -> Position {
-        self._close_paren.end_position()
+        self._close.end_position()
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Parenthesized<T> {
-    pub _open_paren: SymbolToken,
+    pub _open: SymbolToken,
     pub item: T,
-    pub _close_paren: SymbolToken,
+    pub _close: SymbolToken,
 }
 impl<T: Parse> Parse for Parenthesized<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
@@ -100,18 +100,18 @@ impl<T: Parse> Parse for Parenthesized<T> {
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(Parenthesized {
-            _open_paren: track!(parser.expect(&Symbol::OpenParen))?,
+            _open: track!(parser.expect(&Symbol::OpenParen))?,
             item: track!(parser.parse())?,
-            _close_paren: track!(parser.expect(&Symbol::CloseParen))?,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
         })
     }
 }
 impl<T> PositionRange for Parenthesized<T> {
     fn start_position(&self) -> Position {
-        self._open_paren.start_position()
+        self._open.start_position()
     }
     fn end_position(&self) -> Position {
-        self._close_paren.end_position()
+        self._close.end_position()
     }
 }
 
@@ -216,6 +216,65 @@ impl<'a, T: 'a> Iterator for SequenceIterInner<'a, T> {
             }
             SequenceIterInner::Eos => None,
         }
+    }
+}
+
+// TODO
+#[derive(Debug, Clone)]
+pub struct HyphenSeq<T> {
+    pub item: T,
+    pub tail: Option<HyphenSeqTail<T>>,
+}
+impl<T: Parse> Parse for HyphenSeq<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(HyphenSeq {
+            item: track!(parser.parse())?,
+            tail: track!(parser.parse())?,
+        })
+    }
+}
+impl<T: PositionRange> PositionRange for HyphenSeq<T> {
+    fn start_position(&self) -> Position {
+        self.item.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.tail
+            .as_ref()
+            .map(|t| t.end_position())
+            .unwrap_or_else(|| self.item.end_position())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HyphenSeqTail<T> {
+    pub _hyphen: SymbolToken,
+    pub item: T,
+    pub tail: Option<Box<HyphenSeqTail<T>>>,
+}
+impl<T: Parse> Parse for HyphenSeqTail<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(HyphenSeqTail {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            item: track!(parser.parse())?,
+            tail: track!(parser.parse())?,
+        })
+    }
+}
+impl<T: PositionRange> PositionRange for HyphenSeqTail<T> {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.tail
+            .as_ref()
+            .map(|t| t.end_position())
+            .unwrap_or_else(|| self.item.end_position())
     }
 }
 

@@ -9,11 +9,11 @@ use cst::collections;
 
 #[derive(Debug, Clone)]
 pub struct ListComprehension {
-    pub _open_square: SymbolToken,
+    pub _open: SymbolToken,
     pub element: Expr,
     pub _bar: SymbolToken,
     pub qualifiers: Sequence<Qualifier>,
-    pub _close_square: SymbolToken,
+    pub _close: SymbolToken,
 }
 impl Parse for ListComprehension {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
@@ -21,20 +21,51 @@ impl Parse for ListComprehension {
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(ListComprehension {
-            _open_square: track!(parser.expect(&Symbol::OpenSquare))?,
+            _open: track!(parser.expect(&Symbol::OpenSquare))?,
             element: track!(parser.parse())?,
             _bar: track!(parser.expect(&Symbol::DoubleVerticalBar))?,
             qualifiers: track!(parser.parse())?,
-            _close_square: track!(parser.expect(&Symbol::CloseSquare))?,
+            _close: track!(parser.expect(&Symbol::CloseSquare))?,
         })
     }
 }
 impl PositionRange for ListComprehension {
     fn start_position(&self) -> Position {
-        self._open_square.start_position()
+        self._open.start_position()
     }
     fn end_position(&self) -> Position {
-        self._close_square.end_position()
+        self._close.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BitsComprehension {
+    pub _open: SymbolToken,
+    pub element: Expr,
+    pub _bar: SymbolToken,
+    pub qualifiers: Sequence<Qualifier>,
+    pub _close: SymbolToken,
+}
+impl Parse for BitsComprehension {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(BitsComprehension {
+            _open: track!(parser.expect(&Symbol::DoubleLeftAngle))?,
+            element: track!(parser.parse())?,
+            _bar: track!(parser.expect(&Symbol::DoubleVerticalBar))?,
+            qualifiers: track!(parser.parse())?,
+            _close: track!(parser.expect(&Symbol::DoubleRightAngle))?,
+        })
+    }
+}
+impl PositionRange for BitsComprehension {
+    fn start_position(&self) -> Position {
+        self._open.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._close.end_position()
     }
 }
 
@@ -177,6 +208,7 @@ pub type Tuple = collections::Tuple<Expr>;
 pub type Map = collections::Map<Expr>;
 pub type Record = collections::Record<Expr>;
 pub type List = collections::List<Expr>;
+pub type Bits = collections::Bits<Expr>;
 pub type Parenthesized = building_blocks::Parenthesized<Expr>;
 pub type LocalCall = building_blocks::LocalCall<Expr>;
 pub type RemoteCall = building_blocks::RemoteCall<Expr>;

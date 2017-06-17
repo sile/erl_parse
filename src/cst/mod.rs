@@ -42,6 +42,8 @@ pub enum LeftKind {
     Record,
     List,
     ListComprehension,
+    Bits,
+    BitsComprehension,
     Block,
     Parenthesized,
     Catch,
@@ -56,6 +58,17 @@ impl LeftKind {
             LexicalToken::Symbol(t) => {
                 match t.value() {
                     Symbol::OpenBrace => LeftKind::Tuple,
+                    Symbol::DoubleLeftAngle => {
+                        let maybe_comprehension = parser.parse::<U>().is_ok() &&
+                            parser
+                                .expect::<SymbolToken>(&Symbol::DoubleVerticalBar)
+                                .is_ok();
+                        if maybe_comprehension {
+                            LeftKind::BitsComprehension
+                        } else {
+                            LeftKind::Bits
+                        }
+                    }
                     Symbol::OpenParen => LeftKind::Parenthesized,
                     Symbol::OpenSquare => {
                         let maybe_comprehension = parser.parse::<U>().is_ok() &&
@@ -100,6 +113,8 @@ pub enum Expr {
     Record(Box<exprs::Record>),
     List(Box<exprs::List>),
     ListComprehension(Box<exprs::ListComprehension>),
+    Bits(Box<exprs::Bits>),
+    BitsComprehension(Box<exprs::BitsComprehension>),
     Block(Box<exprs::Block>),
     Parenthesized(Box<exprs::Parenthesized>),
     Catch(Box<exprs::Catch>),
@@ -107,7 +122,7 @@ pub enum Expr {
     RemoteCall(Box<exprs::RemoteCall>),
 }
 impl Parse for Expr {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
@@ -120,11 +135,19 @@ impl Parse for Expr {
             LeftKind::Record => Expr::Record(track!(parser.parse())?),
             LeftKind::List => Expr::List(track!(parser.parse())?),            
             LeftKind::ListComprehension => Expr::ListComprehension(track!(parser.parse())?),
+            LeftKind::Bits => Expr::Bits(track!(parser.parse())?),
+            LeftKind::BitsComprehension => Expr::BitsComprehension(track!(parser.parse())?),
             LeftKind::Block => Expr::Block(track!(parser.parse())?),
             LeftKind::Parenthesized => Expr::Parenthesized(track!(parser.parse())?),
             LeftKind::Catch => Expr::Catch(track!(parser.parse())?),
         };
-
+        Ok(expr)
+    }
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let expr = track!(Expr::parse_non_left_recor(parser))?;
         let kind = parser.peek(|parser| Ok(RightKind::guess(parser))).expect(
             "Never fails",
         );
@@ -154,6 +177,8 @@ impl PositionRange for Expr {
             Expr::Record(ref x) => x.start_position(),
             Expr::List(ref x) => x.start_position(),
             Expr::ListComprehension(ref x) => x.start_position(),
+            Expr::Bits(ref x) => x.start_position(),
+            Expr::BitsComprehension(ref x) => x.start_position(),
             Expr::Block(ref x) => x.start_position(),
             Expr::Parenthesized(ref x) => x.start_position(),
             Expr::Catch(ref x) => x.start_position(),
@@ -170,6 +195,8 @@ impl PositionRange for Expr {
             Expr::Record(ref x) => x.end_position(),
             Expr::List(ref x) => x.end_position(),
             Expr::ListComprehension(ref x) => x.end_position(),
+            Expr::Bits(ref x) => x.end_position(),
+            Expr::BitsComprehension(ref x) => x.end_position(),
             Expr::Block(ref x) => x.end_position(),
             Expr::Parenthesized(ref x) => x.end_position(),
             Expr::Catch(ref x) => x.end_position(),

@@ -75,6 +75,18 @@ fn parse_expr_works() {
     parse_expr!("[x || _ <- [1,2,3]]");
     parse_expr!("[x || X <- [1,2,3], filter(X), _ <= <<1,2,3>>]");
 
+    // bitstring
+    parse_expr!("<<>>");
+    parse_expr!("<<10>>");
+    parse_expr!("<<1, 2, 3>>");
+    parse_expr!("<<100:2>>");
+    parse_expr!("<<1/little>>");
+    parse_expr!("<<1:2/little-unit:8>>");
+
+    // bitstring comprehension
+    parse_expr!("<< <<x>> || _ <- [1,2,3]>>");
+    parse_expr!("<< <<x>> || X <- [1,2,3], filter(X), _ <= <<1,2,3>> >>");
+
     // block
     parse_expr!("begin 1, 2, 3 end");
 
@@ -94,18 +106,6 @@ fn parse_expr_works() {
     parse_expr!("Foo:Bar(1)");
     parse_expr!(r#"(list_to_atom("foo")):bar(1, 2, [3])"#);
 }
-
-//     // bitstring
-//     parse_expr!("<<>>");
-//     parse_expr!("<<10>>");
-//     parse_expr!("<<1, 2, 3>>");
-//     parse_expr!("<<100:2>>");
-//     parse_expr!("<<1/little>>");
-//     parse_expr!("<<1:2/little-unit:8>>");
-
-//     // bitstring comprehension
-//     parse_expr!("<< <<x>> || _ <- [1,2,3]>>");
-//     parse_expr!("<< <<x>> || X <- [1,2,3], filter(X), _ <= <<1,2,3>> >>");
 
 //     // unary op
 //     parse_expr!("+10");

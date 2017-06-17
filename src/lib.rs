@@ -35,6 +35,7 @@ mod token_reader;
 /// This crate specific `Result` type.
 pub type Result<T> = ::std::result::Result<T, Error>;
 
+// TODO: DELETE
 pub trait TryInto<T>: Sized {
     fn try_into(self) -> Result<T>;
 }
