@@ -2,11 +2,89 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken, AtomToken, IntegerToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
-use {Result, Parser, Preprocessor, Parse};
+use {Result, Parser, Preprocessor, Parse, ParseLeftRecur};
 use cst::{Expr, Pattern};
 use cst::building_blocks::{self, Sequence, AtomOrVariable, IntegerOrVariable};
 use cst::clauses::{Clauses, FunClause, NamedFunClause, IfClause, CaseClause, CatchClause};
 use cst::collections;
+
+#[derive(Debug, Clone)]
+pub struct MapUpdate {
+    pub map: Expr,
+    pub update: Map,
+}
+impl ParseLeftRecur for MapUpdate {
+    type Left = Expr;
+    fn parse_left_recur<T>(parser: &mut Parser<T>, left: Self::Left) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(MapUpdate {
+            map: left,
+            update: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for MapUpdate {
+    fn start_position(&self) -> Position {
+        self.map.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.update.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordUpdate {
+    pub record: Expr,
+    pub update: Record,
+}
+impl ParseLeftRecur for RecordUpdate {
+    type Left = Expr;
+    fn parse_left_recur<T>(parser: &mut Parser<T>, left: Self::Left) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(RecordUpdate {
+            record: left,
+            update: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RecordUpdate {
+    fn start_position(&self) -> Position {
+        self.record.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.update.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordFieldAccess {
+    pub record: Expr,
+    pub index: RecordFieldIndex,
+}
+impl ParseLeftRecur for RecordFieldAccess {
+    type Left = Expr;
+    fn parse_left_recur<T>(parser: &mut Parser<T>, left: Self::Left) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(RecordFieldAccess {
+            record: left,
+            index: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RecordFieldAccess {
+    fn start_position(&self) -> Position {
+        self.record.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.index.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Try {
@@ -548,6 +626,7 @@ impl PositionRange for Body {
 pub type Tuple = collections::Tuple<Expr>;
 pub type Map = collections::Map<Expr>;
 pub type Record = collections::Record<Expr>;
+pub type RecordFieldIndex = collections::RecordFieldIndex;
 pub type List = collections::List<Expr>;
 pub type Bits = collections::Bits<Expr>;
 pub type Parenthesized = building_blocks::Parenthesized<Expr>;

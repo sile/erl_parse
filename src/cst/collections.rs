@@ -241,6 +241,35 @@ impl<T> PositionRange for Record<T> {
 }
 
 #[derive(Debug, Clone)]
+pub struct RecordFieldIndex {
+    pub _sharp: SymbolToken,
+    pub name: AtomToken,
+    pub _dot: SymbolToken,
+    pub field: AtomToken,
+}
+impl Parse for RecordFieldIndex {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(RecordFieldIndex {
+            _sharp: track!(parser.expect(&Symbol::Sharp))?,
+            name: track!(parser.parse())?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+            field: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RecordFieldIndex {
+    fn start_position(&self) -> Position {
+        self._sharp.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.field.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Map<T> {
     pub _sharp: SymbolToken,
     pub _open: SymbolToken,

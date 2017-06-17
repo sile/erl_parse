@@ -42,25 +42,25 @@ fn parse_expr_works() {
     parse_expr!("#{a := b}");
     parse_expr!("#{a => b, 1 := 2}");
 
-    // // map update
-    // parse_expr!("M#{}");
-    // parse_expr!("(#{a => 10})#{a := b, 1 => 2}");
+    // map update
+    parse_expr!("M#{}");
+    parse_expr!("(#{a => 10})#{a := b, 1 => 2}");
 
     // record
     parse_expr!("#foo{}");
     parse_expr!("#foo{a = b}");
     parse_expr!("#foo{a = b, _ = 10}");
 
-    //     // record update
-    //     parse_expr!("R#foo{bar = 10}");
-    //     parse_expr!("(#foo{})#foo{bar = 10, baz = 20}");
+    // record update
+    parse_expr!("R#foo{bar = 10}");
+    parse_expr!("(#foo{})#foo{bar = 10, baz = 20}");
 
-    //     // record field access
-    //     parse_expr!("R#foo.bar");
-    //     parse_expr!("(#foo{})#foo.bar");
+    // record field access
+    parse_expr!("R#foo.bar");
+    parse_expr!("(#foo{})#foo.bar");
 
-    //     // record field index
-    //     parse_expr!("#foo.bar");
+    // record field index
+    parse_expr!("#foo.bar");
 
     // proper list
     parse_expr!("[]");

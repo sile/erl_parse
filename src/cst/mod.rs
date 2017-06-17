@@ -14,6 +14,9 @@ pub mod exprs;
 pub enum RightKind {
     LocalCall,
     RemoteCall,
+    MapUpdate,
+    RecordUpdate,
+    RecordFieldAccess,
     None,
 }
 impl RightKind {
@@ -26,6 +29,29 @@ impl RightKind {
                 match t.value() {
                     Symbol::OpenParen => RightKind::LocalCall,
                     Symbol::Colon => RightKind::RemoteCall,
+                    Symbol::Sharp => {
+                        if parser
+                            .read_token()
+                            .ok()
+                            .and_then(|t| t.as_atom_token().map(|_| ()))
+                            .is_some()
+                        {
+                            if parser
+                                .read_token()
+                                .ok()
+                                .and_then(|t| {
+                                    t.as_symbol_token().map(|t| t.value() == Symbol::OpenBrace)
+                                })
+                                .unwrap_or(false)
+                            {
+                                RightKind::RecordUpdate
+                            } else {
+                                RightKind::RecordFieldAccess
+                            }
+                        } else {
+                            RightKind::MapUpdate
+                        }
+                    }
                     _ => RightKind::None,
                 }
             }
@@ -74,6 +100,7 @@ pub enum LeftKind {
     Tuple,
     Map,
     Record,
+    RecordFieldIndex,
     List,
     ListComprehension,
     Bits,
@@ -126,7 +153,18 @@ impl LeftKind {
                     }
                     Symbol::Sharp => {
                         if track!(parser.read_token())?.as_atom_token().is_some() {
-                            LeftKind::Record
+                            if parser
+                                .read_token()
+                                .ok()
+                                .and_then(|t| {
+                                    t.as_symbol_token().map(|t| t.value() == Symbol::OpenBrace)
+                                })
+                                .unwrap_or(false)
+                            {
+                                LeftKind::Record
+                            } else {
+                                LeftKind::RecordFieldIndex
+                            }
                         } else {
                             LeftKind::Map
                         }
@@ -176,7 +214,11 @@ pub enum Expr {
     Variable(VariableToken),
     Tuple(Box<exprs::Tuple>),
     Map(Box<exprs::Map>),
+    MapUpdate(Box<exprs::MapUpdate>),
     Record(Box<exprs::Record>),
+    RecordUpdate(Box<exprs::RecordUpdate>),
+    RecordFieldIndex(Box<exprs::RecordFieldIndex>),
+    RecordFieldAccess(Box<exprs::RecordFieldAccess>),
     List(Box<exprs::List>),
     ListComprehension(Box<exprs::ListComprehension>),
     Bits(Box<exprs::Bits>),
@@ -210,6 +252,7 @@ impl Parse for Expr {
             LeftKind::Tuple => Expr::Tuple(track!(parser.parse())?),
             LeftKind::Map => Expr::Map(track!(parser.parse())?),
             LeftKind::Record => Expr::Record(track!(parser.parse())?),
+            LeftKind::RecordFieldIndex => Expr::RecordFieldIndex(track!(parser.parse())?),
             LeftKind::List => Expr::List(track!(parser.parse())?),            
             LeftKind::ListComprehension => Expr::ListComprehension(track!(parser.parse())?),
             LeftKind::Bits => Expr::Bits(track!(parser.parse())?),
@@ -246,6 +289,11 @@ impl Parse for Expr {
         let left = match kind {
             RightKind::LocalCall => Expr::LocalCall(track!(parser.parse_left_recur(expr))?),
             RightKind::RemoteCall => Expr::RemoteCall(track!(parser.parse_left_recur(expr))?),
+            RightKind::MapUpdate => Expr::MapUpdate(track!(parser.parse_left_recur(expr))?),
+            RightKind::RecordUpdate => Expr::RecordUpdate(track!(parser.parse_left_recur(expr))?), 
+            RightKind::RecordFieldAccess => Expr::RecordFieldAccess(
+                track!(parser.parse_left_recur(expr))?,
+            ), 
             RightKind::None => expr,
         };
 
@@ -276,7 +324,11 @@ impl PositionRange for Expr {
             Expr::Variable(ref x) => x.start_position(),
             Expr::Tuple(ref x) => x.start_position(),
             Expr::Map(ref x) => x.start_position(),
+            Expr::MapUpdate(ref x) => x.start_position(),
             Expr::Record(ref x) => x.start_position(),
+            Expr::RecordUpdate(ref x) => x.start_position(),
+            Expr::RecordFieldIndex(ref x) => x.start_position(),
+            Expr::RecordFieldAccess(ref x) => x.start_position(),
             Expr::List(ref x) => x.start_position(),
             Expr::ListComprehension(ref x) => x.start_position(),
             Expr::Bits(ref x) => x.start_position(),
@@ -305,7 +357,11 @@ impl PositionRange for Expr {
             Expr::Variable(ref x) => x.end_position(),
             Expr::Tuple(ref x) => x.end_position(),
             Expr::Map(ref x) => x.end_position(),
+            Expr::MapUpdate(ref x) => x.end_position(),
             Expr::Record(ref x) => x.end_position(),
+            Expr::RecordUpdate(ref x) => x.end_position(),
+            Expr::RecordFieldIndex(ref x) => x.end_position(),
+            Expr::RecordFieldAccess(ref x) => x.end_position(),
             Expr::List(ref x) => x.end_position(),
             Expr::ListComprehension(ref x) => x.end_position(),
             Expr::Bits(ref x) => x.end_position(),
