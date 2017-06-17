@@ -2,7 +2,7 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken, IntegerToken, KeywordToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parse, Preprocessor, Parser, ErrorKind, ParseLeftRecur, TryInto};
+use {Result, Parse, Preprocessor, Parser, ErrorKind, ParseLeftRecur};
 use cst::Pattern;
 
 #[derive(Debug, Clone)]
@@ -276,6 +276,17 @@ pub struct LocalCall<T> {
     pub name: T,
     pub args: Args<T>,
 }
+impl<T: Parse> Parse for LocalCall<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(LocalCall {
+            name: track!(T::parse_non_left_recor(parser))?,
+            args: track!(parser.parse())?,
+        })
+    }
+}
 impl<T: Parse> ParseLeftRecur for LocalCall<T> {
     type Left = T;
     fn parse_left_recur<U>(parser: &mut Parser<U>, left: Self::Left) -> Result<Self>
@@ -303,7 +314,7 @@ pub struct RemoteCall<T> {
     pub _colon: SymbolToken,
     pub fun: LocalCall<T>,
 }
-impl<T: Parse + TryInto<LocalCall<T>>> ParseLeftRecur for RemoteCall<T> {
+impl<T: Parse> ParseLeftRecur for RemoteCall<T> {
     type Left = T;
     fn parse_left_recur<U>(parser: &mut Parser<U>, left: Self::Left) -> Result<Self>
     where
@@ -312,7 +323,7 @@ impl<T: Parse + TryInto<LocalCall<T>>> ParseLeftRecur for RemoteCall<T> {
         Ok(RemoteCall {
             module_name: left,
             _colon: track!(parser.expect(&Symbol::Colon))?,
-            fun: track!(parser.parse::<T>().and_then(|t| t.try_into()))?,
+            fun: track!(parser.parse())?,
         })
     }
 }

@@ -3,12 +3,13 @@ use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, Strin
                            VariableToken, SymbolToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parse, Preprocessor, Parser, ErrorKind, TryInto};
+use {Result, Parse, Preprocessor, Parser, ErrorKind};
 
 pub mod building_blocks;
 pub mod clauses;
 pub mod collections;
 pub mod exprs;
+pub mod guard_tests;
 
 #[derive(Debug)]
 pub enum RightKind {
@@ -276,13 +277,11 @@ impl Parse for Expr {
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let expr = {
-            if let Ok(expr) = parser.transaction(|parser| parser.parse()) {
-                Expr::Match(expr)
-            } else {
-                track!(Expr::parse_non_left_recor(parser))?
-            }
-        };
+        if let Ok(expr) = parser.transaction(|parser| parser.parse()) {
+            return Ok(Expr::Match(expr));
+        }
+
+        let expr = track!(Expr::parse_non_left_recor(parser))?;
         let kind = parser.peek(|parser| Ok(RightKind::guess(parser))).expect(
             "Never fails",
         );
@@ -305,15 +304,6 @@ impl Parse for Expr {
                 Expr::BinaryOpCall(track!(parser.parse_left_recur(left))?),
             ),
             RightKind2::None => Ok(left),
-        }
-    }
-}
-impl TryInto<exprs::LocalCall> for Expr {
-    fn try_into(self) -> Result<exprs::LocalCall> {
-        if let Expr::LocalCall(x) = self {
-            Ok(*x)
-        } else {
-            track_panic!(ErrorKind::InvalidInput, "Not a LocalCall: {:?}", self)
         }
     }
 }
@@ -510,21 +500,65 @@ impl PositionRange for Guard {
 pub enum GuardTest {
     Literal(Literal),
     Variable(VariableToken),
+    Tuple(Box<guard_tests::Tuple>),
+    Map(Box<guard_tests::Map>),
+    Record(Box<guard_tests::Record>),
+    RecordFieldIndex(Box<guard_tests::RecordFieldIndex>),
+    List(Box<guard_tests::List>),
+    Bits(Box<guard_tests::Bits>),
+    Parenthesized(Box<guard_tests::Parenthesized>),
+    LocalCall(Box<guard_tests::LocalCall>),
+    RemoteCall(Box<guard_tests::RemoteCall>),
+    UnaryOpCall(Box<guard_tests::UnaryOpCall>),
+    BinaryOpCall(Box<guard_tests::BinaryOpCall>),
 }
 impl Parse for GuardTest {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         let kind = track!(parser.peek(
             |parser| LeftKind::guess::<T, GuardTest>(parser),
         ))?;
-        let pattern = match kind {
+        let expr = match kind {
             LeftKind::Literal => GuardTest::Literal(track!(parser.parse())?),
             LeftKind::Variable => GuardTest::Variable(track!(parser.parse())?),
-            _ => track_panic!(ErrorKind::UnexpectedToken(track!(parser.read_token())?)),
+            LeftKind::Tuple => GuardTest::Tuple(track!(parser.parse())?),
+            LeftKind::Map => GuardTest::Map(track!(parser.parse())?),
+            LeftKind::Record => GuardTest::Record(track!(parser.parse())?),
+            LeftKind::RecordFieldIndex => GuardTest::RecordFieldIndex(track!(parser.parse())?),
+            LeftKind::List => GuardTest::List(track!(parser.parse())?),            
+            LeftKind::Bits => GuardTest::Bits(track!(parser.parse())?),
+            LeftKind::UnaryOpCall => GuardTest::UnaryOpCall(track!(parser.parse())?),
+            LeftKind::Parenthesized => GuardTest::Parenthesized(track!(parser.parse())?),
+            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
         };
-        Ok(pattern)
+        Ok(expr)
+    }
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let test = track!(Self::parse_non_left_recor(parser))?;
+        let kind = parser.peek(|parser| Ok(RightKind::guess(parser))).expect(
+            "Never fails",
+        );
+        let left = match kind {
+            RightKind::LocalCall => GuardTest::LocalCall(track!(parser.parse_left_recur(test))?),
+            RightKind::RemoteCall => GuardTest::RemoteCall(track!(parser.parse_left_recur(test))?),
+            RightKind::None => test,
+            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),            
+        };
+
+        let kind = parser.peek(|parser| Ok(RightKind2::guess(parser))).expect(
+            "Never fails",
+        );
+        match kind {
+            RightKind2::BinaryOpCall => Ok(GuardTest::BinaryOpCall(
+                track!(parser.parse_left_recur(left))?,
+            )),
+            RightKind2::None => Ok(left),
+        }
     }
 }
 impl PositionRange for GuardTest {
@@ -532,12 +566,34 @@ impl PositionRange for GuardTest {
         match *self {
             GuardTest::Literal(ref x) => x.start_position(),
             GuardTest::Variable(ref x) => x.start_position(),
+            GuardTest::Tuple(ref x) => x.start_position(),
+            GuardTest::Map(ref x) => x.start_position(),
+            GuardTest::Record(ref x) => x.start_position(),
+            GuardTest::RecordFieldIndex(ref x) => x.start_position(),
+            GuardTest::List(ref x) => x.start_position(),
+            GuardTest::Bits(ref x) => x.start_position(),
+            GuardTest::Parenthesized(ref x) => x.start_position(),
+            GuardTest::LocalCall(ref x) => x.start_position(),
+            GuardTest::RemoteCall(ref x) => x.start_position(),
+            GuardTest::UnaryOpCall(ref x) => x.start_position(),
+            GuardTest::BinaryOpCall(ref x) => x.start_position(),
         }
     }
     fn end_position(&self) -> Position {
         match *self {
             GuardTest::Literal(ref x) => x.end_position(),
             GuardTest::Variable(ref x) => x.end_position(),
+            GuardTest::Tuple(ref x) => x.end_position(),
+            GuardTest::Map(ref x) => x.end_position(),
+            GuardTest::Record(ref x) => x.end_position(),
+            GuardTest::RecordFieldIndex(ref x) => x.end_position(),
+            GuardTest::List(ref x) => x.end_position(),
+            GuardTest::Bits(ref x) => x.end_position(),
+            GuardTest::Parenthesized(ref x) => x.end_position(),
+            GuardTest::LocalCall(ref x) => x.end_position(),
+            GuardTest::RemoteCall(ref x) => x.end_position(),
+            GuardTest::UnaryOpCall(ref x) => x.end_position(),
+            GuardTest::BinaryOpCall(ref x) => x.end_position(),
         }
     }
 }

@@ -197,7 +197,7 @@ impl PositionRange for TryAfter {
 #[derive(Debug, Clone)]
 pub struct Receive {
     pub _receive: KeywordToken,
-    pub clauses: Clauses<IfClause>,
+    pub clauses: Clauses<CaseClause>,
     pub timeout: Option<Timeout>,
     pub _end: KeywordToken,
 }

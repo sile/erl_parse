@@ -146,12 +146,12 @@ fn parse_expr_works() {
     // case
     parse_expr!("case 1 of 2 -> 3 end");
     parse_expr!("case 1 of 2 -> 3; _ -> ok end");
-    // parse_expr!("case 1 of A when A == 2; true; 1, 2, false -> 3 end");
+    parse_expr!("case 1 of A when A == 2; true; 1, 2, false -> 3 end");
 
     // receive
     parse_expr!("receive foo -> bar end");
-    // parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 end");
-    // parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 after 10 * 2 -> foo(), done end");
+    parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 end");
+    parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 after 10 * 2 -> foo(), done end");
 
     // try
     parse_expr!("try foo, bar catch baz -> 1; _ -> qux end");
