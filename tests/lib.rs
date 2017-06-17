@@ -87,14 +87,8 @@ fn parse_expr_works() {
     parse_expr!("<< <<x>> || _ <- [1,2,3]>>");
     parse_expr!("<< <<x>> || X <- [1,2,3], filter(X), _ <= <<1,2,3>> >>");
 
-    // block
-    parse_expr!("begin 1, 2, 3 end");
-
     // parenthesized
     parse_expr!("( 1 )");
-
-    // catch
-    parse_expr!("catch [1,2,3]");
 
     // local call
     parse_expr!("foo()");
@@ -122,6 +116,35 @@ fn parse_expr_works() {
     parse_expr!("fun Foo() -> ok end");
     parse_expr!("fun Foo(a) -> ok; Foo(B) -> err end");
     parse_expr!("fun Foo(a) when true -> Foo(b); Foo(B) -> err end");
+
+    // block
+    parse_expr!("begin 1, 2, 3 end");
+
+    // catch
+    parse_expr!("catch [1,2,3]");
+
+    // if
+    parse_expr!("if true -> 1, 2, 3 end");
+    parse_expr!("if true; false, true -> 1, 2, 3 end");
+    parse_expr!("if true -> 1; false -> 2; _ -> ok end");
+
+    // case
+    parse_expr!("case 1 of 2 -> 3 end");
+    parse_expr!("case 1 of 2 -> 3; _ -> ok end");
+    // parse_expr!("case 1 of A when A == 2; true; 1, 2, false -> 3 end");
+
+    // receive
+    parse_expr!("receive foo -> bar end");
+    // parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 end");
+    // parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 after 10 * 2 -> foo(), done end");
+
+    // try
+    parse_expr!("try foo, bar catch baz -> 1; _ -> qux end");
+    parse_expr!("try foo, bar of 10 -> 2; _ -> 30 catch baz -> 1; _:_ -> qux end");
+    parse_expr!("try foo, bar after baz, qux end");
+    parse_expr!("try foo of _ -> 1 catch throw:_ -> ok end");
+    parse_expr!("try foo of _ -> 1 after ok end");
+    parse_expr!("try foo of _ -> 1 catch _ -> err after ok end");
 }
 
 //     // unary op
@@ -138,30 +161,6 @@ fn parse_expr_works() {
 //     // match
 //     parse_expr!("1 = 2");
 //     parse_expr!("[A, 2, {}] = [10 | B]");
-
-//     // if
-//     parse_expr!("if true -> 1, 2, 3 end");
-//     parse_expr!("if true; false, true -> 1, 2, 3 end");
-//     parse_expr!("if true -> 1; false -> 2; _ -> ok end");
-
-//     // case
-//     parse_expr!("case 1 of 2 -> 3 end");
-//     parse_expr!("case 1 of 2 -> 3; _ -> ok end");
-//     parse_expr!("case 1 of A when A == 2; true; 1, 2, false -> 3 end");
-
-//     // receive
-//     parse_expr!("receive foo -> bar end");
-//     parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 end");
-//     parse_expr!("receive Foo when Foo == 2 -> bar; 1 -> 2 after 10 * 2 -> foo(), done end");
-
-//     // try
-//     parse_expr!("try foo, bar catch baz -> 1; _ -> qux end");
-//     parse_expr!("try foo, bar of 10 -> 2; _ -> 30 catch baz -> 1; _:_ -> qux end");
-//     parse_expr!("try foo, bar after baz, qux end");
-//     parse_expr!("try foo of _ -> 1 catch throw:_ -> ok end");
-//     parse_expr!("try foo of _ -> 1 after ok end");
-//     parse_expr!("try foo of _ -> 1 catch _ -> err after ok end");
-// }
 
 // macro_rules! parse_pattern {
 //     ($text:expr) => {

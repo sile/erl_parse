@@ -5,8 +5,232 @@ use erl_tokenize::values::{Keyword, Symbol};
 use {Result, Parser, Preprocessor, Parse};
 use cst::{Expr, Pattern};
 use cst::building_blocks::{self, Sequence, AtomOrVariable, IntegerOrVariable};
-use cst::clauses::{Clauses, FunClause, NamedFunClause};
+use cst::clauses::{Clauses, FunClause, NamedFunClause, IfClause, CaseClause, CatchClause};
 use cst::collections;
+
+#[derive(Debug, Clone)]
+pub struct Try {
+    pub _try: KeywordToken,
+    pub body: Body,
+    pub branch: Option<TryOf>,
+    pub catch: Option<TryCatch>,
+    pub after: Option<TryAfter>,
+    pub _end: KeywordToken,
+}
+impl Parse for Try {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Try {
+            _try: track!(parser.expect(&Keyword::Try))?,
+            body: track!(parser.parse())?,
+            branch: track!(parser.parse())?,
+            catch: track!(parser.parse())?,
+            after: track!(parser.parse())?,
+            _end: track!(parser.expect(&Keyword::End))?,
+        })
+    }
+}
+impl PositionRange for Try {
+    fn start_position(&self) -> Position {
+        self._try.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._end.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TryOf {
+    pub _of: KeywordToken,
+    pub clauses: Clauses<CaseClause>,
+}
+impl Parse for TryOf {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(TryOf {
+            _of: track!(parser.expect(&Keyword::Of))?,
+            clauses: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for TryOf {
+    fn start_position(&self) -> Position {
+        self._of.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.clauses.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TryCatch {
+    pub _catch: KeywordToken,
+    pub clauses: Clauses<CatchClause>,
+}
+impl Parse for TryCatch {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(TryCatch {
+            _catch: track!(parser.expect(&Keyword::Catch))?,
+            clauses: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for TryCatch {
+    fn start_position(&self) -> Position {
+        self._catch.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.clauses.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TryAfter {
+    pub _after: KeywordToken,
+    pub body: Body,
+}
+impl Parse for TryAfter {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(TryAfter {
+            _after: track!(parser.expect(&Keyword::After))?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for TryAfter {
+    fn start_position(&self) -> Position {
+        self._after.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Receive {
+    pub _receive: KeywordToken,
+    pub clauses: Clauses<IfClause>,
+    pub timeout: Option<Timeout>,
+    pub _end: KeywordToken,
+}
+impl Parse for Receive {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Receive {
+            _receive: track!(parser.expect(&Keyword::Receive))?,
+            clauses: track!(parser.parse())?,
+            timeout: track!(parser.parse())?,
+            _end: track!(parser.expect(&Keyword::End))?,
+        })
+    }
+}
+impl PositionRange for Receive {
+    fn start_position(&self) -> Position {
+        self._receive.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._end.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Timeout {
+    pub _after: KeywordToken,
+    pub duration: Expr,
+    pub _arrow: SymbolToken,
+    pub body: Body,
+}
+impl Parse for Timeout {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Timeout {
+            _after: track!(parser.expect(&Keyword::After))?,
+            duration: track!(parser.parse())?,
+            _arrow: track!(parser.expect(&Symbol::RightArrow))?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for Timeout {
+    fn start_position(&self) -> Position {
+        self._after.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct If {
+    pub _if: KeywordToken,
+    pub clauses: Clauses<IfClause>,
+    pub _end: KeywordToken,
+}
+impl Parse for If {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(If {
+            _if: track!(parser.expect(&Keyword::If))?,
+            clauses: track!(parser.parse())?,
+            _end: track!(parser.expect(&Keyword::End))?,
+        })
+    }
+}
+impl PositionRange for If {
+    fn start_position(&self) -> Position {
+        self._if.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._end.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Case {
+    pub _case: KeywordToken,
+    pub expr: Expr,
+    pub _of: KeywordToken,
+    pub clauses: Clauses<CaseClause>,
+    pub _end: KeywordToken,
+}
+impl Parse for Case {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Case {
+            _case: track!(parser.expect(&Keyword::Case))?,
+            expr: track!(parser.parse())?,
+            _of: track!(parser.expect(&Keyword::Of))?,
+            clauses: track!(parser.parse())?,
+            _end: track!(parser.expect(&Keyword::End))?,
+        })
+    }
+}
+impl PositionRange for Case {
+    fn start_position(&self) -> Position {
+        self._case.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._end.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct LocalFun {

@@ -5,7 +5,122 @@ use erl_tokenize::values::{Keyword, Symbol};
 use {Result, Parser, Preprocessor, Parse};
 use cst::{Pattern, GuardSeq};
 use cst::exprs::Body;
-use cst::building_blocks::Args;
+use cst::building_blocks::{Args, AtomOrVariable};
+
+#[derive(Debug, Clone)]
+pub struct ExceptionClass {
+    pub class: AtomOrVariable,
+    pub _colon: SymbolToken,
+}
+impl Parse for ExceptionClass {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(ExceptionClass {
+            class: track!(parser.parse())?,
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+        })
+    }
+}
+impl PositionRange for ExceptionClass {
+    fn start_position(&self) -> Position {
+        self.class.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._colon.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CatchClause {
+    pub class: Option<ExceptionClass>,
+    pub pattern: Pattern,
+    pub guard: Option<Guard>,
+    pub _arrow: SymbolToken,
+    pub body: Body,
+}
+impl Parse for CatchClause {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(CatchClause {
+            class: track!(parser.parse())?,
+            pattern: track!(parser.parse())?,
+            guard: track!(parser.parse())?,
+            _arrow: track!(parser.expect(&Symbol::RightArrow))?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for CatchClause {
+    fn start_position(&self) -> Position {
+        self.class
+            .as_ref()
+            .map(|x| x.start_position())
+            .unwrap_or_else(|| self.pattern.start_position())
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CaseClause {
+    pub pattern: Pattern,
+    pub guard: Option<Guard>,
+    pub _arrow: SymbolToken,
+    pub body: Body,
+}
+impl Parse for CaseClause {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(CaseClause {
+            pattern: track!(parser.parse())?,
+            guard: track!(parser.parse())?,
+            _arrow: track!(parser.expect(&Symbol::RightArrow))?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for CaseClause {
+    fn start_position(&self) -> Position {
+        self.pattern.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct IfClause {
+    pub guard: GuardSeq,
+    pub _arrow: SymbolToken,
+    pub body: Body,
+}
+impl Parse for IfClause {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(IfClause {
+            guard: track!(parser.parse())?,
+            _arrow: track!(parser.expect(&Symbol::RightArrow))?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for IfClause {
+    fn start_position(&self) -> Position {
+        self.guard.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct FunClause {
@@ -22,7 +137,7 @@ impl Parse for FunClause {
         Ok(FunClause {
             patterns: track!(parser.parse())?,
             guard: track!(parser.parse())?,
-            _arrow: track!(parser.parse())?,
+            _arrow: track!(parser.expect(&Symbol::RightArrow))?,
             body: track!(parser.parse())?,
         })
     }

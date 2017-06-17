@@ -49,9 +49,13 @@ pub enum LeftKind {
     RemoteFun,
     AnonymousFun,
     NamedFun,
-    Block,
     Parenthesized,
+    Block,
     Catch,
+    If,
+    Case,
+    Receive,
+    Try,
 }
 impl LeftKind {
     fn guess<T, U>(parser: &mut Parser<T>) -> Result<Self>
@@ -100,6 +104,10 @@ impl LeftKind {
                 match t.value() {
                     Keyword::Begin => LeftKind::Block,
                     Keyword::Catch => LeftKind::Catch,
+                    Keyword::If => LeftKind::If,
+                    Keyword::Case => LeftKind::Case,
+                    Keyword::Receive => LeftKind::Receive,
+                    Keyword::Try => LeftKind::Try,
                     Keyword::Fun => {
                         let token1 = track!(parser.read_token())?;
 
@@ -142,11 +150,15 @@ pub enum Expr {
     RemoteFun(Box<exprs::RemoteFun>),
     AnonymousFun(Box<exprs::AnonymousFun>),
     NamedFun(Box<exprs::NamedFun>),
-    Block(Box<exprs::Block>),
     Parenthesized(Box<exprs::Parenthesized>),
-    Catch(Box<exprs::Catch>),
     LocalCall(Box<exprs::LocalCall>),
     RemoteCall(Box<exprs::RemoteCall>),
+    Block(Box<exprs::Block>),
+    Catch(Box<exprs::Catch>),
+    If(Box<exprs::If>),
+    Case(Box<exprs::Case>),
+    Receive(Box<exprs::Receive>),
+    Try(Box<exprs::Try>),
 }
 impl Parse for Expr {
     fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
@@ -168,9 +180,13 @@ impl Parse for Expr {
             LeftKind::RemoteFun => Expr::RemoteFun(track!(parser.parse())?),
             LeftKind::AnonymousFun => Expr::AnonymousFun(track!(parser.parse())?),
             LeftKind::NamedFun => Expr::NamedFun(track!(parser.parse())?),
-            LeftKind::Block => Expr::Block(track!(parser.parse())?),
             LeftKind::Parenthesized => Expr::Parenthesized(track!(parser.parse())?),
+            LeftKind::Block => Expr::Block(track!(parser.parse())?),
             LeftKind::Catch => Expr::Catch(track!(parser.parse())?),
+            LeftKind::If => Expr::If(track!(parser.parse())?),
+            LeftKind::Case => Expr::Case(track!(parser.parse())?),
+            LeftKind::Receive => Expr::Receive(track!(parser.parse())?),
+            LeftKind::Try => Expr::Try(track!(parser.parse())?),
         };
         Ok(expr)
     }
@@ -210,15 +226,19 @@ impl PositionRange for Expr {
             Expr::ListComprehension(ref x) => x.start_position(),
             Expr::Bits(ref x) => x.start_position(),
             Expr::BitsComprehension(ref x) => x.start_position(),
+            Expr::Parenthesized(ref x) => x.start_position(),
             Expr::LocalFun(ref x) => x.start_position(),
             Expr::RemoteFun(ref x) => x.start_position(),
             Expr::AnonymousFun(ref x) => x.start_position(),
             Expr::NamedFun(ref x) => x.start_position(),
-            Expr::Block(ref x) => x.start_position(),
-            Expr::Parenthesized(ref x) => x.start_position(),
-            Expr::Catch(ref x) => x.start_position(),
             Expr::LocalCall(ref x) => x.start_position(),
             Expr::RemoteCall(ref x) => x.start_position(),
+            Expr::Block(ref x) => x.start_position(),
+            Expr::Catch(ref x) => x.start_position(),
+            Expr::If(ref x) => x.start_position(),
+            Expr::Case(ref x) => x.start_position(),
+            Expr::Receive(ref x) => x.start_position(),
+            Expr::Try(ref x) => x.start_position(),
         }
     }
     fn end_position(&self) -> Position {
@@ -232,15 +252,19 @@ impl PositionRange for Expr {
             Expr::ListComprehension(ref x) => x.end_position(),
             Expr::Bits(ref x) => x.end_position(),
             Expr::BitsComprehension(ref x) => x.end_position(),
+            Expr::Parenthesized(ref x) => x.end_position(),
             Expr::LocalFun(ref x) => x.end_position(),
             Expr::RemoteFun(ref x) => x.end_position(),
             Expr::AnonymousFun(ref x) => x.end_position(),
             Expr::NamedFun(ref x) => x.end_position(),
-            Expr::Block(ref x) => x.end_position(),
-            Expr::Parenthesized(ref x) => x.end_position(),
-            Expr::Catch(ref x) => x.end_position(),
             Expr::LocalCall(ref x) => x.end_position(),
-            Expr::RemoteCall(ref x) => x.end_position(),            
+            Expr::RemoteCall(ref x) => x.end_position(),
+            Expr::Block(ref x) => x.end_position(),
+            Expr::Catch(ref x) => x.end_position(),
+            Expr::If(ref x) => x.end_position(),
+            Expr::Case(ref x) => x.end_position(),
+            Expr::Receive(ref x) => x.end_position(),
+            Expr::Try(ref x) => x.end_position(),
         }
     }
 }
