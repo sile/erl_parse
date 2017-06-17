@@ -32,3 +32,7 @@ mod token_reader;
 
 /// This crate specific `Result` type.
 pub type Result<T> = ::std::result::Result<T, Error>;
+
+pub trait IntoTokens {
+    fn into_tokens(self) -> Box<Iterator<Item = erl_tokenize::LexicalToken>>;
+}

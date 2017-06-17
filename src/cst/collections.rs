@@ -3,7 +3,7 @@ use erl_tokenize::{Position, PositionRange, LexicalToken};
 use erl_tokenize::tokens::{AtomToken, SymbolToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parse, Preprocessor, TokenReader};
+use {Result, Parse, Preprocessor, TokenReader, IntoTokens};
 use cst::building_blocks::{Sequence, MapField, RecordField, ConsCell};
 
 #[derive(Debug, Clone)]
@@ -33,6 +33,16 @@ impl<T> PositionRange for Tuple<T> {
         self._close_brace.end_position()
     }
 }
+impl<T: IntoTokens> IntoTokens for Tuple<T> {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(
+            self._open_brace
+                .into_tokens()
+                .chain(self.elements.into_tokens())
+                .chain(self._close_brace.into_tokens()),
+        )
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct List<T> {
@@ -40,16 +50,25 @@ pub struct List<T> {
     pub elements: Option<ConsCell<T>>,
     pub _close_square: SymbolToken,
 }
-impl<T: Parse> Parse for List<T> {
+impl<T: Parse + IntoTokens> Parse for List<T> {
     fn try_parse<U>(reader: &mut TokenReader<U>) -> Result<Option<Self>>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         let _open_square = track_try_some!(Parse::try_parse_expect(reader, &Symbol::OpenSquare));
+        let elements = track!(Parse::try_parse(reader))?;
+        let _close_square =
+            if let Some(token) = track!(Parse::try_parse_expect(reader, &Symbol::CloseSquare))? {
+                token
+            } else {
+                reader.unread_tokens(elements);
+                reader.unread_tokens(_open_square);
+                return Ok(None);
+            };
         Ok(Some(List {
             _open_square,
-            elements: track!(Parse::try_parse(reader))?,
-            _close_square: track!(Parse::parse_expect(reader, &Symbol::CloseSquare))?,
+            elements,
+            _close_square,
         }))
     }
 }
@@ -59,6 +78,16 @@ impl<T> PositionRange for List<T> {
     }
     fn end_position(&self) -> Position {
         self._close_square.end_position()
+    }
+}
+impl<T: IntoTokens> IntoTokens for List<T> {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(
+            self._open_square
+                .into_tokens()
+                .chain(self.elements.into_tokens())
+                .chain(self._close_square.into_tokens()),
+        )
     }
 }
 
@@ -107,6 +136,18 @@ impl<T> PositionRange for Record<T> {
         self._close_brace.end_position()
     }
 }
+impl<T: IntoTokens> IntoTokens for Record<T> {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(
+            self._sharp
+                .into_tokens()
+                .chain(self.name.into_tokens())
+                .chain(self._open_brace.into_tokens())
+                .chain(self.fields.into_tokens())
+                .chain(self._close_brace.into_tokens()),
+        )
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Map<T> {
@@ -142,5 +183,16 @@ impl<T> PositionRange for Map<T> {
     }
     fn end_position(&self) -> Position {
         self._close_brace.end_position()
+    }
+}
+impl<T: IntoTokens> IntoTokens for Map<T> {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(
+            self._sharp
+                .into_tokens()
+                .chain(self._open_brace.into_tokens())
+                .chain(self.fields.into_tokens())
+                .chain(self._close_brace.into_tokens()),
+        )
     }
 }

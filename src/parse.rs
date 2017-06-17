@@ -1,10 +1,11 @@
+use std::iter;
 use num::BigUint;
 use erl_tokenize::LexicalToken;
 use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, KeywordToken,
                            StringToken, SymbolToken, VariableToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, ErrorKind, Preprocessor, TokenReader};
+use {Result, ErrorKind, Preprocessor, TokenReader, IntoTokens};
 
 pub trait Parse: Sized {
     fn parse<T>(reader: &mut TokenReader<T>) -> Result<Self>
@@ -220,5 +221,61 @@ impl Expect for VariableToken {
     fn expect(&self, expected: &Self::Value) -> Result<()> {
         track_assert_eq!(self.value(), expected, ErrorKind::InvalidInput);
         Ok(())
+    }
+}
+
+
+impl IntoTokens for AtomToken {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(iter::once(self.into()))
+    }
+}
+impl IntoTokens for CharToken {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(iter::once(self.into()))
+    }
+}
+impl IntoTokens for FloatToken {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(iter::once(self.into()))
+    }
+}
+impl IntoTokens for IntegerToken {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(iter::once(self.into()))
+    }
+}
+impl IntoTokens for KeywordToken {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(iter::once(self.into()))
+    }
+}
+impl IntoTokens for StringToken {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(iter::once(self.into()))
+    }
+}
+impl IntoTokens for SymbolToken {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(iter::once(self.into()))
+    }
+}
+impl IntoTokens for VariableToken {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new(iter::once(self.into()))
+    }
+}
+impl<T: IntoTokens> IntoTokens for Option<T> {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        if let Some(x) = self {
+            x.into_tokens()
+        } else {
+            Box::new(iter::empty())
+        }
+    }
+}
+impl<T: IntoTokens> IntoTokens for Box<T> {
+    fn into_tokens(self) -> Box<Iterator<Item = LexicalToken>> {
+        Box::new((*self).into_tokens())
     }
 }

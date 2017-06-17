@@ -41,10 +41,25 @@ fn parse_expr_works() {
     parse_expr!("#{a := b}");
     parse_expr!("#{a => b, 1 := 2}");
 
+    // // map update
+    // parse_expr!("M#{}");
+    // parse_expr!("(#{a => 10})#{a := b, 1 => 2}");
+
     // record
     parse_expr!("#foo{}");
     parse_expr!("#foo{a = b}");
     parse_expr!("#foo{a = b, _ = 10}");
+
+    //     // record update
+    //     parse_expr!("R#foo{bar = 10}");
+    //     parse_expr!("(#foo{})#foo{bar = 10, baz = 20}");
+
+    //     // record field access
+    //     parse_expr!("R#foo.bar");
+    //     parse_expr!("(#foo{})#foo.bar");
+
+    //     // record field index
+    //     parse_expr!("#foo.bar");
 
     // proper list
     parse_expr!("[]");
@@ -55,28 +70,29 @@ fn parse_expr_works() {
     parse_expr!("[1 | 2]");
     parse_expr!("[1, 2 | 3]");
 
+    // list comprehension
+    parse_expr!("[x || _ <- [1,2,3]]");
+    //   parse_expr!("[x || X <- [1,2,3], filter(X), _ <= <<1,2,3>>]");
+
     // block
     parse_expr!("begin 1, 2, 3 end");
+
+    // parenthesized
+    parse_expr!("( 1 )");
+
+    // catch
+    parse_expr!("catch [1,2,3]");
+
+    // // local call
+    // parse_expr!("foo()");
+    // parse_expr!("Foo(1)");
+    // parse_expr!(r#"(list_to_atom("foo"))(1, 2, [3])"#);
+
+    // // remote call
+    // parse_expr!("foo:bar()");
+    // parse_expr!("Foo:Bar(1)");
+    // parse_expr!(r#"(list_to_atom("foo")):bar(1, 2, [3])"#);
 }
-
-//     // map update
-//     parse_expr!("M#{}");
-//     parse_expr!("(#{a => 10})#{a := b, 1 => 2}");
-
-//     // record update
-//     parse_expr!("R#foo{bar = 10}");
-//     parse_expr!("(#foo{})#foo{bar = 10, baz = 20}");
-
-//     // record field access
-//     parse_expr!("R#foo.bar");
-//     parse_expr!("(#foo{})#foo.bar");
-
-//     // record field index
-//     parse_expr!("#foo.bar");
-
-//     // list comprehension
-//     parse_expr!("[x || _ <- [1,2,3]]");
-//     parse_expr!("[x || X <- [1,2,3], filter(X), _ <= <<1,2,3>>]");
 
 //     // bitstring
 //     parse_expr!("<<>>");
@@ -90,12 +106,6 @@ fn parse_expr_works() {
 //     parse_expr!("<< <<x>> || _ <- [1,2,3]>>");
 //     parse_expr!("<< <<x>> || X <- [1,2,3], filter(X), _ <= <<1,2,3>> >>");
 
-//     // parenthesized
-//     parse_expr!("( 1 )");
-
-//     // catch
-//     parse_expr!("catch [1,2,3]");
-
 //     // unary op
 //     parse_expr!("+10");
 //     parse_expr!("-20");
@@ -106,16 +116,6 @@ fn parse_expr_works() {
 //     parse_expr!("1 =:= 2");
 //     parse_expr!("Pid ! [1, 2] ++ [3] -- [1]");
 //     parse_expr!("foo() ++ bar()");
-
-//     // local call
-//     parse_expr!("foo()");
-//     parse_expr!("Foo(1)");
-//     parse_expr!(r#"(list_to_atom("foo"))(1, 2, [3])"#);
-
-//     // remote call
-//     parse_expr!("foo:bar()");
-//     parse_expr!("Foo:Bar(1)");
-//     parse_expr!(r#"(list_to_atom("foo")):bar(1, 2, [3])"#);
 
 //     // local fun
 //     parse_expr!("fun foo/2");
