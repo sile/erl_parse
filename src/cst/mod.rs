@@ -35,6 +35,39 @@ impl RightKind {
 }
 
 #[derive(Debug)]
+pub enum RightKind2 {
+    BinaryOpCall,
+    None,
+}
+impl RightKind2 {
+    fn guess<T>(parser: &mut Parser<T>) -> Self
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        match parser.read_token() {
+            Ok(LexicalToken::Symbol(t)) => {
+                match t.value() {
+                    Symbol::Plus | Symbol::Hyphen | Symbol::Multiply | Symbol::Slash |
+                    Symbol::PlusPlus | Symbol::MinusMinus | Symbol::Eq | Symbol::ExactEq |
+                    Symbol::NotEq | Symbol::ExactNotEq | Symbol::Less | Symbol::LessEq |
+                    Symbol::Greater | Symbol::GreaterEq | Symbol::Not => RightKind2::BinaryOpCall,
+                    _ => RightKind2::None,
+                }
+            }
+            Ok(LexicalToken::Keyword(t)) => {
+                match t.value() {
+                    Keyword::Div | Keyword::Rem | Keyword::Bor | Keyword::Bxor | Keyword::Bsl |
+                    Keyword::Bsr | Keyword::Or | Keyword::Xor | Keyword::Andalso |
+                    Keyword::Orelse => RightKind2::BinaryOpCall,
+                    _ => RightKind2::None,
+                }
+            }
+            _ => RightKind2::None,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum LeftKind {
     Literal,
     Variable,
@@ -49,6 +82,7 @@ pub enum LeftKind {
     RemoteFun,
     AnonymousFun,
     NamedFun,
+    UnaryOpCall,
     Parenthesized,
     Block,
     Catch,
@@ -97,6 +131,7 @@ impl LeftKind {
                             LeftKind::Map
                         }
                     }
+                    Symbol::Plus | Symbol::Hyphen => LeftKind::UnaryOpCall,
                     _ => track_panic!(ErrorKind::UnexpectedToken(t.into())),
                 }
             }
@@ -110,7 +145,6 @@ impl LeftKind {
                     Keyword::Try => LeftKind::Try,
                     Keyword::Fun => {
                         let token1 = track!(parser.read_token())?;
-
                         if token1.as_symbol_token().map_or(false, |t| {
                             t.value() == Symbol::OpenParen
                         })
@@ -126,6 +160,7 @@ impl LeftKind {
                             }
                         }
                     }
+                    Keyword::Bnot | Keyword::Not => LeftKind::UnaryOpCall,
                     _ => track_panic!(ErrorKind::UnexpectedToken(t.into())),
                 }
             }
@@ -153,6 +188,9 @@ pub enum Expr {
     Parenthesized(Box<exprs::Parenthesized>),
     LocalCall(Box<exprs::LocalCall>),
     RemoteCall(Box<exprs::RemoteCall>),
+    UnaryOpCall(Box<exprs::UnaryOpCall>),
+    BinaryOpCall(Box<exprs::BinaryOpCall>),
+    Match(Box<exprs::Match>),
     Block(Box<exprs::Block>),
     Catch(Box<exprs::Catch>),
     If(Box<exprs::If>),
@@ -180,6 +218,7 @@ impl Parse for Expr {
             LeftKind::RemoteFun => Expr::RemoteFun(track!(parser.parse())?),
             LeftKind::AnonymousFun => Expr::AnonymousFun(track!(parser.parse())?),
             LeftKind::NamedFun => Expr::NamedFun(track!(parser.parse())?),
+            LeftKind::UnaryOpCall => Expr::UnaryOpCall(track!(parser.parse())?),
             LeftKind::Parenthesized => Expr::Parenthesized(track!(parser.parse())?),
             LeftKind::Block => Expr::Block(track!(parser.parse())?),
             LeftKind::Catch => Expr::Catch(track!(parser.parse())?),
@@ -194,14 +233,30 @@ impl Parse for Expr {
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        let expr = track!(Expr::parse_non_left_recor(parser))?;
+        let expr = {
+            if let Ok(expr) = parser.transaction(|parser| parser.parse()) {
+                Expr::Match(expr)
+            } else {
+                track!(Expr::parse_non_left_recor(parser))?
+            }
+        };
         let kind = parser.peek(|parser| Ok(RightKind::guess(parser))).expect(
             "Never fails",
         );
+        let left = match kind {
+            RightKind::LocalCall => Expr::LocalCall(track!(parser.parse_left_recur(expr))?),
+            RightKind::RemoteCall => Expr::RemoteCall(track!(parser.parse_left_recur(expr))?),
+            RightKind::None => expr,
+        };
+
+        let kind = parser.peek(|parser| Ok(RightKind2::guess(parser))).expect(
+            "Never fails",
+        );
         match kind {
-            RightKind::LocalCall => Ok(Expr::LocalCall(track!(parser.parse_left_recur(expr))?)),
-            RightKind::RemoteCall => Ok(Expr::RemoteCall(track!(parser.parse_left_recur(expr))?)),
-            RightKind::None => Ok(expr),
+            RightKind2::BinaryOpCall => Ok(
+                Expr::BinaryOpCall(track!(parser.parse_left_recur(left))?),
+            ),
+            RightKind2::None => Ok(left),
         }
     }
 }
@@ -233,6 +288,9 @@ impl PositionRange for Expr {
             Expr::NamedFun(ref x) => x.start_position(),
             Expr::LocalCall(ref x) => x.start_position(),
             Expr::RemoteCall(ref x) => x.start_position(),
+            Expr::UnaryOpCall(ref x) => x.start_position(),
+            Expr::BinaryOpCall(ref x) => x.start_position(),
+            Expr::Match(ref x) => x.start_position(),
             Expr::Block(ref x) => x.start_position(),
             Expr::Catch(ref x) => x.start_position(),
             Expr::If(ref x) => x.start_position(),
@@ -259,6 +317,9 @@ impl PositionRange for Expr {
             Expr::NamedFun(ref x) => x.end_position(),
             Expr::LocalCall(ref x) => x.end_position(),
             Expr::RemoteCall(ref x) => x.end_position(),
+            Expr::UnaryOpCall(ref x) => x.end_position(),
+            Expr::BinaryOpCall(ref x) => x.end_position(),
+            Expr::Match(ref x) => x.end_position(),
             Expr::Block(ref x) => x.end_position(),
             Expr::Catch(ref x) => x.end_position(),
             Expr::If(ref x) => x.end_position(),

@@ -117,6 +117,21 @@ fn parse_expr_works() {
     parse_expr!("fun Foo(a) -> ok; Foo(B) -> err end");
     parse_expr!("fun Foo(a) when true -> Foo(b); Foo(B) -> err end");
 
+    // unary op
+    parse_expr!("+10");
+    parse_expr!("-20");
+    parse_expr!("not false");
+    parse_expr!("bnot Foo");
+
+    // binary op
+    parse_expr!("1 =:= 2");
+    parse_expr!("Pid ! [1, 2] ++ [3] -- [1]");
+    parse_expr!("foo() ++ bar()");
+
+    // match
+    parse_expr!("1 = 2");
+    // parse_expr!("[A, 2, {}] = [10 | B]");
+
     // block
     parse_expr!("begin 1, 2, 3 end");
 
@@ -146,21 +161,6 @@ fn parse_expr_works() {
     parse_expr!("try foo of _ -> 1 after ok end");
     parse_expr!("try foo of _ -> 1 catch _ -> err after ok end");
 }
-
-//     // unary op
-//     parse_expr!("+10");
-//     parse_expr!("-20");
-//     parse_expr!("not false");
-//     parse_expr!("bnot Foo");
-
-//     // binary op
-//     parse_expr!("1 =:= 2");
-//     parse_expr!("Pid ! [1, 2] ++ [3] -- [1]");
-//     parse_expr!("foo() ++ bar()");
-
-//     // match
-//     parse_expr!("1 = 2");
-//     parse_expr!("[A, 2, {}] = [10 | B]");
 
 // macro_rules! parse_pattern {
 //     ($text:expr) => {
