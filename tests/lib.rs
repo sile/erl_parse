@@ -105,6 +105,23 @@ fn parse_expr_works() {
     parse_expr!("foo:bar()");
     parse_expr!("Foo:Bar(1)");
     parse_expr!(r#"(list_to_atom("foo")):bar(1, 2, [3])"#);
+
+    // local fun
+    parse_expr!("fun foo/2");
+
+    // remote fun
+    parse_expr!("fun foo:bar/2");
+    parse_expr!("fun Foo:Bar/Baz");
+
+    // anonymous fun
+    parse_expr!("fun () -> ok end");
+    parse_expr!("fun (a) -> ok; (B) -> err end");
+    parse_expr!("fun (a) when true -> ok; (B) -> err end");
+
+    // named fun
+    parse_expr!("fun Foo() -> ok end");
+    parse_expr!("fun Foo(a) -> ok; Foo(B) -> err end");
+    parse_expr!("fun Foo(a) when true -> Foo(b); Foo(B) -> err end");
 }
 
 //     // unary op
@@ -117,23 +134,6 @@ fn parse_expr_works() {
 //     parse_expr!("1 =:= 2");
 //     parse_expr!("Pid ! [1, 2] ++ [3] -- [1]");
 //     parse_expr!("foo() ++ bar()");
-
-//     // local fun
-//     parse_expr!("fun foo/2");
-
-//     // remote fun
-//     parse_expr!("fun foo:bar/2");
-//     parse_expr!("fun Foo:Bar/Baz");
-
-//     // anonymous fun
-//     parse_expr!("fun () -> ok end");
-//     parse_expr!("fun (a) -> ok; (B) -> err end");
-//     parse_expr!("fun (a) when true -> ok; (B) -> err end");
-
-//     // named fun
-//     parse_expr!("fun Foo() -> ok end");
-//     parse_expr!("fun Foo(a) -> ok; Foo(B) -> err end");
-//     parse_expr!("fun Foo(a) when true -> Foo(b); Foo(B) -> err end");
 
 //     // match
 //     parse_expr!("1 = 2");

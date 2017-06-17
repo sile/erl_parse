@@ -1,5 +1,5 @@
 use erl_tokenize::{LexicalToken, Position, PositionRange};
-use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
+use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken, IntegerToken};
 use erl_tokenize::values::Symbol;
 
 use {Result, Parse, Preprocessor, Parser, ErrorKind, ParseLeftRecur, TryInto};
@@ -459,6 +459,47 @@ impl PositionRange for AtomOrVariable {
         match *self {
             AtomOrVariable::Atom(ref t) => t.end_position(),
             AtomOrVariable::Variable(ref t) => t.end_position(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum IntegerOrVariable {
+    Integer(IntegerToken),
+    Variable(VariableToken),
+}
+impl IntegerOrVariable {
+    pub fn text(&self) -> &str {
+        match *self {
+            IntegerOrVariable::Integer(ref t) => t.text(),
+            IntegerOrVariable::Variable(ref t) => t.text(),
+        }
+    }
+}
+impl Parse for IntegerOrVariable {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let token = track!(parser.read_token())?;
+        match token {
+            LexicalToken::Integer(token) => Ok(IntegerOrVariable::Integer(token)),
+            LexicalToken::Variable(token) => Ok(IntegerOrVariable::Variable(token)),
+            _ => track_panic!(ErrorKind::UnexpectedToken(token)),
+        }
+    }
+}
+impl PositionRange for IntegerOrVariable {
+    fn start_position(&self) -> Position {
+        match *self {
+            IntegerOrVariable::Integer(ref t) => t.start_position(),
+            IntegerOrVariable::Variable(ref t) => t.start_position(),
+        }
+    }
+    fn end_position(&self) -> Position {
+        match *self {
+            IntegerOrVariable::Integer(ref t) => t.end_position(),
+            IntegerOrVariable::Variable(ref t) => t.end_position(),
         }
     }
 }

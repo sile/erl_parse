@@ -1,62 +1,151 @@
+use erl_tokenize::{LexicalToken, Position, PositionRange};
+use erl_tokenize::tokens::{KeywordToken, SymbolToken, VariableToken};
+use erl_tokenize::values::{Keyword, Symbol};
+
+use {Result, Parser, Preprocessor, Parse};
 use cst::{Pattern, GuardSeq};
-use cst::commons;
-use cst::exprs;
-use cst::literals;
+use cst::exprs::Body;
+use cst::building_blocks::Args;
 
 #[derive(Debug, Clone)]
-pub struct CaseClause {
-    pub pattern: Pattern,
+pub struct FunClause {
+    pub patterns: Args<Pattern>,
     pub guard: Option<Guard>,
-    pub _arrow: literals::S_RIGHT_ARROW,
-    pub body: exprs::Body,
+    pub _arrow: SymbolToken,
+    pub body: Body,
 }
-derive_parse!(CaseClause, pattern, guard, _arrow, body);
-derive_token_range!(CaseClause, pattern, body);
+impl Parse for FunClause {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(FunClause {
+            patterns: track!(parser.parse())?,
+            guard: track!(parser.parse())?,
+            _arrow: track!(parser.parse())?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for FunClause {
+    fn start_position(&self) -> Position {
+        self.patterns.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NamedFunClause {
+    pub name: VariableToken,
+    pub patterns: Args<Pattern>,
+    pub guard: Option<Guard>,
+    pub _arrow: SymbolToken,
+    pub body: Body,
+}
+impl Parse for NamedFunClause {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(NamedFunClause {
+            name: track!(parser.parse())?,
+            patterns: track!(parser.parse())?,
+            guard: track!(parser.parse())?,
+            _arrow: track!(parser.expect(&Symbol::RightArrow))?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for NamedFunClause {
+    fn start_position(&self) -> Position {
+        self.name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Guard {
-    pub _when: literals::K_WHEN,
+    pub _when: KeywordToken,
     pub seq: GuardSeq,
 }
-derive_parse!(Guard, _when, seq);
-derive_token_range!(Guard, _when, seq);
+impl Parse for Guard {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Guard {
+            _when: track!(parser.expect(&Keyword::When))?,
+            seq: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for Guard {
+    fn start_position(&self) -> Position {
+        self._when.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.seq.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
-pub struct IfClause {
-    pub cond: GuardSeq,
-    pub _arrow: literals::S_RIGHT_ARROW,
-    pub body: exprs::Body,
+pub struct Clauses<T> {
+    pub item: T,
+    pub tail: Option<ClausesTail<T>>,
 }
-derive_parse!(IfClause, cond, _arrow, body);
-derive_token_range!(IfClause, cond, body);
+impl<T: Parse> Parse for Clauses<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Clauses {
+            item: track!(parser.parse())?,
+            tail: track!(parser.parse())?,
+        })
+    }
+}
+impl<T: PositionRange> PositionRange for Clauses<T> {
+    fn start_position(&self) -> Position {
+        self.item.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.tail
+            .as_ref()
+            .map(|t| t.end_position())
+            .unwrap_or_else(|| self.item.end_position())
+    }
+}
 
 #[derive(Debug, Clone)]
-pub struct CatchClause {
-    _position: commons::Void,
-    pub class: Option<ExceptionClass>,
-    pub pattern: Pattern,
-    pub guard: Option<Guard>,
-    pub _arrow: literals::S_RIGHT_ARROW,
-    pub body: exprs::Body,
+pub struct ClausesTail<T> {
+    pub _semicolon: SymbolToken,
+    pub item: T,
+    pub tail: Option<Box<ClausesTail<T>>>,
 }
-derive_parse!(CatchClause, _position, class, pattern, guard, _arrow, body);
-derive_token_range!(CatchClause, _position, body);
-
-#[derive(Debug, Clone)]
-pub struct ExceptionClass {
-    pub class: commons::VarOrAtom,
-    pub _colon: literals::S_COLON,
+impl<T: Parse> Parse for ClausesTail<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(ClausesTail {
+            _semicolon: track!(parser.expect(&Symbol::Semicolon))?,
+            item: track!(parser.parse())?,
+            tail: track!(parser.parse())?,
+        })
+    }
 }
-derive_parse!(ExceptionClass, class, _colon);
-derive_token_range!(ExceptionClass, class, _colon);
-
-#[derive(Debug, Clone)]
-pub struct FunClause<N> {
-    pub name: N,
-    pub patterns: commons::Args<Pattern>,
-    pub guard: Option<Guard>,
-    pub _arrow: literals::S_RIGHT_ARROW,
-    pub body: exprs::Body,
+impl<T: PositionRange> PositionRange for ClausesTail<T> {
+    fn start_position(&self) -> Position {
+        self._semicolon.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.tail
+            .as_ref()
+            .map(|t| t.end_position())
+            .unwrap_or_else(|| self.item.end_position())
+    }
 }
-derive_parse!(FunClause<N>, name, patterns, guard, _arrow, body);
-derive_token_range!(FunClause<N>, name, body);

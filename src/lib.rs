@@ -12,16 +12,6 @@ pub use token_reader::{TokenReader, Tokens, Preprocessor};
 // pub use reader::TokenReader;
 // pub use traits::{Parse, TokenRange};
 
-macro_rules! track_try_some {
-    ($expr:expr) => {
-        if let Some(value) = track!($expr)? {
-            value
-        } else {
-            return Ok(None)
-        }
-    }
-}
-
 pub mod cst;
 
 mod error;

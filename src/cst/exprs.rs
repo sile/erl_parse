@@ -1,11 +1,128 @@
 use erl_tokenize::{LexicalToken, Position, PositionRange};
-use erl_tokenize::tokens::{KeywordToken, SymbolToken};
+use erl_tokenize::tokens::{KeywordToken, SymbolToken, AtomToken, IntegerToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
 use {Result, Parser, Preprocessor, Parse};
 use cst::{Expr, Pattern};
-use cst::building_blocks::{self, Sequence};
+use cst::building_blocks::{self, Sequence, AtomOrVariable, IntegerOrVariable};
+use cst::clauses::{Clauses, FunClause, NamedFunClause};
 use cst::collections;
+
+#[derive(Debug, Clone)]
+pub struct LocalFun {
+    pub _fun: KeywordToken,
+    pub fun_name: AtomToken,
+    pub _slash: SymbolToken,
+    pub arity: IntegerToken,
+}
+impl Parse for LocalFun {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(LocalFun {
+            _fun: track!(parser.expect(&Keyword::Fun))?,
+            fun_name: track!(parser.parse())?,
+            _slash: track!(parser.expect(&Symbol::Slash))?,
+            arity: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for LocalFun {
+    fn start_position(&self) -> Position {
+        self._fun.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.arity.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteFun {
+    pub _fun: KeywordToken,
+    pub module_name: AtomOrVariable,
+    pub _colon: SymbolToken,
+    pub fun_name: AtomOrVariable,
+    pub _slash: SymbolToken,
+    pub arity: IntegerOrVariable,
+}
+impl Parse for RemoteFun {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(RemoteFun {
+            _fun: track!(parser.expect(&Keyword::Fun))?,
+            module_name: track!(parser.parse())?,
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+            fun_name: track!(parser.parse())?,
+            _slash: track!(parser.expect(&Symbol::Slash))?,
+            arity: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RemoteFun {
+    fn start_position(&self) -> Position {
+        self._fun.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.arity.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AnonymousFun {
+    pub _fun: KeywordToken,
+    pub clauses: Clauses<FunClause>,
+    pub _end: KeywordToken,
+}
+impl Parse for AnonymousFun {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(AnonymousFun {
+            _fun: track!(parser.expect(&Keyword::Fun))?,
+            clauses: track!(parser.parse())?,
+            _end: track!(parser.expect(&Keyword::End))?,
+        })
+    }
+}
+impl PositionRange for AnonymousFun {
+    fn start_position(&self) -> Position {
+        self._fun.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._end.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NamedFun {
+    pub _fun: KeywordToken,
+    pub clauses: Clauses<NamedFunClause>,
+    pub _end: KeywordToken,
+}
+impl Parse for NamedFun {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(NamedFun {
+            _fun: track!(parser.expect(&Keyword::Fun))?,
+            clauses: track!(parser.parse())?,
+            _end: track!(parser.expect(&Keyword::End))?,
+        })
+    }
+}
+impl PositionRange for NamedFun {
+    fn start_position(&self) -> Position {
+        self._fun.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._end.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ListComprehension {

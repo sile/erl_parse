@@ -6,6 +6,7 @@ use erl_tokenize::values::{Symbol, Keyword};
 use {Result, Parse, Preprocessor, Parser, ErrorKind, TryInto};
 
 pub mod building_blocks;
+pub mod clauses;
 pub mod collections;
 pub mod exprs;
 
@@ -44,6 +45,10 @@ pub enum LeftKind {
     ListComprehension,
     Bits,
     BitsComprehension,
+    LocalFun,
+    RemoteFun,
+    AnonymousFun,
+    NamedFun,
     Block,
     Parenthesized,
     Catch,
@@ -95,6 +100,24 @@ impl LeftKind {
                 match t.value() {
                     Keyword::Begin => LeftKind::Block,
                     Keyword::Catch => LeftKind::Catch,
+                    Keyword::Fun => {
+                        let token1 = track!(parser.read_token())?;
+
+                        if token1.as_symbol_token().map_or(false, |t| {
+                            t.value() == Symbol::OpenParen
+                        })
+                        {
+                            LeftKind::AnonymousFun
+                        } else {
+                            let token2: SymbolToken = track!(parser.parse())?;
+                            match token2.value() {
+                                Symbol::Slash => LeftKind::LocalFun,
+                                Symbol::Colon => LeftKind::RemoteFun,
+                                Symbol::OpenParen => LeftKind::NamedFun,
+                                _ => track_panic!(ErrorKind::UnexpectedToken(token2.into())),
+                            }
+                        }
+                    }
                     _ => track_panic!(ErrorKind::UnexpectedToken(t.into())),
                 }
             }
@@ -115,6 +138,10 @@ pub enum Expr {
     ListComprehension(Box<exprs::ListComprehension>),
     Bits(Box<exprs::Bits>),
     BitsComprehension(Box<exprs::BitsComprehension>),
+    LocalFun(Box<exprs::LocalFun>),
+    RemoteFun(Box<exprs::RemoteFun>),
+    AnonymousFun(Box<exprs::AnonymousFun>),
+    NamedFun(Box<exprs::NamedFun>),
     Block(Box<exprs::Block>),
     Parenthesized(Box<exprs::Parenthesized>),
     Catch(Box<exprs::Catch>),
@@ -137,6 +164,10 @@ impl Parse for Expr {
             LeftKind::ListComprehension => Expr::ListComprehension(track!(parser.parse())?),
             LeftKind::Bits => Expr::Bits(track!(parser.parse())?),
             LeftKind::BitsComprehension => Expr::BitsComprehension(track!(parser.parse())?),
+            LeftKind::LocalFun => Expr::LocalFun(track!(parser.parse())?),
+            LeftKind::RemoteFun => Expr::RemoteFun(track!(parser.parse())?),
+            LeftKind::AnonymousFun => Expr::AnonymousFun(track!(parser.parse())?),
+            LeftKind::NamedFun => Expr::NamedFun(track!(parser.parse())?),
             LeftKind::Block => Expr::Block(track!(parser.parse())?),
             LeftKind::Parenthesized => Expr::Parenthesized(track!(parser.parse())?),
             LeftKind::Catch => Expr::Catch(track!(parser.parse())?),
@@ -179,6 +210,10 @@ impl PositionRange for Expr {
             Expr::ListComprehension(ref x) => x.start_position(),
             Expr::Bits(ref x) => x.start_position(),
             Expr::BitsComprehension(ref x) => x.start_position(),
+            Expr::LocalFun(ref x) => x.start_position(),
+            Expr::RemoteFun(ref x) => x.start_position(),
+            Expr::AnonymousFun(ref x) => x.start_position(),
+            Expr::NamedFun(ref x) => x.start_position(),
             Expr::Block(ref x) => x.start_position(),
             Expr::Parenthesized(ref x) => x.start_position(),
             Expr::Catch(ref x) => x.start_position(),
@@ -197,6 +232,10 @@ impl PositionRange for Expr {
             Expr::ListComprehension(ref x) => x.end_position(),
             Expr::Bits(ref x) => x.end_position(),
             Expr::BitsComprehension(ref x) => x.end_position(),
+            Expr::LocalFun(ref x) => x.end_position(),
+            Expr::RemoteFun(ref x) => x.end_position(),
+            Expr::AnonymousFun(ref x) => x.end_position(),
+            Expr::NamedFun(ref x) => x.end_position(),
             Expr::Block(ref x) => x.end_position(),
             Expr::Parenthesized(ref x) => x.end_position(),
             Expr::Catch(ref x) => x.end_position(),
@@ -280,6 +319,84 @@ impl PositionRange for Literal {
             Literal::Float(ref x) => x.end_position(),
             Literal::Integer(ref x) => x.end_position(),
             Literal::String(ref x) => x.end_position(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GuardSeq {
+    pub guards: clauses::Clauses<Guard>,
+}
+impl Parse for GuardSeq {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(GuardSeq { guards: track!(parser.parse())? })
+    }
+}
+impl PositionRange for GuardSeq {
+    fn start_position(&self) -> Position {
+        self.guards.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.guards.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Guard {
+    pub tests: building_blocks::Sequence<GuardTest>,
+}
+impl Parse for Guard {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Guard { tests: track!(parser.parse())? })
+    }
+}
+impl PositionRange for Guard {
+    fn start_position(&self) -> Position {
+        self.tests.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.tests.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum GuardTest {
+    Literal(Literal),
+    Variable(VariableToken),
+}
+impl Parse for GuardTest {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let kind = track!(parser.peek(
+            |parser| LeftKind::guess::<T, GuardTest>(parser),
+        ))?;
+        let pattern = match kind {
+            LeftKind::Literal => GuardTest::Literal(track!(parser.parse())?),
+            LeftKind::Variable => GuardTest::Variable(track!(parser.parse())?),
+            _ => track_panic!(ErrorKind::UnexpectedToken(track!(parser.read_token())?)),
+        };
+        Ok(pattern)
+    }
+}
+impl PositionRange for GuardTest {
+    fn start_position(&self) -> Position {
+        match *self {
+            GuardTest::Literal(ref x) => x.start_position(),
+            GuardTest::Variable(ref x) => x.start_position(),
+        }
+    }
+    fn end_position(&self) -> Position {
+        match *self {
+            GuardTest::Literal(ref x) => x.end_position(),
+            GuardTest::Variable(ref x) => x.end_position(),
         }
     }
 }
