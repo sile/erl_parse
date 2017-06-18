@@ -12,7 +12,7 @@ use clap::{App, Arg};
 use erl_pp::Preprocessor;
 use erl_parse::{TokenReader, Parser};
 use erl_parse::cst::ModuleDecl;
-use erl_tokenize::Lexer;
+use erl_tokenize::{Lexer, LexicalToken};
 use trackable::error::{Failed, ErrorKindExt};
 
 fn main() {
@@ -46,6 +46,7 @@ fn main() {
     }
     let mut parser = Parser::new(TokenReader::new(pp));
 
-    let module: ModuleDecl = track_try_unwrap!(parser.parse(), "next={:?}", parser.read_token());
+    let module: ModuleDecl =
+        track_try_unwrap!(parser.parse(), "next={:?}", parser.parse::<LexicalToken>());
     println!("{:?}", module);
 }

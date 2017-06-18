@@ -9,19 +9,27 @@ pub struct Error(TrackableError<ErrorKind>);
 derive_traits_for_trackable_error_newtype!(Error, ErrorKind);
 impl From<erl_tokenize::Error> for Error {
     fn from(f: erl_tokenize::Error) -> Self {
-        ErrorKind::TokenizationFailed.takes_over(f).into()
+        match *f.kind() {
+            erl_tokenize::ErrorKind::InvalidInput => ErrorKind::InvalidInput.takes_over(f).into(),
+            erl_tokenize::ErrorKind::UnexpectedEos => ErrorKind::UnexpectedEos.takes_over(f).into(),
+        }
     }
 }
 impl From<erl_pp::Error> for Error {
     fn from(f: erl_pp::Error) -> Self {
-        ErrorKind::Other.takes_over(f).into()
+        match f.kind().clone() {
+            erl_pp::ErrorKind::InvalidInput => ErrorKind::InvalidInput.takes_over(f).into(),
+            erl_pp::ErrorKind::UnexpectedToken(t) => {
+                ErrorKind::UnexpectedToken(t).takes_over(f).into()
+            }
+            erl_pp::ErrorKind::UnexpectedEos => ErrorKind::UnexpectedEos.takes_over(f).into(),
+        }
     }
 }
 
 /// The list of the possible error kinds
 #[derive(Debug, Clone)]
 pub enum ErrorKind {
-    TokenizationFailed,
     InvalidInput,
     UnexpectedToken(LexicalToken),
     UnexpectedEos,

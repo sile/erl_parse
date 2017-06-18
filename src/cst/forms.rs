@@ -33,8 +33,14 @@ impl Parse for ModuleAttr {
 
         let module_string =
             StringToken::from_value(this.module_name.value(), this.module_name.start_position());
-        parser.define_macro("MODULE", vec![this.module_name.clone().into()]);
-        parser.define_macro("MODULE_STRING", vec![module_string.into()]);
+        parser.reader_mut().define_macro(
+            "MODULE",
+            vec![this.module_name.clone().into()],
+        );
+        parser.reader_mut().define_macro(
+            "MODULE_STRING",
+            vec![module_string.into()],
+        );
 
         Ok(this)
     }
@@ -289,9 +295,9 @@ impl Parse for WildAttr {
 
         let count = parser.peek(|parser| {
             for i in 0.. {
-                let v = track!(parser.read_token())?.as_symbol_token().map(
-                    |t| t.value(),
-                );
+                let v = track!(parser.parse::<LexicalToken>())?
+                    .as_symbol_token()
+                    .map(|t| t.value());
                 if v == Some(Symbol::Dot) {
                     use std::cmp;
                     return Ok(cmp::max(i, 1) - 1);
@@ -300,7 +306,7 @@ impl Parse for WildAttr {
             unreachable!()
         });
         let attr_value = (0..track!(count)?)
-            .map(|_| parser.read_token().expect("Never fails"))
+            .map(|_| parser.parse::<LexicalToken>().expect("Never fails"))
             .collect();
         Ok(WildAttr {
             _hyphen,

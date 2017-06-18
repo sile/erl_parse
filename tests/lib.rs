@@ -13,8 +13,7 @@ macro_rules! parse_expr {
     ($text:expr) => {
         let mut parser = Parser::new(
             TokenReader::new(Preprocessor::new(Lexer::new($text))));
-        let value: Expr = track_try_unwrap!(parser.parse(),
-                                      "text={:?}, next={:?}", $text, parser.read_token());
+        let value: Expr = track_try_unwrap!(parser.parse(), "text={:?}", $text);
         assert_eq!(value.end_position().offset(), $text.len());
     }
  }
@@ -23,8 +22,7 @@ macro_rules! parse_pattern {
     ($text:expr) => {
         let mut parser = Parser::new(
             TokenReader::new(Preprocessor::new(Lexer::new($text))));
-        let value: Pattern = track_try_unwrap!(parser.parse(),
-                                      "text={:?}, next={:?}", $text, parser.read_token());
+        let value: Pattern = track_try_unwrap!(parser.parse(), "text={:?}", $text);
         assert_eq!(value.end_position().offset(), $text.len());
     }
  }
@@ -33,8 +31,7 @@ macro_rules! parse_type {
     ($text:expr) => {
         let mut parser = Parser::new(
             TokenReader::new(Preprocessor::new(Lexer::new($text))));
-        let value: Type = track_try_unwrap!(parser.parse(),
-                                      "text={:?}, next={:?}", $text, parser.read_token());
+        let value: Type = track_try_unwrap!(parser.parse(), "text={:?}", $text);
         assert_eq!(value.end_position().offset(), $text.len());
     }
  }
@@ -43,8 +40,7 @@ macro_rules! parse_form {
     ($text:expr) => {
         let mut parser = Parser::new(
             TokenReader::new(Preprocessor::new(Lexer::new($text))));
-        let value: Form = track_try_unwrap!(parser.parse(),
-                                      "text={:?}, next={:?}", $text, parser.read_token());
+        let value: Form = track_try_unwrap!(parser.parse(), "text={:?}", $text);
         assert_eq!(value.end_position().offset(), $text.len());
     }
  }

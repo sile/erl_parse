@@ -25,7 +25,7 @@ impl Parse for ModuleDecl {
         T: TokenRead,
     {
         let mut forms = Vec::new();
-        while !track!(parser.is_eos())? {
+        while !track!(parser.eos())? {
             let form = track!(parser.parse())?;
             forms.push(form);
         }
@@ -47,20 +47,20 @@ impl RightKind {
     where
         T: TokenRead,
     {
-        match parser.read_token() {
+        match parser.parse() {
             Ok(LexicalToken::Symbol(t)) => {
                 match t.value() {
                     Symbol::OpenParen => RightKind::LocalCall,
                     Symbol::Colon => RightKind::RemoteCall,
                     Symbol::Sharp => {
                         if parser
-                            .read_token()
+                            .parse::<LexicalToken>()
                             .ok()
                             .and_then(|t| t.as_atom_token().map(|_| ()))
                             .is_some()
                         {
                             if parser
-                                .read_token()
+                                .parse::<LexicalToken>()
                                 .ok()
                                 .and_then(|t| {
                                     t.as_symbol_token().map(|t| t.value() == Symbol::OpenBrace)
@@ -96,7 +96,7 @@ impl RightKind2 {
     where
         T: TokenRead,
     {
-        match parser.read_token() {
+        match parser.parse() {
             Ok(LexicalToken::Symbol(t)) => {
                 match t.value() {
                     Symbol::VerticalBar => RightKind2::Union,
@@ -154,7 +154,7 @@ impl LeftKind {
         T: TokenRead,
         U: Parse,
     {
-        Ok(match track!(parser.read_token())? {
+        Ok(match track!(parser.parse())? {
             LexicalToken::Symbol(t) => {
                 match t.value() {
                     Symbol::OpenBrace => LeftKind::Tuple,
@@ -182,9 +182,10 @@ impl LeftKind {
                         }
                     }
                     Symbol::Sharp => {
-                        if track!(parser.read_token())?.as_atom_token().is_some() {
+                        let token = track!(parser.parse::<LexicalToken>())?;
+                        if token.as_atom_token().is_some() {
                             if parser
-                                .read_token()
+                                .parse::<LexicalToken>()
                                 .ok()
                                 .and_then(|t| {
                                     t.as_symbol_token().map(|t| t.value() == Symbol::OpenBrace)
@@ -212,7 +213,7 @@ impl LeftKind {
                     Keyword::Receive => LeftKind::Receive,
                     Keyword::Try => LeftKind::Try,
                     Keyword::Fun => {
-                        let token1 = track!(parser.read_token())?;
+                        let token1 = track!(parser.parse::<LexicalToken>())?;
                         if token1.as_symbol_token().map_or(false, |t| {
                             t.value() == Symbol::OpenParen
                         })
@@ -517,7 +518,7 @@ impl Parse for Literal {
     where
         T: TokenRead,
     {
-        match track!(parser.read_token())? {
+        match track!(parser.parse())? {
             LexicalToken::Atom(t) => Ok(Literal::Atom(t)),
             LexicalToken::Char(t) => Ok(Literal::Char(t)),
             LexicalToken::Float(t) => Ok(Literal::Float(t)),
@@ -862,10 +863,10 @@ impl Parse for Form {
         T: TokenRead,
     {
         let kind = parser.peek(|parser| {
-            let token = track!(parser.read_token())?;
+            let token = track!(parser.parse())?;
             Ok(match token {
                 LexicalToken::Symbol(ref t) if t.value() == Symbol::Hyphen => {
-                    let token = track!(parser.read_token())?;
+                    let token = track!(parser.parse::<LexicalToken>())?;
                     let token = track!(
                         token
                             .into_atom_token()

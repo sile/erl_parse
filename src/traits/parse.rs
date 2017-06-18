@@ -1,3 +1,4 @@
+use erl_tokenize::LexicalToken;
 use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, KeywordToken,
                            StringToken, SymbolToken, VariableToken};
 
@@ -31,12 +32,20 @@ impl<T: Parse> Parse for Option<T> {
         Ok(parser.transaction(|parser| parser.parse()).ok())
     }
 }
+impl Parse for LexicalToken {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        track!(parser.next_token())
+    }
+}
 impl Parse for AtomToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
+        let token = track!(parser.parse::<LexicalToken>())?;
         let token = track!(
             token
                 .into_atom_token()
@@ -51,7 +60,7 @@ impl Parse for CharToken {
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
+        let token = track!(parser.parse::<LexicalToken>())?;
         let token = track!(
             token
                 .into_char_token()
@@ -66,7 +75,7 @@ impl Parse for FloatToken {
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
+        let token = track!(parser.parse::<LexicalToken>())?;
         let token = track!(
             token
                 .into_float_token()
@@ -81,7 +90,7 @@ impl Parse for IntegerToken {
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
+        let token = track!(parser.parse::<LexicalToken>())?;
         let token = track!(
             token
                 .into_integer_token()
@@ -96,7 +105,7 @@ impl Parse for KeywordToken {
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
+        let token = track!(parser.parse::<LexicalToken>())?;
         let token = track!(
             token
                 .into_keyword_token()
@@ -111,7 +120,7 @@ impl Parse for StringToken {
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
+        let token = track!(parser.parse::<LexicalToken>())?;
         let token = track!(
             token
                 .into_string_token()
@@ -126,7 +135,7 @@ impl Parse for SymbolToken {
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
+        let token = track!(parser.parse::<LexicalToken>())?;
         let token = track!(
             token
                 .into_symbol_token()
@@ -141,7 +150,7 @@ impl Parse for VariableToken {
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
+        let token = track!(parser.parse::<LexicalToken>())?;
         let token = track!(
             token
                 .into_variable_token()

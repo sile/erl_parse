@@ -80,7 +80,7 @@ impl Parse for BinaryOp {
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
+        let token = track!(parser.parse::<LexicalToken>())?;
         match token {
             LexicalToken::Symbol(s) => {
                 match s.value() {
@@ -250,8 +250,7 @@ impl Parse for UnaryOp {
     where
         T: TokenRead,
     {
-        let token = track!(parser.read_token())?;
-        match token {
+        match track!(parser.parse())? {
             LexicalToken::Symbol(s) => {
                 match s.value() {
                     Symbol::Plus => Ok(UnaryOp::Plus(s)),
@@ -266,7 +265,7 @@ impl Parse for UnaryOp {
                     _ => track_panic!(ErrorKind::UnexpectedToken(k.into())),
                 }
             }
-            _ => track_panic!(ErrorKind::UnexpectedToken(token)),
+            token => track_panic!(ErrorKind::UnexpectedToken(token)),
         }
     }
 }
@@ -736,11 +735,10 @@ impl Parse for AtomOrVariable {
     where
         U: TokenRead,
     {
-        let token = track!(parser.read_token())?;
-        match token {
+        match track!(parser.parse())? {
             LexicalToken::Atom(token) => Ok(AtomOrVariable::Atom(token)),
             LexicalToken::Variable(token) => Ok(AtomOrVariable::Variable(token)),
-            _ => track_panic!(ErrorKind::UnexpectedToken(token)),
+            token => track_panic!(ErrorKind::UnexpectedToken(token)),
         }
     }
 }
@@ -777,11 +775,10 @@ impl Parse for IntegerOrVariable {
     where
         U: TokenRead,
     {
-        let token = track!(parser.read_token())?;
-        match token {
+        match track!(parser.parse())? {
             LexicalToken::Integer(token) => Ok(IntegerOrVariable::Integer(token)),
             LexicalToken::Variable(token) => Ok(IntegerOrVariable::Variable(token)),
-            _ => track_panic!(ErrorKind::UnexpectedToken(token)),
+            token => track_panic!(ErrorKind::UnexpectedToken(token)),
         }
     }
 }
