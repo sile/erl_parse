@@ -248,7 +248,7 @@ impl PositionRange for WildAttr {
     }
 }
 
-/// `-` `spec` `ModulePrefix`? `AtomToken` `Clauses<SpecClause>` `.`
+/// `-` `spec` `Option<ModulePrefix>` `AtomToken` `Clauses<SpecClause>` `.`
 #[derive(Debug, Clone)]
 pub struct FunSpec {
     pub _hyphen: SymbolToken,

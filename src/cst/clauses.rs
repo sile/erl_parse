@@ -73,7 +73,7 @@ pub struct SpecClause {
     pub args: Args<Type>,
     pub _arrow: SymbolToken,
     pub return_type: Type,
-    pub constraints: Option<types::FunConstraints>,
+    pub constraints: Option<types::Constraints>,
 }
 impl Parse for SpecClause {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>

@@ -1,13 +1,23 @@
 use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::{SymbolToken, VariableToken, IntegerToken, KeywordToken, AtomToken};
+use erl_tokenize::tokens::{SymbolToken, VariableToken, KeywordToken, AtomToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
 use {Result, Parser};
 use cst::Type;
-use cst::building_blocks::{self, Args, Sequence};
+use cst::building_blocks::{self, Args, Sequence, ListElement, BitsSpec};
 use cst::collections;
 use traits::{Parse, ParseTail, TokenRead};
 
+pub type Tuple = collections::Tuple<Type>;
+pub type Map = collections::Map<Type>;
+pub type Record = collections::Record<Type>;
+pub type Parenthesized = building_blocks::Parenthesized<Type>;
+pub type LocalCall = building_blocks::LocalCall<AtomToken, Type>;
+pub type RemoteCall = building_blocks::RemoteCall<AtomToken, Type>;
+pub type UnaryOpCall = building_blocks::UnaryOpCall<Type>;
+pub type BinaryOpCall = building_blocks::BinaryOpCall<Type>;
+
+/// `AnyFun | AnyArityFun | NormalFun`
 #[derive(Debug, Clone)]
 pub enum Fun {
     Any(AnyFun),
@@ -46,6 +56,7 @@ impl PositionRange for Fun {
     }
 }
 
+/// `fun` `(` `)`
 #[derive(Debug, Clone)]
 pub struct AnyFun {
     pub _fun: KeywordToken,
@@ -73,6 +84,7 @@ impl PositionRange for AnyFun {
     }
 }
 
+/// `fun` `(` `(` `...` `)` `)` `->` `Type` `)`
 #[derive(Debug, Clone)]
 pub struct AnyArityFun {
     pub _fun: KeywordToken,
@@ -110,6 +122,7 @@ impl PositionRange for AnyArityFun {
     }
 }
 
+/// `fun` `(` `Args<Type>` `->` `Type` `)`
 #[derive(Debug, Clone)]
 pub struct NormalFun {
     pub _fun: KeywordToken,
@@ -143,23 +156,24 @@ impl PositionRange for NormalFun {
     }
 }
 
+/// `when` `Sequence<Type>`
 #[derive(Debug, Clone)]
-pub struct FunConstraints {
+pub struct Constraints {
     pub _when: KeywordToken,
-    pub constraints: Sequence<FunConstraint>,
+    pub constraints: Sequence<Type>,
 }
-impl Parse for FunConstraints {
+impl Parse for Constraints {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: TokenRead,
     {
-        Ok(FunConstraints {
+        Ok(Constraints {
             _when: track!(parser.expect(&Keyword::When))?,
             constraints: track!(parser.parse())?,
         })
     }
 }
-impl PositionRange for FunConstraints {
+impl PositionRange for Constraints {
     fn start_position(&self) -> Position {
         self._when.start_position()
     }
@@ -168,72 +182,7 @@ impl PositionRange for FunConstraints {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum FunConstraint {
-    Annotated(Annotated),
-    IsSubtype(IsSubtype),
-}
-impl Parse for FunConstraint {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        if let Ok(t) = parser.transaction(|parser| parser.parse()) {
-            Ok(FunConstraint::Annotated(t))
-        } else {
-            let t = track!(parser.parse())?;
-            Ok(FunConstraint::IsSubtype(t))
-        }
-    }
-}
-impl PositionRange for FunConstraint {
-    fn start_position(&self) -> Position {
-        match *self {
-            FunConstraint::Annotated(ref t) => t.start_position(),
-            FunConstraint::IsSubtype(ref t) => t.start_position(),
-        }
-    }
-    fn end_position(&self) -> Position {
-        match *self {
-            FunConstraint::Annotated(ref t) => t.end_position(),
-            FunConstraint::IsSubtype(ref t) => t.end_position(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct IsSubtype {
-    pub _is_subtype: AtomToken,
-    pub _open: SymbolToken,
-    pub var: VariableToken,
-    pub _comma: SymbolToken,
-    pub ty: Type,
-    pub _close: SymbolToken,
-}
-impl Parse for IsSubtype {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(IsSubtype {
-            _is_subtype: track!(parser.expect("is_subtype"))?,
-            _open: track!(parser.expect(&Symbol::OpenParen))?,
-            var: track!(parser.parse())?,
-            _comma: track!(parser.expect(&Symbol::Comma))?,
-            ty: track!(parser.parse())?,
-            _close: track!(parser.expect(&Symbol::CloseParen))?,
-        })
-    }
-}
-impl PositionRange for IsSubtype {
-    fn start_position(&self) -> Position {
-        self._is_subtype.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self._close.end_position()
-    }
-}
-
+/// `Type` `..` `Type`
 #[derive(Debug, Clone)]
 pub struct Range {
     pub low: Type,
@@ -262,6 +211,7 @@ impl PositionRange for Range {
     }
 }
 
+/// `Type` `|` `Type`
 #[derive(Debug, Clone)]
 pub struct Union {
     pub left: Type,
@@ -290,6 +240,7 @@ impl PositionRange for Union {
     }
 }
 
+/// `VariableToken` `::` `Type`
 #[derive(Debug, Clone)]
 pub struct Annotated {
     pub var: VariableToken,
@@ -317,6 +268,7 @@ impl PositionRange for Annotated {
     }
 }
 
+/// `[` `Option<ListElement>` `]`
 #[derive(Debug, Clone)]
 pub struct List {
     pub _open: SymbolToken,
@@ -344,60 +296,7 @@ impl PositionRange for List {
     }
 }
 
-
-#[derive(Debug, Clone)]
-pub struct ListElement {
-    pub element_type: Type,
-    pub non_empty: Option<NonEmpty>,
-}
-impl Parse for ListElement {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(ListElement {
-            element_type: track!(parser.parse())?,
-            non_empty: track!(parser.parse())?,
-        })
-    }
-}
-impl PositionRange for ListElement {
-    fn start_position(&self) -> Position {
-        self.element_type.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.non_empty
-            .as_ref()
-            .map(|t| t.end_position())
-            .unwrap_or_else(|| self.element_type.end_position())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct NonEmpty {
-    pub _comma: SymbolToken,
-    pub _triple_dot: SymbolToken,
-}
-impl Parse for NonEmpty {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(NonEmpty {
-            _comma: track!(parser.expect(&Symbol::Comma))?,
-            _triple_dot: track!(parser.expect(&Symbol::TripleDot))?,
-        })
-    }
-}
-impl PositionRange for NonEmpty {
-    fn start_position(&self) -> Position {
-        self._comma.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self._triple_dot.end_position()
-    }
-}
-
+/// `<<` `Option<BitsSpec>` `>>`
 #[derive(Debug, Clone)]
 pub struct Bits {
     pub _open: SymbolToken,
@@ -424,134 +323,3 @@ impl PositionRange for Bits {
         self._close.end_position()
     }
 }
-
-#[derive(Debug, Clone)]
-pub struct ByteAndBitSize {
-    pub byte: ByteSize,
-    pub _comma: SymbolToken,
-    pub bit: BitSize,
-}
-impl Parse for ByteAndBitSize {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(ByteAndBitSize {
-            byte: track!(parser.parse())?,
-            _comma: track!(parser.expect(&Symbol::Comma))?,
-            bit: track!(parser.parse())?,
-        })
-    }
-}
-impl PositionRange for ByteAndBitSize {
-    fn start_position(&self) -> Position {
-        self.byte.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.bit.end_position()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ByteSize {
-    pub _underscore: VariableToken,
-    pub _colon: SymbolToken,
-    pub size: IntegerToken,
-}
-impl Parse for ByteSize {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(ByteSize {
-            _underscore: track!(parser.expect("_"))?,
-            _colon: track!(parser.expect(&Symbol::Colon))?,
-            size: track!(parser.parse())?,
-        })
-    }
-}
-impl PositionRange for ByteSize {
-    fn start_position(&self) -> Position {
-        self._underscore.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.size.end_position()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BitSize {
-    pub _underscore0: VariableToken,
-    pub _colon: SymbolToken,
-    pub _underscore1: VariableToken,
-    pub _asterisk: SymbolToken,
-    pub size: IntegerToken,
-}
-impl Parse for BitSize {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(BitSize {
-            _underscore0: track!(parser.expect("_"))?,
-            _colon: track!(parser.expect(&Symbol::Colon))?,
-            _underscore1: track!(parser.expect("_"))?,
-            _asterisk: track!(parser.expect(&Symbol::Multiply))?,
-            size: track!(parser.parse())?,
-        })
-    }
-}
-impl PositionRange for BitSize {
-    fn start_position(&self) -> Position {
-        self._underscore0.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.size.end_position()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum BitsSpec {
-    BytesAndBits(ByteAndBitSize),
-    Bytes(ByteSize),
-    Bits(BitSize),
-}
-impl Parse for BitsSpec {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        if let Ok(x) = parser.transaction(|parser| parser.parse()) {
-            Ok(BitsSpec::BytesAndBits(x))
-        } else if let Ok(x) = parser.transaction(|parser| parser.parse()) {
-            Ok(BitsSpec::Bytes(x))
-        } else {
-            Ok(BitsSpec::Bits(track!(parser.parse())?))
-        }
-    }
-}
-impl PositionRange for BitsSpec {
-    fn start_position(&self) -> Position {
-        match *self {
-            BitsSpec::BytesAndBits(ref t) => t.start_position(),
-            BitsSpec::Bytes(ref t) => t.start_position(),
-            BitsSpec::Bits(ref t) => t.start_position(),
-        }
-    }
-    fn end_position(&self) -> Position {
-        match *self {
-            BitsSpec::BytesAndBits(ref t) => t.end_position(),
-            BitsSpec::Bytes(ref t) => t.end_position(),
-            BitsSpec::Bits(ref t) => t.end_position(),
-        }
-    }
-}
-
-pub type Tuple = collections::Tuple<Type>;
-pub type Map = collections::Map<Type>;
-pub type Record = collections::Record<Type>;
-pub type Parenthesized = building_blocks::Parenthesized<Type>;
-pub type LocalCall = building_blocks::LocalCall<AtomToken, Type>;
-pub type RemoteCall = building_blocks::RemoteCall<AtomToken, Type>;
-pub type UnaryOpCall = building_blocks::UnaryOpCall<Type>;
-pub type BinaryOpCall = building_blocks::BinaryOpCall<Type>;
