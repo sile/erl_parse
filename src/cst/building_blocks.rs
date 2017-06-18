@@ -5,6 +5,7 @@ use erl_tokenize::values::{Symbol, Keyword};
 use {Result, Parser, ErrorKind};
 use traits::{Parse, ParseTail, TokenRead};
 use cst::{Pattern, Expr, Type};
+use cst::collections::RecordFieldIndex;
 
 #[derive(Debug, Clone)]
 pub struct Match<T> {
@@ -1127,5 +1128,28 @@ impl PositionRange for BitsSpec {
             BitsSpec::Bytes(ref t) => t.end_position(),
             BitsSpec::Bits(ref t) => t.end_position(),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordFieldAccess<T> {
+    pub record: T,
+    pub index: RecordFieldIndex,
+}
+impl<T> ParseTail for RecordFieldAccess<T> {
+    type Head = T;
+    fn parse_tail<U: TokenRead>(parser: &mut Parser<U>, head: Self::Head) -> Result<Self> {
+        Ok(RecordFieldAccess {
+            record: head,
+            index: track!(parser.parse())?,
+        })
+    }
+}
+impl<T: PositionRange> PositionRange for RecordFieldAccess<T> {
+    fn start_position(&self) -> Position {
+        self.record.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.index.end_position()
     }
 }

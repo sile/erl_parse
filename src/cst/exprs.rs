@@ -62,32 +62,6 @@ impl PositionRange for RecordUpdate {
 }
 
 #[derive(Debug, Clone)]
-pub struct RecordFieldAccess {
-    pub record: Expr,
-    pub index: RecordFieldIndex,
-}
-impl ParseTail for RecordFieldAccess {
-    type Head = Expr;
-    fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(RecordFieldAccess {
-            record: head,
-            index: track!(parser.parse())?,
-        })
-    }
-}
-impl PositionRange for RecordFieldAccess {
-    fn start_position(&self) -> Position {
-        self.record.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.index.end_position()
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct Try {
     pub _try: KeywordToken,
     pub body: Body,
@@ -628,6 +602,7 @@ pub type Tuple = collections::Tuple<Expr>;
 pub type Map = collections::Map<Expr>;
 pub type Record = collections::Record<Expr>;
 pub type RecordFieldIndex = collections::RecordFieldIndex;
+pub type RecordFieldAccess = building_blocks::RecordFieldAccess<Expr>;
 pub type List = collections::List<Expr>;
 pub type Bits = collections::Bits<Expr>;
 pub type Parenthesized = building_blocks::Parenthesized<Expr>;
