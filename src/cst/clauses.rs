@@ -1,5 +1,5 @@
 use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::{KeywordToken, SymbolToken};
+use erl_tokenize::tokens::{KeywordToken, SymbolToken, VariableToken, AtomToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
 use {Result, Parser};
@@ -187,7 +187,7 @@ impl PositionRange for FunClause {
 
 #[derive(Debug, Clone)]
 pub struct NamedFunClause {
-    pub name: AtomOrVariable, //VariableToken,
+    pub name: VariableToken,
     pub patterns: Args<Pattern>,
     pub guard: Option<Guard>,
     pub _arrow: SymbolToken,
@@ -208,6 +208,38 @@ impl Parse for NamedFunClause {
     }
 }
 impl PositionRange for NamedFunClause {
+    fn start_position(&self) -> Position {
+        self.name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FunDeclClause {
+    pub name: AtomToken,
+    pub patterns: Args<Pattern>,
+    pub guard: Option<Guard>,
+    pub _arrow: SymbolToken,
+    pub body: Body,
+}
+impl Parse for FunDeclClause {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        // TODO: handle predefined macros
+        Ok(FunDeclClause {
+            name: track!(parser.parse())?,
+            patterns: track!(parser.parse())?,
+            guard: track!(parser.parse())?,
+            _arrow: track!(parser.expect(&Symbol::RightArrow))?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for FunDeclClause {
     fn start_position(&self) -> Position {
         self.name.start_position()
     }

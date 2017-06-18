@@ -4,7 +4,7 @@ use erl_tokenize::values::{Symbol, Keyword};
 
 use {Result, Parser, ErrorKind};
 use traits::{Parse, ParseTail, TokenRead};
-use cst::Pattern;
+use cst::{Pattern, Expr, Type};
 
 #[derive(Debug, Clone)]
 pub struct Match<T> {
@@ -794,5 +794,165 @@ impl PositionRange for IntegerOrVariable {
             IntegerOrVariable::Integer(ref t) => t.end_position(),
             IntegerOrVariable::Variable(ref t) => t.end_position(),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct List<T> {
+    pub _open: SymbolToken,
+    pub elements: Option<Sequence<T>>,
+    pub _close: SymbolToken,
+}
+impl<T: Parse> Parse for List<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: TokenRead,
+    {
+        Ok(List {
+            _open: track!(parser.expect(&Symbol::OpenSquare))?,
+            elements: track!(parser.parse())?,
+            _close: track!(parser.expect(&Symbol::CloseSquare))?,
+        })
+    }
+}
+impl<T> PositionRange for List<T> {
+    fn start_position(&self) -> Position {
+        self._open.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._close.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NameAndArity {
+    pub name: AtomToken,
+    pub _slash: SymbolToken,
+    pub arity: IntegerToken,
+}
+impl Parse for NameAndArity {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(NameAndArity {
+            name: track!(parser.parse())?,
+            _slash: track!(parser.expect(&Symbol::Slash))?,
+            arity: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for NameAndArity {
+    fn start_position(&self) -> Position {
+        self.name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.arity.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ModulePrefix {
+    pub name: AtomToken,
+    pub _colon: SymbolToken,
+}
+impl Parse for ModulePrefix {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(ModulePrefix {
+            name: track!(parser.parse())?,
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+        })
+    }
+}
+impl PositionRange for ModulePrefix {
+    fn start_position(&self) -> Position {
+        self.name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._colon.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordFieldDecl {
+    pub field_name: AtomToken,
+    pub field_default: Option<RecordFieldDefault>,
+    pub field_type: Option<RecordFieldType>,
+}
+impl Parse for RecordFieldDecl {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(RecordFieldDecl {
+            field_name: track!(parser.parse())?,
+            field_default: track!(parser.parse())?,
+            field_type: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RecordFieldDecl {
+    fn start_position(&self) -> Position {
+        self.field_name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.field_type
+            .as_ref()
+            .map(|t| t.end_position())
+            .or_else(|| self.field_default.as_ref().map(|t| t.end_position()))
+            .unwrap_or_else(|| self.field_name.end_position())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordFieldDefault {
+    pub _match: SymbolToken,
+    pub value: Expr,
+}
+impl Parse for RecordFieldDefault {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(RecordFieldDefault {
+            _match: track!(parser.expect(&Symbol::Match))?,
+            value: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RecordFieldDefault {
+    fn start_position(&self) -> Position {
+        self._match.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.value.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordFieldType {
+    pub _double_colon: SymbolToken,
+    pub field_type: Type,
+}
+impl Parse for RecordFieldType {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(RecordFieldType {
+            _double_colon: track!(parser.expect(&Symbol::DoubleColon))?,
+            field_type: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RecordFieldType {
+    fn start_position(&self) -> Position {
+        self._double_colon.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.field_type.end_position()
     }
 }

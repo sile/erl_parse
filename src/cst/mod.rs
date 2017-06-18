@@ -20,6 +20,7 @@ pub mod types;
 mod form;
 mod literal;
 
+/// `Vec<Form>`
 #[derive(Debug, Clone)]
 pub struct ModuleDecl {
     pub forms: Vec<Form>,
