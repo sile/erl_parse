@@ -608,6 +608,7 @@ pub enum GuardTest {
     Map(Box<guard_tests::Map>),
     Record(Box<guard_tests::Record>),
     RecordFieldIndex(Box<guard_tests::RecordFieldIndex>),
+    RecordFieldAccess(Box<guard_tests::RecordFieldAccess>),
     List(Box<guard_tests::List>),
     Bits(Box<guard_tests::Bits>),
     Parenthesized(Box<guard_tests::Parenthesized>),
@@ -650,6 +651,9 @@ impl Parse for GuardTest {
         let left = match kind {
             RightKind::LocalCall => GuardTest::LocalCall(track!(parser.parse_left_recur(test))?),
             RightKind::RemoteCall => GuardTest::RemoteCall(track!(parser.parse_left_recur(test))?),
+            RightKind::RecordFieldAccess => GuardTest::RecordFieldAccess(
+                track!(parser.parse_left_recur(test))?,
+            ), 
             RightKind::None => test,
             _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
         };
@@ -676,6 +680,7 @@ impl PositionRange for GuardTest {
             GuardTest::Map(ref x) => x.start_position(),
             GuardTest::Record(ref x) => x.start_position(),
             GuardTest::RecordFieldIndex(ref x) => x.start_position(),
+            GuardTest::RecordFieldAccess(ref x) => x.start_position(),
             GuardTest::List(ref x) => x.start_position(),
             GuardTest::Bits(ref x) => x.start_position(),
             GuardTest::Parenthesized(ref x) => x.start_position(),
@@ -693,6 +698,7 @@ impl PositionRange for GuardTest {
             GuardTest::Map(ref x) => x.end_position(),
             GuardTest::Record(ref x) => x.end_position(),
             GuardTest::RecordFieldIndex(ref x) => x.end_position(),
+            GuardTest::RecordFieldAccess(ref x) => x.end_position(),            
             GuardTest::List(ref x) => x.end_position(),
             GuardTest::Bits(ref x) => x.end_position(),
             GuardTest::Parenthesized(ref x) => x.end_position(),
