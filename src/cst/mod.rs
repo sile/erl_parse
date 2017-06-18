@@ -510,7 +510,10 @@ pub enum Literal {
     Char(CharToken),
     Float(FloatToken),
     Integer(IntegerToken),
-    String(StringToken),
+
+    // TODO
+    // String(StringToken),
+    String(Vec<StringToken>),
 }
 impl Parse for Literal {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
@@ -522,7 +525,14 @@ impl Parse for Literal {
             LexicalToken::Char(t) => Ok(Literal::Char(t)),
             LexicalToken::Float(t) => Ok(Literal::Float(t)),
             LexicalToken::Integer(t) => Ok(Literal::Integer(t)),
-            LexicalToken::String(t) => Ok(Literal::String(t)),
+            LexicalToken::String(t) => {
+                //Ok(Literal::String(t)),
+                let mut s = vec![t];
+                while let Ok(t) = parser.transaction(|p| p.parse()) {
+                    s.push(t);
+                }
+                Ok(Literal::String(s))
+            }
             token => track_panic!(ErrorKind::UnexpectedToken(token)),
         }
     }
@@ -534,7 +544,7 @@ impl PositionRange for Literal {
             Literal::Char(ref x) => x.start_position(),
             Literal::Float(ref x) => x.start_position(),
             Literal::Integer(ref x) => x.start_position(),
-            Literal::String(ref x) => x.start_position(),
+            Literal::String(ref x) => x[0].start_position(),//x.start_position(),
         }
     }
     fn end_position(&self) -> Position {
@@ -543,7 +553,7 @@ impl PositionRange for Literal {
             Literal::Char(ref x) => x.end_position(),
             Literal::Float(ref x) => x.end_position(),
             Literal::Integer(ref x) => x.end_position(),
-            Literal::String(ref x) => x.end_position(),
+            Literal::String(ref x) => x.last().unwrap().end_position(),//x.end_position(),
         }
     }
 }

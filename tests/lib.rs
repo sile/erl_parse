@@ -51,12 +51,13 @@ macro_rules! parse_form {
 
 #[test]
 fn parse_expr_works() {
-    // // literals
+    // literals
     parse_expr!("foo");
     parse_expr!("$c");
     parse_expr!("1.2");
     parse_expr!("123");
     parse_expr!(r#""foo""#);
+    parse_expr!(r#""foo" "bar" "baz""#);
 
     // variable
     parse_expr!("Foo");
