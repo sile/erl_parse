@@ -28,6 +28,6 @@ fn main() {
         Tokens::new(Preprocessor::new(Lexer::new(text))),
     ));
 
-    let module: ModuleDecl = track_try_unwrap!(parser.parse());
+    let module: ModuleDecl = track_try_unwrap!(parser.parse(), "next={:?}", parser.read_token());
     println!("{:?}", module);
 }

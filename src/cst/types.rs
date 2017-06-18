@@ -254,7 +254,7 @@ impl PositionRange for Annotated {
 #[derive(Debug, Clone)]
 pub struct List {
     pub _open: SymbolToken,
-    pub element: Option<Type>,
+    pub element: Option<ListElement>,
     pub _close: SymbolToken,
 }
 impl Parse for List {
@@ -275,6 +275,60 @@ impl PositionRange for List {
     }
     fn end_position(&self) -> Position {
         self._close.end_position()
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct ListElement {
+    pub element_type: Type,
+    pub non_empty: Option<NonEmpty>,
+}
+impl Parse for ListElement {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(ListElement {
+            element_type: track!(parser.parse())?,
+            non_empty: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for ListElement {
+    fn start_position(&self) -> Position {
+        self.element_type.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.non_empty
+            .as_ref()
+            .map(|t| t.end_position())
+            .unwrap_or_else(|| self.element_type.end_position())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NonEmpty {
+    pub _comma: SymbolToken,
+    pub _triple_dot: SymbolToken,
+}
+impl Parse for NonEmpty {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(NonEmpty {
+            _comma: track!(parser.expect(&Symbol::Comma))?,
+            _triple_dot: track!(parser.expect(&Symbol::TripleDot))?,
+        })
+    }
+}
+impl PositionRange for NonEmpty {
+    fn start_position(&self) -> Position {
+        self._comma.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._triple_dot.end_position()
     }
 }
 

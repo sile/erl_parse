@@ -5,7 +5,7 @@ use erl_tokenize::values::Symbol;
 use {Result, Parser, Preprocessor, Parse};
 use cst::{Type, Expr};
 use cst::building_blocks::{Args, Sequence};
-use cst::clauses::{Clauses, SpecClause, FunClause};
+use cst::clauses::{Clauses, SpecClause, NamedFunClause};
 
 #[derive(Debug, Clone)]
 pub struct ModuleAttr {
@@ -404,8 +404,7 @@ impl PositionRange for ModulePrefix {
 
 #[derive(Debug, Clone)]
 pub struct FunDecl {
-    pub fun_name: AtomToken,
-    pub clauses: Clauses<FunClause>,
+    pub clauses: Clauses<NamedFunClause>,
     pub _dot: SymbolToken,
 }
 impl Parse for FunDecl {
@@ -414,7 +413,6 @@ impl Parse for FunDecl {
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(FunDecl {
-            fun_name: track!(parser.parse())?,
             clauses: track!(parser.parse())?,
             _dot: track!(parser.expect(&Symbol::Dot))?,
         })
@@ -422,7 +420,7 @@ impl Parse for FunDecl {
 }
 impl PositionRange for FunDecl {
     fn start_position(&self) -> Position {
-        self.fun_name.start_position()
+        self.clauses.start_position()
     }
     fn end_position(&self) -> Position {
         self._dot.end_position()

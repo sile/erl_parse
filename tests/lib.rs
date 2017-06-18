@@ -277,6 +277,7 @@ fn parse_type_works() {
     // list
     parse_type!("[]");
     parse_type!("[foo]");
+    parse_type!("[foo, ...]");
 
     // parenthesized
     parse_type!("([10])");
@@ -335,6 +336,7 @@ fn parse_form_works() {
     parse_form!("-spec foo () -> ok.");
     parse_form!("-spec foo (a) -> ok; (b) -> err.");
     parse_form!("-spec foo (a) -> ok; (B) -> err when B :: integer().");
+    parse_form!("-spec foo (A) -> ok when A :: integer(), is_subtype(A, list()).");
 
     // remote spec
     parse_form!("-spec foo:bar () -> ok.");
@@ -348,7 +350,7 @@ fn parse_form_works() {
     // fun declaration
     parse_form!("foo () -> ok.");
     parse_form!("foo (A, {B, _}) -> A + B.");
-    parse_form!("foo (A) when is_integer(A) -> ok; (B) -> {error, B}.");
+    parse_form!("foo (A) when is_integer(A) -> ok; foo (B) -> {error, B}.");
 
     // record declaration
     parse_form!("-record(foo, {}).");

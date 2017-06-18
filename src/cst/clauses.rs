@@ -1,5 +1,5 @@
 use erl_tokenize::{LexicalToken, Position, PositionRange};
-use erl_tokenize::tokens::{KeywordToken, SymbolToken, VariableToken};
+use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
 use {Result, Parser, Preprocessor, Parse};
@@ -186,7 +186,7 @@ impl PositionRange for FunClause {
 
 #[derive(Debug, Clone)]
 pub struct NamedFunClause {
-    pub name: VariableToken,
+    pub name: AtomOrVariable, //VariableToken,
     pub patterns: Args<Pattern>,
     pub guard: Option<Guard>,
     pub _arrow: SymbolToken,
