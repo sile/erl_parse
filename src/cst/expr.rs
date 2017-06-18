@@ -5,7 +5,7 @@ use erl_tokenize::values::{Symbol, Keyword};
 use {Result, Parser, ErrorKind};
 use traits::{Parse, TokenRead};
 use super::Literal;
-use super::building_blocks::BinaryOp;
+use super::commons::parts::BinaryOp;
 use super::exprs;
 
 #[derive(Debug, Clone)]

@@ -1,5 +1,5 @@
 use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::SymbolToken;
+use erl_tokenize::tokens::{SymbolToken, VariableToken, IntegerToken};
 use erl_tokenize::values::Symbol;
 
 use {Result, Parser};
@@ -52,5 +52,119 @@ impl PositionRange for NonEmpty {
     }
     fn end_position(&self) -> Position {
         self._triple_dot.end_position()
+    }
+}
+
+/// `ByteSize` `,` `BitSize`
+#[derive(Debug, Clone)]
+pub struct ByteAndBitSize {
+    pub byte: ByteSize,
+    pub _comma: SymbolToken,
+    pub bit: BitSize,
+}
+impl Parse for ByteAndBitSize {
+    fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
+        Ok(ByteAndBitSize {
+            byte: track!(parser.parse())?,
+            _comma: track!(parser.expect(&Symbol::Comma))?,
+            bit: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for ByteAndBitSize {
+    fn start_position(&self) -> Position {
+        self.byte.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.bit.end_position()
+    }
+}
+
+/// `_` `:` `IntegerToken`
+#[derive(Debug, Clone)]
+pub struct ByteSize {
+    pub _underscore: VariableToken,
+    pub _colon: SymbolToken,
+    pub size: IntegerToken,
+}
+impl Parse for ByteSize {
+    fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
+        Ok(ByteSize {
+            _underscore: track!(parser.expect("_"))?,
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+            size: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for ByteSize {
+    fn start_position(&self) -> Position {
+        self._underscore.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.size.end_position()
+    }
+}
+
+/// `_` `:` `_` `*` `IntegerToken`
+#[derive(Debug, Clone)]
+pub struct BitSize {
+    pub _underscore0: VariableToken,
+    pub _colon: SymbolToken,
+    pub _underscore1: VariableToken,
+    pub _asterisk: SymbolToken,
+    pub size: IntegerToken,
+}
+impl Parse for BitSize {
+    fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
+        Ok(BitSize {
+            _underscore0: track!(parser.expect("_"))?,
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+            _underscore1: track!(parser.expect("_"))?,
+            _asterisk: track!(parser.expect(&Symbol::Multiply))?,
+            size: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for BitSize {
+    fn start_position(&self) -> Position {
+        self._underscore0.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.size.end_position()
+    }
+}
+
+/// `ByteAndBitSize` | `ByteSize` | `BitSize`
+#[derive(Debug, Clone)]
+pub enum BitsSpec {
+    BytesAndBits(ByteAndBitSize),
+    Bytes(ByteSize),
+    Bits(BitSize),
+}
+impl Parse for BitsSpec {
+    fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
+        if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+            Ok(BitsSpec::BytesAndBits(x))
+        } else if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+            Ok(BitsSpec::Bytes(x))
+        } else {
+            Ok(BitsSpec::Bits(track!(parser.parse())?))
+        }
+    }
+}
+impl PositionRange for BitsSpec {
+    fn start_position(&self) -> Position {
+        match *self {
+            BitsSpec::BytesAndBits(ref t) => t.start_position(),
+            BitsSpec::Bytes(ref t) => t.start_position(),
+            BitsSpec::Bits(ref t) => t.start_position(),
+        }
+    }
+    fn end_position(&self) -> Position {
+        match *self {
+            BitsSpec::BytesAndBits(ref t) => t.end_position(),
+            BitsSpec::Bytes(ref t) => t.end_position(),
+            BitsSpec::Bits(ref t) => t.end_position(),
+        }
     }
 }

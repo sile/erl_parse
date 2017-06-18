@@ -5,7 +5,8 @@ use erl_tokenize::values::{Keyword, Symbol};
 use {Result, Parser};
 use traits::{Parse, TokenRead};
 use super::super::GuardTest;
-use super::super::building_blocks::{Sequence, Clauses, AtomOrVariable};
+use super::super::commons::AtomOrVariable;
+use super::super::commons::parts::{Sequence, Clauses};
 
 /// `AtomOrVariable` `:`
 #[derive(Debug, Clone)]

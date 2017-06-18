@@ -1,17 +1,17 @@
 use erl_tokenize::tokens::AtomToken;
 
 use cst::GuardTest;
-use cst::building_blocks;
-use cst::collections;
+use cst::commons;
+use cst::exprs;
 
-pub type Tuple = collections::Tuple<GuardTest>;
-pub type Map = collections::Map<GuardTest>;
-pub type Record = collections::Record<GuardTest>;
-pub type RecordFieldIndex = collections::RecordFieldIndex;
-pub type RecordFieldAccess = building_blocks::RecordFieldAccess<GuardTest>;
-pub type List = collections::List<GuardTest>;
-pub type Bits = collections::Bits<GuardTest>;
-pub type Parenthesized = building_blocks::Parenthesized<GuardTest>;
-pub type FunCall = building_blocks::Call<AtomToken, GuardTest>;
-pub type UnaryOpCall = building_blocks::UnaryOpCall<GuardTest>;
-pub type BinaryOpCall = building_blocks::BinaryOpCall<GuardTest>;
+pub type Tuple = commons::Tuple<GuardTest>;
+pub type Map = commons::Map<GuardTest>;
+pub type Record = commons::Record<GuardTest>;
+pub type RecordFieldIndex = commons::RecordFieldIndex;
+pub type RecordFieldAccess = exprs::RecordFieldAccess<GuardTest>;
+pub type List = commons::List<GuardTest>;
+pub type Bits = commons::Bits<GuardTest>;
+pub type Parenthesized = commons::Parenthesized<GuardTest>;
+pub type FunCall = commons::Call<AtomToken, GuardTest>;
+pub type UnaryOpCall = commons::UnaryOpCall<GuardTest>;
+pub type BinaryOpCall = commons::BinaryOpCall<GuardTest>;

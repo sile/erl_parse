@@ -6,8 +6,8 @@ use {Result, Parser};
 use traits::{Parse, TokenRead};
 use super::Expr;
 use super::super::Pattern;
-use super::super::building_blocks::{Sequence, Clauses};
 use super::super::clauses::{CaseClause, CatchClause};
+use super::super::commons::parts::{Sequence, Clauses};
 
 /// `Sequence<Expr>`
 #[derive(Debug, Clone)]

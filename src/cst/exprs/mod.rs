@@ -4,27 +4,25 @@ use erl_tokenize::values::{Keyword, Symbol};
 
 use {Result, Parser};
 use cst::Expr;
-use cst::building_blocks::{self, Clauses, Sequence, AtomOrVariable, IntegerOrVariable,
-                           ModulePrefix, NameAndArity};
 use cst::clauses::{FunClause, NamedFunClause, IfClause, CaseClause};
-use cst::collections;
+use cst::commons::{self, AtomOrVariable, IntegerOrVariable};
+use cst::commons::parts::{ModulePrefix, NameAndArity, Clauses, Sequence};
 use traits::{Parse, ParseTail, TokenRead};
 use self::parts::{Body, Qualifier, Timeout, TryOf, TryCatch, TryAfter};
 
 pub mod parts;
 
-pub type Tuple = collections::Tuple<Expr>;
-pub type Map = collections::Map<Expr>;
-pub type Record = collections::Record<Expr>;
-pub type RecordFieldIndex = collections::RecordFieldIndex;
-pub type RecordFieldAccess = building_blocks::RecordFieldAccess<Expr>;
-pub type List = collections::List<Expr>;
-pub type Bits = collections::Bits<Expr>;
-pub type Parenthesized = building_blocks::Parenthesized<Expr>;
-pub type FunCall = building_blocks::Call<Expr>;
-pub type UnaryOpCall = building_blocks::UnaryOpCall<Expr>;
-pub type BinaryOpCall = building_blocks::BinaryOpCall<Expr>;
-pub type Match = building_blocks::Match<Expr>;
+pub type Tuple = commons::Tuple<Expr>;
+pub type Map = commons::Map<Expr>;
+pub type Record = commons::Record<Expr>;
+pub type RecordFieldIndex = commons::RecordFieldIndex;
+pub type List = commons::List<Expr>;
+pub type Bits = commons::Bits<Expr>;
+pub type Parenthesized = commons::Parenthesized<Expr>;
+pub type FunCall = commons::Call<Expr>;
+pub type UnaryOpCall = commons::UnaryOpCall<Expr>;
+pub type BinaryOpCall = commons::BinaryOpCall<Expr>;
+pub type Match = commons::Match<Expr>;
 
 /// `Expr` `Map`
 #[derive(Debug, Clone)]
@@ -400,5 +398,29 @@ impl PositionRange for Block {
     }
     fn end_position(&self) -> Position {
         self._end.end_position()
+    }
+}
+
+/// `Expr` `RecordFieldIndex`
+#[derive(Debug, Clone)]
+pub struct RecordFieldAccess<T = Expr> {
+    pub record: T,
+    pub index: RecordFieldIndex,
+}
+impl<T> ParseTail for RecordFieldAccess<T> {
+    type Head = T;
+    fn parse_tail<U: TokenRead>(parser: &mut Parser<U>, head: Self::Head) -> Result<Self> {
+        Ok(RecordFieldAccess {
+            record: head,
+            index: track!(parser.parse())?,
+        })
+    }
+}
+impl<T: PositionRange> PositionRange for RecordFieldAccess<T> {
+    fn start_position(&self) -> Position {
+        self.record.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.index.end_position()
     }
 }

@@ -8,9 +8,8 @@ pub use self::literal::Literal;
 pub use self::pattern::Pattern;
 pub use self::ty::Type;
 
-pub mod building_blocks;
 pub mod clauses;
-pub mod collections;
+pub mod commons;
 pub mod exprs;
 pub mod forms;
 pub mod guard_tests;

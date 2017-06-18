@@ -6,7 +6,7 @@ use trackable::error::ErrorKindExt;
 use {Result, Parser, ErrorKind};
 use traits::{Parse, TokenRead};
 use super::Literal;
-use super::building_blocks::{UnaryOp, BinaryOp};
+use super::commons::parts::{UnaryOp, BinaryOp};
 use super::guard_tests;
 
 #[derive(Debug, Clone)]

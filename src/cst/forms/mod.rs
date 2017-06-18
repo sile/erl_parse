@@ -4,9 +4,9 @@ use erl_tokenize::values::Symbol;
 
 use {Result, Parser};
 use cst::Type;
-use cst::building_blocks::{Clauses, Args, List, NameAndArity, ModulePrefix};
 use cst::clauses::{SpecClause, FunDeclClause};
-use cst::collections::Tuple;
+use cst::commons::{Tuple, ProperList};
+use cst::commons::parts::{Args, ModulePrefix, NameAndArity, Clauses};
 use traits::{Parse, TokenRead};
 use self::parts::RecordFieldDecl;
 
@@ -54,13 +54,13 @@ impl PositionRange for ModuleAttr {
     }
 }
 
-/// `-` `export` `(` `List<NameAndArity>` `)` `.`
+/// `-` `export` `(` `ProperList<NameAndArity>` `)` `.`
 #[derive(Debug, Clone)]
 pub struct ExportAttr {
     pub _hyphen: SymbolToken,
     pub _export: AtomToken,
     pub _open: SymbolToken,
-    pub exports: List<NameAndArity<AtomToken>>,
+    pub exports: ProperList<NameAndArity>,
     pub _close: SymbolToken,
     pub _dot: SymbolToken,
 }
@@ -88,13 +88,13 @@ impl PositionRange for ExportAttr {
     }
 }
 
-/// `-` `export_type` `(` `List<NameAndArity>` `)` `.`
+/// `-` `export_type` `(` `ProperList<NameAndArity>` `)` `.`
 #[derive(Debug, Clone)]
 pub struct ExportTypeAttr {
     pub _hyphen: SymbolToken,
     pub _export_type: AtomToken,
     pub _open: SymbolToken,
-    pub exports: List<NameAndArity<AtomToken>>,
+    pub exports: ProperList<NameAndArity>,
     pub _close: SymbolToken,
     pub _dot: SymbolToken,
 }
@@ -122,7 +122,7 @@ impl PositionRange for ExportTypeAttr {
     }
 }
 
-/// `-` `import` `(` `AtomToken` `,` `List<NameAndArity>` `)` `.`
+/// `-` `import` `(` `AtomToken` `,` `ProperList<NameAndArity>` `)` `.`
 #[derive(Debug, Clone)]
 pub struct ImportAttr {
     pub _hyphen: SymbolToken,
@@ -130,7 +130,7 @@ pub struct ImportAttr {
     pub _open: SymbolToken,
     pub module_name: AtomToken,
     pub _comma: SymbolToken,
-    pub imports: List<NameAndArity<AtomToken>>,
+    pub imports: ProperList<NameAndArity>,
     pub _close: SymbolToken,
     pub _dot: SymbolToken,
 }

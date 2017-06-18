@@ -4,20 +4,20 @@ use erl_tokenize::values::{Symbol, Keyword};
 
 use {Result, Parser};
 use cst::Type;
-use cst::building_blocks::{self, Args, Sequence, BitsSpec};
-use cst::collections;
+use cst::commons;
+use cst::commons::parts::{Args, Sequence};
 use traits::{Parse, ParseTail, TokenRead};
-use self::parts::ListElement;
+use self::parts::{ListElement, BitsSpec};
 
 pub mod parts;
 
-pub type Tuple = collections::Tuple<Type>;
-pub type Map = collections::Map<Type>;
-pub type Record = collections::Record<Type>;
-pub type Parenthesized = building_blocks::Parenthesized<Type>;
-pub type TypeCall = building_blocks::Call<AtomToken, Type>;
-pub type UnaryOpCall = building_blocks::UnaryOpCall<Type>;
-pub type BinaryOpCall = building_blocks::BinaryOpCall<Type>;
+pub type Tuple = commons::Tuple<Type>;
+pub type Map = commons::Map<Type>;
+pub type Record = commons::Record<Type>;
+pub type Parenthesized = commons::Parenthesized<Type>;
+pub type TypeCall = commons::Call<AtomToken, Type>;
+pub type UnaryOpCall = commons::UnaryOpCall<Type>;
+pub type BinaryOpCall = commons::BinaryOpCall<Type>;
 
 /// `AnyFun | AnyArityFun | NormalFun`
 #[derive(Debug, Clone)]
