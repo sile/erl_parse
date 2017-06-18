@@ -338,7 +338,7 @@ impl<T: Parse, A: Parse> ParseTail for Call<T, A> {
         } else {
             Ok(Call {
                 module: None,
-                name: track!(T::parse_non_left_recor(parser))?,
+                name: head,
                 args: track!(parser.parse())?,
             })
         }

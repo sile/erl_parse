@@ -6,6 +6,7 @@ use {Result, Parser, ErrorKind};
 use traits::{Parse, TokenRead};
 
 pub use self::form::Form;
+pub use self::guard_test::GuardTest;
 pub use self::literal::Literal;
 pub use self::pattern::Pattern;
 pub use self::ty::Type;
@@ -20,6 +21,7 @@ pub mod patterns;
 pub mod types;
 
 mod form;
+mod guard_test;
 mod literal;
 mod pattern;
 mod ty;
@@ -456,111 +458,5 @@ impl PositionRange for Guard {
     }
     fn end_position(&self) -> Position {
         self.tests.end_position()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum GuardTest {
-    Literal(Literal),
-    Variable(VariableToken),
-    Tuple(Box<guard_tests::Tuple>),
-    Map(Box<guard_tests::Map>),
-    Record(Box<guard_tests::Record>),
-    RecordFieldIndex(Box<guard_tests::RecordFieldIndex>),
-    RecordFieldAccess(Box<guard_tests::RecordFieldAccess>),
-    List(Box<guard_tests::List>),
-    Bits(Box<guard_tests::Bits>),
-    Parenthesized(Box<guard_tests::Parenthesized>),
-    FunCall(Box<guard_tests::FunCall>),
-    UnaryOpCall(Box<guard_tests::UnaryOpCall>),
-    BinaryOpCall(Box<guard_tests::BinaryOpCall>),
-}
-impl Parse for GuardTest {
-    fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        let kind = track!(parser.peek(
-            |parser| LeftKind::guess::<T, GuardTest>(parser),
-        ))?;
-        let test = match kind {
-            LeftKind::Literal => GuardTest::Literal(track!(parser.parse())?),
-            LeftKind::Variable => GuardTest::Variable(track!(parser.parse())?),
-            LeftKind::Tuple => GuardTest::Tuple(track!(parser.parse())?),
-            LeftKind::Map => GuardTest::Map(track!(parser.parse())?),
-            LeftKind::Record => GuardTest::Record(track!(parser.parse())?),
-            LeftKind::RecordFieldIndex => GuardTest::RecordFieldIndex(track!(parser.parse())?),
-            LeftKind::List => GuardTest::List(track!(parser.parse())?),            
-            LeftKind::Bits => GuardTest::Bits(track!(parser.parse())?),
-            LeftKind::UnaryOpCall => GuardTest::UnaryOpCall(track!(parser.parse())?),
-            LeftKind::Parenthesized => GuardTest::Parenthesized(track!(parser.parse())?),
-            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
-        };
-        Ok(test)
-    }
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        let test = track!(Self::parse_non_left_recor(parser))?;
-        let kind = parser.peek(|parser| Ok(RightKind::guess(parser))).expect(
-            "Never fails",
-        );
-        let left = match kind {
-            RightKind::FunCall => GuardTest::FunCall(track!(parser.parse_tail(test))?),
-            RightKind::RecordFieldAccess => GuardTest::RecordFieldAccess(
-                track!(parser.parse_tail(test))?,
-            ), 
-            RightKind::None => test,
-            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
-        };
-
-        let kind = parser.peek(|parser| Ok(RightKind2::guess(parser))).expect(
-            "Never fails",
-        );
-        match kind {
-            RightKind2::BinaryOpCall => Ok(
-                GuardTest::BinaryOpCall(track!(parser.parse_tail(left))?),
-            ),
-            RightKind2::None |
-            RightKind2::Union => Ok(left),
-            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
-        }
-    }
-}
-impl PositionRange for GuardTest {
-    fn start_position(&self) -> Position {
-        match *self {
-            GuardTest::Literal(ref x) => x.start_position(),
-            GuardTest::Variable(ref x) => x.start_position(),
-            GuardTest::Tuple(ref x) => x.start_position(),
-            GuardTest::Map(ref x) => x.start_position(),
-            GuardTest::Record(ref x) => x.start_position(),
-            GuardTest::RecordFieldIndex(ref x) => x.start_position(),
-            GuardTest::RecordFieldAccess(ref x) => x.start_position(),
-            GuardTest::List(ref x) => x.start_position(),
-            GuardTest::Bits(ref x) => x.start_position(),
-            GuardTest::Parenthesized(ref x) => x.start_position(),
-            GuardTest::FunCall(ref x) => x.start_position(),
-            GuardTest::UnaryOpCall(ref x) => x.start_position(),
-            GuardTest::BinaryOpCall(ref x) => x.start_position(),
-        }
-    }
-    fn end_position(&self) -> Position {
-        match *self {
-            GuardTest::Literal(ref x) => x.end_position(),
-            GuardTest::Variable(ref x) => x.end_position(),
-            GuardTest::Tuple(ref x) => x.end_position(),
-            GuardTest::Map(ref x) => x.end_position(),
-            GuardTest::Record(ref x) => x.end_position(),
-            GuardTest::RecordFieldIndex(ref x) => x.end_position(),
-            GuardTest::RecordFieldAccess(ref x) => x.end_position(),            
-            GuardTest::List(ref x) => x.end_position(),
-            GuardTest::Bits(ref x) => x.end_position(),
-            GuardTest::Parenthesized(ref x) => x.end_position(),
-            GuardTest::FunCall(ref x) => x.end_position(),
-            GuardTest::UnaryOpCall(ref x) => x.end_position(),
-            GuardTest::BinaryOpCall(ref x) => x.end_position(),
-        }
     }
 }

@@ -1,5 +1,5 @@
 use erl_tokenize::{LexicalToken, Position, PositionRange};
-use erl_tokenize::tokens::{AtomToken, VariableToken};
+use erl_tokenize::tokens::{AtomToken, VariableToken, SymbolToken};
 use erl_tokenize::values::{Symbol, Keyword};
 use trackable::error::ErrorKindExt;
 
@@ -156,26 +156,18 @@ impl HeadKind {
                 }
             }
             LexicalToken::Variable(_) => {
-                if track!(parser.eos())? {
-                    HeadKind::Variable
-                } else {
-                    let token = track!(parser.parse::<LexicalToken>())?;
-                    match token.as_symbol_token().map(|t| t.value()) {
-                        Some(Symbol::DoubleColon) => HeadKind::Annotated,
-                        _ => HeadKind::Variable,
-                    }
+                let token = parser.parse::<SymbolToken>();
+                match token.ok().map(|t| t.value()) {
+                    Some(Symbol::DoubleColon) => HeadKind::Annotated,
+                    _ => HeadKind::Variable,
                 }
             }
             LexicalToken::Atom(_) => {
-                if track!(parser.eos())? {
-                    HeadKind::Literal
-                } else {
-                    let token = track!(parser.parse::<LexicalToken>())?;
-                    match token.as_symbol_token().map(|t| t.value()) {
-                        Some(Symbol::OpenParen) |
-                        Some(Symbol::Colon) => HeadKind::TypeCall,
-                        _ => HeadKind::Literal,
-                    }
+                let token = parser.parse::<SymbolToken>();
+                match token.ok().map(|t| t.value()) {
+                    Some(Symbol::OpenParen) |
+                    Some(Symbol::Colon) => HeadKind::TypeCall,
+                    _ => HeadKind::Literal,
                 }
             }
             _ => HeadKind::Literal,
