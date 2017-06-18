@@ -306,11 +306,11 @@ impl PositionRange for UnaryOp {
 }
 
 #[derive(Debug, Clone)]
-pub struct LocalCall<T> {
+pub struct LocalCall<T, A = T> {
     pub name: T,
-    pub args: Args<T>,
+    pub args: Args<A>,
 }
-impl<T: Parse> Parse for LocalCall<T> {
+impl<T: Parse, A: Parse> Parse for LocalCall<T, A> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: TokenRead,
@@ -321,7 +321,7 @@ impl<T: Parse> Parse for LocalCall<T> {
         })
     }
 }
-impl<T: Parse> ParseTail for LocalCall<T> {
+impl<T: Parse, A: Parse> ParseTail for LocalCall<T, A> {
     type Head = T;
     fn parse_tail<U>(parser: &mut Parser<U>, head: T) -> Result<Self>
     where
@@ -333,7 +333,7 @@ impl<T: Parse> ParseTail for LocalCall<T> {
         })
     }
 }
-impl<T: PositionRange> PositionRange for LocalCall<T> {
+impl<T: PositionRange, A> PositionRange for LocalCall<T, A> {
     fn start_position(&self) -> Position {
         self.name.start_position()
     }
@@ -343,12 +343,24 @@ impl<T: PositionRange> PositionRange for LocalCall<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct RemoteCall<T> {
+pub struct RemoteCall<T, A = T> {
     pub module_name: T,
     pub _colon: SymbolToken,
-    pub fun: LocalCall<T>,
+    pub fun: LocalCall<T, A>,
 }
-impl<T: Parse> ParseTail for RemoteCall<T> {
+impl<T: Parse, A: Parse> Parse for RemoteCall<T, A> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: TokenRead,
+    {
+        Ok(RemoteCall {
+            module_name: track!(T::parse_non_left_recor(parser))?,
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+            fun: track!(parser.parse())?,
+        })
+    }
+}
+impl<T: Parse, A: Parse> ParseTail for RemoteCall<T, A> {
     type Head = T;
     fn parse_tail<U>(parser: &mut Parser<U>, head: Self::Head) -> Result<Self>
     where
@@ -361,7 +373,7 @@ impl<T: Parse> ParseTail for RemoteCall<T> {
         })
     }
 }
-impl<T: PositionRange> PositionRange for RemoteCall<T> {
+impl<T: PositionRange, A> PositionRange for RemoteCall<T, A> {
     fn start_position(&self) -> Position {
         self.module_name.start_position()
     }
@@ -381,13 +393,10 @@ impl<T: Parse> Parse for Args<T> {
     where
         U: TokenRead,
     {
-        let _open = track!(parser.expect(&Symbol::OpenParen))?;
-        let args = track!(parser.parse())?;
-        let _close = track!(parser.expect(&Symbol::CloseParen))?;
         Ok(Args {
-            _open, //: track!(parser.expect(&Symbol::OpenParen))?,
-            args, //: track!(parser.parse())?,
-            _close, //: track!(parser.expect(&Symbol::CloseParen))?,
+            _open: track!(parser.expect(&Symbol::OpenParen))?,
+            args: track!(parser.parse())?,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
         })
     }
 }

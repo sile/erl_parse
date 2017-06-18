@@ -9,7 +9,72 @@ use cst::collections;
 use traits::{Parse, ParseTail, TokenRead};
 
 #[derive(Debug, Clone)]
-pub struct AnyArgFun {
+pub enum Fun {
+    Any(AnyFun),
+    AnyArity(AnyArityFun),
+    Normal(NormalFun),
+}
+impl Parse for Fun {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        // TODO: look ahead
+        if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+            Ok(Fun::Any(x))
+        } else if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+            Ok(Fun::AnyArity(x))
+        } else {
+            Ok(Fun::Normal(track!(parser.parse())?))
+        }
+    }
+}
+impl PositionRange for Fun {
+    fn start_position(&self) -> Position {
+        match *self {
+            Fun::Any(ref x) => x.start_position(),
+            Fun::AnyArity(ref x) => x.start_position(),
+            Fun::Normal(ref x) => x.start_position(),
+        }
+    }
+    fn end_position(&self) -> Position {
+        match *self {
+            Fun::Any(ref x) => x.end_position(),
+            Fun::AnyArity(ref x) => x.end_position(),
+            Fun::Normal(ref x) => x.end_position(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AnyFun {
+    pub _fun: KeywordToken,
+    pub _open: SymbolToken,
+    pub _close: SymbolToken,
+}
+impl Parse for AnyFun {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(AnyFun {
+            _fun: track!(parser.expect(&Keyword::Fun))?,
+            _open: track!(parser.expect(&Symbol::OpenParen))?,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
+        })
+    }
+}
+impl PositionRange for AnyFun {
+    fn start_position(&self) -> Position {
+        self._fun.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._close.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AnyArityFun {
     pub _fun: KeywordToken,
     pub _open: SymbolToken,
     pub _args_open: SymbolToken,
@@ -19,12 +84,12 @@ pub struct AnyArgFun {
     pub return_type: Type,
     pub _close: SymbolToken,
 }
-impl Parse for AnyArgFun {
+impl Parse for AnyArityFun {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: TokenRead,
     {
-        Ok(AnyArgFun {
+        Ok(AnyArityFun {
             _fun: track!(parser.expect(&Keyword::Fun))?,
             _open: track!(parser.expect(&Symbol::OpenParen))?,
             _args_open: track!(parser.expect(&Symbol::OpenParen))?,
@@ -36,7 +101,7 @@ impl Parse for AnyArgFun {
         })
     }
 }
-impl PositionRange for AnyArgFun {
+impl PositionRange for AnyArityFun {
     fn start_position(&self) -> Position {
         self._fun.start_position()
     }
@@ -46,7 +111,7 @@ impl PositionRange for AnyArgFun {
 }
 
 #[derive(Debug, Clone)]
-pub struct Fun {
+pub struct NormalFun {
     pub _fun: KeywordToken,
     pub _open: SymbolToken,
     pub args: Args<Type>,
@@ -54,12 +119,12 @@ pub struct Fun {
     pub return_type: Type,
     pub _close: SymbolToken,
 }
-impl Parse for Fun {
+impl Parse for NormalFun {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
         T: TokenRead,
     {
-        Ok(Fun {
+        Ok(NormalFun {
             _fun: track!(parser.expect(&Keyword::Fun))?,
             _open: track!(parser.expect(&Symbol::OpenParen))?,
             args: track!(parser.parse())?,
@@ -69,7 +134,7 @@ impl Parse for Fun {
         })
     }
 }
-impl PositionRange for Fun {
+impl PositionRange for NormalFun {
     fn start_position(&self) -> Position {
         self._fun.start_position()
     }
@@ -486,10 +551,7 @@ pub type Tuple = collections::Tuple<Type>;
 pub type Map = collections::Map<Type>;
 pub type Record = collections::Record<Type>;
 pub type Parenthesized = building_blocks::Parenthesized<Type>;
-
-// TODO: s/Type/AtomToken/
-pub type LocalCall = building_blocks::LocalCall<Type>;
-pub type RemoteCall = building_blocks::RemoteCall<Type>;
-
+pub type LocalCall = building_blocks::LocalCall<AtomToken, Type>;
+pub type RemoteCall = building_blocks::RemoteCall<AtomToken, Type>;
 pub type UnaryOpCall = building_blocks::UnaryOpCall<Type>;
 pub type BinaryOpCall = building_blocks::BinaryOpCall<Type>;

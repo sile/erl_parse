@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use num::BigUint;
 use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, KeywordToken,
                            StringToken, SymbolToken, VariableToken};
@@ -6,7 +7,7 @@ use erl_tokenize::values::{Symbol, Keyword};
 use {Result, ErrorKind};
 
 pub trait Expect: Sized {
-    type Value: ?Sized;
+    type Value: ?Sized + Debug;
     fn expect(&self, expected: &Self::Value) -> Result<()>;
 }
 impl Expect for AtomToken {

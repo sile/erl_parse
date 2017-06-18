@@ -299,6 +299,7 @@ fn parse_type_works() {
     parse_type!("foo:bar(1,2,3)");
 
     // fun
+    parse_type!("fun ()");
     parse_type!("fun ((...) -> number())");
     parse_type!("fun ((A, b) -> c:d())");
 

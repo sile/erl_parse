@@ -1,13 +1,15 @@
 use erl_tokenize::LexicalToken;
 
-use Result;
+use {Result, Error, ErrorKind};
 use traits::{Expect, Parse, ParseTail, TokenRead};
 
 #[derive(Debug)]
 pub struct Parser<T> {
     reader: T,
     // TODO: optimize
+    // (単一のバッファとトランザクション開始位置配列、に分離)
     transactions: Vec<Vec<LexicalToken>>,
+    last_read_error: Option<Error>,
 }
 impl<T> Parser<T>
 where
@@ -17,6 +19,7 @@ where
         Parser {
             reader,
             transactions: Vec::new(),
+            last_read_error: None,
         }
     }
     pub fn parse<P: Parse>(&mut self) -> Result<P> {
@@ -27,7 +30,7 @@ where
     }
     pub fn expect<P: Parse + Expect>(&mut self, expected: &P::Value) -> Result<P> {
         self.transaction(|parser| {
-            let actual = track!(parser.parse::<P>())?;
+            let actual = track!(parser.parse::<P>(), "expected={:?}", expected)?;
             track!(actual.expect(expected))?;
             Ok(actual)
         })
@@ -81,8 +84,17 @@ where
     }
 
     pub(crate) fn next_token(&mut self) -> Result<LexicalToken> {
+        if let Some(e) = self.last_read_error.clone() {
+            return Err(e);
+        }
         match self.reader.read_token() {
-            Err(e) => Err(e),
+            Err(e) => {
+                if let ErrorKind::UnexpectedEos = *e.kind() {
+                } else {
+                    self.last_read_error = Some(e.clone());
+                }
+                Err(e)
+            }
             Ok(t) => {
                 if let Some(tail) = self.transactions.last_mut() {
                     tail.push(t.clone());

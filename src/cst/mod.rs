@@ -8,6 +8,7 @@ use traits::{Parse, TokenRead};
 pub use self::form::Form;
 pub use self::literal::Literal;
 pub use self::pattern::Pattern;
+pub use self::ty::Type;
 
 pub mod building_blocks;
 pub mod clauses;
@@ -21,6 +22,7 @@ pub mod types;
 mod form;
 mod literal;
 mod pattern;
+mod ty;
 
 /// `Vec<Form>`
 #[derive(Debug, Clone)]
@@ -569,126 +571,6 @@ impl PositionRange for GuardTest {
             GuardTest::RemoteCall(ref x) => x.end_position(),
             GuardTest::UnaryOpCall(ref x) => x.end_position(),
             GuardTest::BinaryOpCall(ref x) => x.end_position(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Type {
-    Literal(Literal),
-    Variable(VariableToken),
-    Annotated(Box<types::Annotated>),
-    Tuple(Box<types::Tuple>),
-    Map(Box<types::Map>),
-    Record(Box<types::Record>),
-    List(Box<types::List>),
-    Bits(Box<types::Bits>),
-    Parenthesized(Box<types::Parenthesized>),
-    LocalCall(Box<types::LocalCall>),
-    RemoteCall(Box<types::RemoteCall>),
-    UnaryOpCall(Box<types::UnaryOpCall>),
-    BinaryOpCall(Box<types::BinaryOpCall>),
-    AnyArgFun(Box<types::AnyArgFun>),
-    Fun(Box<types::Fun>),
-    Range(Box<types::Range>),
-    Union(Box<types::Union>),
-}
-impl Parse for Type {
-    fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        let kind = track!(parser.peek(|parser| LeftKind::guess::<T, Type>(parser)))?;
-        let ty = match kind {
-            LeftKind::Literal => Type::Literal(track!(parser.parse())?),
-            LeftKind::Variable => Type::Variable(track!(parser.parse())?),
-            LeftKind::Annotated => Type::Annotated(track!(parser.parse())?),
-            LeftKind::List => Type::List(track!(parser.parse())?),
-            LeftKind::Bits => Type::Bits(track!(parser.parse())?),            
-            LeftKind::Tuple => Type::Tuple(track!(parser.parse())?),
-            LeftKind::Map => Type::Map(track!(parser.parse())?),
-            LeftKind::Record => Type::Record(track!(parser.parse())?),
-            LeftKind::UnaryOpCall => Type::UnaryOpCall(track!(parser.parse())?),
-            LeftKind::Parenthesized => Type::Parenthesized(track!(parser.parse())?),
-            LeftKind::AnonymousFun => {
-                if let Ok(t) = parser.transaction(|parser| parser.parse()) {
-                    Type::AnyArgFun(t)
-                } else {
-                    Type::Fun(track!(parser.parse())?)
-                }
-            }
-            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
-        };
-        Ok(ty)
-    }
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        let ty = track!(Type::parse_non_left_recor(parser))?;
-        let kind = parser.peek(|parser| Ok(RightKind::guess(parser))).expect(
-            "Never fails",
-        );
-        let left = match kind {
-            RightKind::LocalCall => Type::LocalCall(track!(parser.parse_tail(ty))?),
-            RightKind::RemoteCall => Type::RemoteCall(track!(parser.parse_tail(ty))?),
-            RightKind::None => ty,
-            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
-        };
-
-        let kind = parser.peek(|parser| Ok(RightKind2::guess(parser))).expect(
-            "Never fails",
-        );
-        match kind {
-            RightKind2::BinaryOpCall => Ok(Type::BinaryOpCall(track!(parser.parse_tail(left))?)),
-            RightKind2::Union => Ok(Type::Union(track!(parser.parse_tail(left))?)),
-            RightKind2::Range => Ok(Type::Range(track!(parser.parse_tail(left))?)),
-            RightKind2::None => Ok(left),
-            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),            
-        }
-    }
-}
-impl PositionRange for Type {
-    fn start_position(&self) -> Position {
-        match *self {
-            Type::Literal(ref x) => x.start_position(),
-            Type::Variable(ref x) => x.start_position(),
-            Type::Annotated(ref x) => x.start_position(),
-            Type::List(ref x) => x.start_position(),
-            Type::Bits(ref x) => x.start_position(),            
-            Type::Tuple(ref x) => x.start_position(),
-            Type::Map(ref x) => x.start_position(),
-            Type::Record(ref x) => x.start_position(),
-            Type::AnyArgFun(ref x) => x.start_position(),
-            Type::Fun(ref x) => x.start_position(),
-            Type::Parenthesized(ref x) => x.start_position(),
-            Type::LocalCall(ref x) => x.start_position(),
-            Type::RemoteCall(ref x) => x.start_position(),
-            Type::UnaryOpCall(ref x) => x.start_position(),
-            Type::BinaryOpCall(ref x) => x.start_position(),
-            Type::Range(ref x) => x.start_position(),
-            Type::Union(ref x) => x.start_position(),
-        }
-    }
-    fn end_position(&self) -> Position {
-        match *self {
-            Type::Literal(ref x) => x.end_position(),
-            Type::Variable(ref x) => x.end_position(),
-            Type::Annotated(ref x) => x.end_position(),
-            Type::List(ref x) => x.end_position(),
-            Type::Bits(ref x) => x.end_position(),
-            Type::Tuple(ref x) => x.end_position(),
-            Type::Map(ref x) => x.end_position(),
-            Type::Record(ref x) => x.end_position(),
-            Type::AnyArgFun(ref x) => x.end_position(),
-            Type::Fun(ref x) => x.end_position(),
-            Type::Parenthesized(ref x) => x.end_position(),
-            Type::LocalCall(ref x) => x.end_position(),
-            Type::RemoteCall(ref x) => x.end_position(),
-            Type::UnaryOpCall(ref x) => x.end_position(),
-            Type::BinaryOpCall(ref x) => x.end_position(),
-            Type::Range(ref x) => x.end_position(),
-            Type::Union(ref x) => x.end_position(),
         }
     }
 }
