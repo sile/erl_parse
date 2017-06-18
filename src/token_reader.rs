@@ -31,7 +31,7 @@ where
 
 #[derive(Debug)]
 pub struct TokenReader<T> {
-    tokens: T,
+    pub tokens: T,
     pub unread: Vec<LexicalToken>, // TODO: private
 }
 impl<T, E> TokenReader<Tokens<T, E>>

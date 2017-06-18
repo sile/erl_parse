@@ -21,14 +21,21 @@ impl Parse for ModuleAttr {
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
-        Ok(ModuleAttr {
+        let this = ModuleAttr {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
             _module: track!(parser.expect("module"))?,
             _open: track!(parser.expect(&Symbol::OpenParen))?,
             module_name: track!(parser.parse())?,
             _close: track!(parser.expect(&Symbol::CloseParen))?,
             _dot: track!(parser.expect(&Symbol::Dot))?,
-        })
+        };
+
+        let module_string =
+            StringToken::from_value(this.module_name.value(), this.module_name.start_position());
+        parser.define_macro("MODULE", vec![this.module_name.clone().into()]);
+        parser.define_macro("MODULE_STRING", vec![module_string.into()]);
+
+        Ok(this)
     }
 }
 impl PositionRange for ModuleAttr {

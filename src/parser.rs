@@ -17,6 +17,12 @@ where
             transactions: Vec::new(),
         }
     }
+    pub fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>) {
+        self.reader.tokens.define_macro(name, replacement);
+    }
+    pub fn undef_macro(&mut self, name: &str) {
+        self.reader.tokens.undef_macro(name);
+    }
     pub fn is_eos(&mut self) -> Result<bool> {
         if let Some(t) = track!(self.reader.try_read_token())? {
             self.reader.unread_token(t);
