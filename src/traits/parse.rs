@@ -1,25 +1,24 @@
-use erl_tokenize::LexicalToken;
 use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, KeywordToken,
                            StringToken, SymbolToken, VariableToken};
 
 use {Result, ErrorKind, Parser, Error};
-use traits::Preprocessor;
+use traits::TokenRead;
 
 pub trait Parse: Sized {
     fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         parser.parse()
     }
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor;
+        T: TokenRead;
 }
 impl<U: Parse> Parse for Box<U> {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         parser.parse().map(Box::new)
     }
@@ -27,7 +26,7 @@ impl<U: Parse> Parse for Box<U> {
 impl<T: Parse> Parse for Option<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(parser.transaction(|parser| parser.parse()).ok())
     }
@@ -35,7 +34,7 @@ impl<T: Parse> Parse for Option<T> {
 impl Parse for AtomToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         let token = track!(
@@ -50,7 +49,7 @@ impl Parse for AtomToken {
 impl Parse for CharToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         let token = track!(
@@ -65,7 +64,7 @@ impl Parse for CharToken {
 impl Parse for FloatToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         let token = track!(
@@ -80,7 +79,7 @@ impl Parse for FloatToken {
 impl Parse for IntegerToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         let token = track!(
@@ -95,7 +94,7 @@ impl Parse for IntegerToken {
 impl Parse for KeywordToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         let token = track!(
@@ -110,7 +109,7 @@ impl Parse for KeywordToken {
 impl Parse for StringToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         let token = track!(
@@ -125,7 +124,7 @@ impl Parse for StringToken {
 impl Parse for SymbolToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         let token = track!(
@@ -140,7 +139,7 @@ impl Parse for SymbolToken {
 impl Parse for VariableToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         let token = track!(
@@ -157,13 +156,13 @@ pub trait ParseTail: Sized {
     type Head;
     fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor;
+        T: TokenRead;
 }
 impl<T: ParseTail> ParseTail for Box<T> {
     type Head = T::Head;
     fn parse_tail<U>(parser: &mut Parser<U>, head: Self::Head) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         T::parse_tail(parser, head).map(Box::new)
     }

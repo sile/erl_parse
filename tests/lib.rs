@@ -5,46 +5,46 @@ extern crate erl_tokenize;
 extern crate trackable;
 
 use erl_pp::Preprocessor;
-use erl_parse::{TokenReader, Tokens, Parse, Parser};
+use erl_parse::{TokenReader, Parser};
 use erl_parse::cst::{Expr, Pattern, Type, Form};
 use erl_tokenize::{Lexer, PositionRange};
 
 macro_rules! parse_expr {
     ($text:expr) => {
-        let mut tokens = Parser::new(
-            TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text)))));
-        let value = track_try_unwrap!(Expr::parse(&mut tokens),
-                                      "text={:?}, next={:?}", $text, tokens.read_token());
+        let mut parser = Parser::new(
+            TokenReader::new(Preprocessor::new(Lexer::new($text))));
+        let value: Expr = track_try_unwrap!(parser.parse(),
+                                      "text={:?}, next={:?}", $text, parser.read_token());
         assert_eq!(value.end_position().offset(), $text.len());
     }
  }
 
 macro_rules! parse_pattern {
     ($text:expr) => {
-        let mut tokens = Parser::new(
-            TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text)))));
-        let value = track_try_unwrap!(Pattern::parse(&mut tokens),
-                                      "text={:?}, next={:?}", $text, tokens.read_token());
+        let mut parser = Parser::new(
+            TokenReader::new(Preprocessor::new(Lexer::new($text))));
+        let value: Pattern = track_try_unwrap!(parser.parse(),
+                                      "text={:?}, next={:?}", $text, parser.read_token());
         assert_eq!(value.end_position().offset(), $text.len());
     }
  }
 
 macro_rules! parse_type {
     ($text:expr) => {
-        let mut tokens = Parser::new(
-            TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text)))));
-        let value = track_try_unwrap!(Type::parse(&mut tokens),
-                                      "text={:?}, next={:?}", $text, tokens.read_token());
+        let mut parser = Parser::new(
+            TokenReader::new(Preprocessor::new(Lexer::new($text))));
+        let value: Type = track_try_unwrap!(parser.parse(),
+                                      "text={:?}, next={:?}", $text, parser.read_token());
         assert_eq!(value.end_position().offset(), $text.len());
     }
  }
 
 macro_rules! parse_form {
     ($text:expr) => {
-        let mut tokens = Parser::new(
-            TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text)))));
-        let value = track_try_unwrap!(Form::parse(&mut tokens),
-                                      "text={:?}, next={:?}", $text, tokens.read_token());
+        let mut parser = Parser::new(
+            TokenReader::new(Preprocessor::new(Lexer::new($text))));
+        let value: Form = track_try_unwrap!(parser.parse(),
+                                      "text={:?}, next={:?}", $text, parser.read_token());
         assert_eq!(value.end_position().offset(), $text.len());
     }
  }

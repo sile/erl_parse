@@ -1,28 +1,28 @@
 use erl_tokenize::LexicalToken;
 
-use {Result, TokenReader};
-use traits::{Expect, Parse, ParseTail, Preprocessor};
+use Result;
+use traits::{Expect, Parse, ParseTail, TokenRead};
 
 #[derive(Debug)]
 pub struct Parser<T> {
-    reader: TokenReader<T>,
+    reader: T,
     transactions: Vec<Vec<LexicalToken>>,
 }
 impl<T> Parser<T>
 where
-    T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    T: TokenRead,
 {
-    pub fn new(reader: TokenReader<T>) -> Self {
+    pub fn new(reader: T) -> Self {
         Parser {
             reader,
             transactions: Vec::new(),
         }
     }
     pub fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>) {
-        self.reader.tokens.define_macro(name, replacement);
+        self.reader.define_macro(name, replacement);
     }
     pub fn undef_macro(&mut self, name: &str) {
-        self.reader.tokens.undef_macro(name);
+        self.reader.undef_macro(name);
     }
     pub fn is_eos(&mut self) -> Result<bool> {
         if let Some(t) = track!(self.reader.try_read_token())? {

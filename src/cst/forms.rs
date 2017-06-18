@@ -6,7 +6,7 @@ use {Result, Parser};
 use cst::{Type, Expr};
 use cst::building_blocks::{Args, Sequence};
 use cst::clauses::{Clauses, SpecClause, NamedFunClause};
-use traits::{Parse, Preprocessor};
+use traits::{Parse, TokenRead};
 
 #[derive(Debug, Clone)]
 pub struct ModuleAttr {
@@ -20,7 +20,7 @@ pub struct ModuleAttr {
 impl Parse for ModuleAttr {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let this = ModuleAttr {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
@@ -57,7 +57,7 @@ pub struct List<T> {
 impl<T: Parse> Parse for List<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(List {
             _open: track!(parser.expect(&Symbol::OpenSquare))?,
@@ -87,7 +87,7 @@ pub struct ExportAttr {
 impl Parse for ExportAttr {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(ExportAttr {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
@@ -117,7 +117,7 @@ pub struct Export {
 impl Parse for Export {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Export {
             name: track!(parser.parse())?,
@@ -144,7 +144,7 @@ pub struct Import {
 impl Parse for Import {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Import {
             name: track!(parser.parse())?,
@@ -174,7 +174,7 @@ pub struct ExportTypeAttr {
 impl Parse for ExportTypeAttr {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(ExportTypeAttr {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
@@ -209,7 +209,7 @@ pub struct ImportAttr {
 impl Parse for ImportAttr {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(ImportAttr {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
@@ -246,7 +246,7 @@ pub struct FileAttr {
 impl Parse for FileAttr {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(FileAttr {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
@@ -281,7 +281,7 @@ pub struct WildAttr {
 impl Parse for WildAttr {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let _hyphen = track!(parser.expect(&Symbol::Hyphen))?;
         let attr_name = track!(parser.parse())?;
@@ -333,7 +333,7 @@ pub struct FunSpec {
 impl Parse for FunSpec {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(FunSpec {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
@@ -365,7 +365,7 @@ pub struct CallbackSpec {
 impl Parse for CallbackSpec {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(CallbackSpec {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
@@ -393,7 +393,7 @@ pub struct ModulePrefix {
 impl Parse for ModulePrefix {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(ModulePrefix {
             name: track!(parser.parse())?,
@@ -418,7 +418,7 @@ pub struct FunDecl {
 impl Parse for FunDecl {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(FunDecl {
             clauses: track!(parser.parse())?,
@@ -451,7 +451,7 @@ pub struct RecordDecl {
 impl Parse for RecordDecl {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(RecordDecl {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
@@ -485,7 +485,7 @@ pub struct RecordField {
 impl Parse for RecordField {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(RecordField {
             field_name: track!(parser.parse())?,
@@ -515,7 +515,7 @@ pub struct RecordFieldDefault {
 impl Parse for RecordFieldDefault {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(RecordFieldDefault {
             _match: track!(parser.expect(&Symbol::Match))?,
@@ -540,7 +540,7 @@ pub struct RecordFieldType {
 impl Parse for RecordFieldType {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(RecordFieldType {
             _double_colon: track!(parser.expect(&Symbol::DoubleColon))?,
@@ -570,7 +570,7 @@ pub struct TypeDecl {
 impl Parse for TypeDecl {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(TypeDecl {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,

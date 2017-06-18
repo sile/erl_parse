@@ -1,10 +1,10 @@
-use erl_tokenize::{LexicalToken, PositionRange, Position};
+use erl_tokenize::{PositionRange, Position};
 
 use {Result, Parser};
 use cst::GuardTest;
 use cst::building_blocks;
 use cst::collections;
-use traits::{ParseTail, Preprocessor};
+use traits::{ParseTail, TokenRead};
 
 // TODO: 共通化
 #[derive(Debug, Clone)]
@@ -16,7 +16,7 @@ impl ParseTail for RecordFieldAccess {
     type Head = GuardTest;
     fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(RecordFieldAccess {
             record: head,

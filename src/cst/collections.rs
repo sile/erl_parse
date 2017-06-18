@@ -1,11 +1,11 @@
 // TODO: rename
-use erl_tokenize::{Position, PositionRange, LexicalToken};
+use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken};
 use erl_tokenize::values::Symbol;
 
 use {Result, Parser};
 use cst::building_blocks::{Sequence, MapField, RecordField, ConsCell, HyphenSeq};
-use traits::{Parse, Preprocessor};
+use traits::{Parse, TokenRead};
 
 #[derive(Debug, Clone)]
 pub struct Tuple<T> {
@@ -16,7 +16,7 @@ pub struct Tuple<T> {
 impl<T: Parse> Parse for Tuple<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(Tuple {
             _open: track!(parser.expect(&Symbol::OpenBrace))?,
@@ -43,7 +43,7 @@ pub struct Bits<T> {
 impl<T: Parse> Parse for Bits<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(Bits {
             _open: track!(parser.expect(&Symbol::DoubleLeftAngle))?,
@@ -70,7 +70,7 @@ pub struct BitsElem<T> {
 impl<T: Parse> Parse for BitsElem<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(BitsElem {
             element: track!(T::parse_non_left_recor(parser))?,
@@ -100,7 +100,7 @@ pub struct BitsElemSize<T> {
 impl<T: Parse> Parse for BitsElemSize<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(BitsElemSize {
             _colon: track!(parser.expect(&Symbol::Colon))?,
@@ -125,7 +125,7 @@ pub struct BitsElemSpecs {
 impl Parse for BitsElemSpecs {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(BitsElemSpecs {
             _slash: track!(parser.expect(&Symbol::Slash))?,
@@ -154,7 +154,7 @@ pub enum BitsElemSpec {
 impl Parse for BitsElemSpec {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let atom: AtomToken = track!(parser.parse())?;
         if atom.value() == "unit" {
@@ -192,7 +192,7 @@ pub struct List<T> {
 impl<T: Parse> Parse for List<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(List {
             _open: track!(parser.expect(&Symbol::OpenSquare))?,
@@ -221,7 +221,7 @@ pub struct Record<T> {
 impl<T: Parse> Parse for Record<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(Record {
             _sharp: track!(parser.expect(&Symbol::Sharp))?,
@@ -251,7 +251,7 @@ pub struct RecordFieldIndex {
 impl Parse for RecordFieldIndex {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(RecordFieldIndex {
             _sharp: track!(parser.expect(&Symbol::Sharp))?,
@@ -280,7 +280,7 @@ pub struct Map<T> {
 impl<T: Parse> Parse for Map<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(Map {
             _sharp: track!(parser.expect(&Symbol::Sharp))?,

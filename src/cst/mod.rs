@@ -4,7 +4,7 @@ use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, Strin
 use erl_tokenize::values::{Symbol, Keyword};
 
 use {Result, Parser, ErrorKind, Error};
-use traits::{Parse, Preprocessor};
+use traits::{Parse, TokenRead};
 
 pub mod building_blocks;
 pub mod clauses;
@@ -22,7 +22,7 @@ pub struct ModuleDecl {
 impl Parse for ModuleDecl {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let mut forms = Vec::new();
         while !track!(parser.is_eos())? {
@@ -45,7 +45,7 @@ pub enum RightKind {
 impl RightKind {
     fn guess<T>(parser: &mut Parser<T>) -> Self
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         match parser.read_token() {
             Ok(LexicalToken::Symbol(t)) => {
@@ -94,7 +94,7 @@ pub enum RightKind2 {
 impl RightKind2 {
     fn guess<T>(parser: &mut Parser<T>) -> Self
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         match parser.read_token() {
             Ok(LexicalToken::Symbol(t)) => {
@@ -151,7 +151,7 @@ pub enum LeftKind {
 impl LeftKind {
     fn guess<T, U>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
         U: Parse,
     {
         Ok(match track!(parser.read_token())? {
@@ -279,7 +279,7 @@ pub enum Expr {
 impl Parse for Expr {
     fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let kind = track!(parser.peek(|parser| LeftKind::guess::<T, Expr>(parser)))?;
         let expr = match kind {
@@ -311,7 +311,7 @@ impl Parse for Expr {
     }
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         if let Ok(expr) = parser.transaction(|parser| parser.parse()) {
             return Ok(Expr::Match(expr));
@@ -430,7 +430,7 @@ pub enum Pattern {
 impl Parse for Pattern {
     fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let kind = track!(parser.peek(|parser| LeftKind::guess::<T, Pattern>(parser)))?;
         let pattern = match kind {
@@ -450,7 +450,7 @@ impl Parse for Pattern {
     }
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let left = track!(Pattern::parse_non_left_recor(parser))?;
 
@@ -515,7 +515,7 @@ pub enum Literal {
 impl Parse for Literal {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         match track!(parser.read_token())? {
             LexicalToken::Atom(t) => Ok(Literal::Atom(t)),
@@ -562,7 +562,7 @@ pub struct GuardSeq {
 impl Parse for GuardSeq {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(GuardSeq { guards: track!(parser.parse())? })
     }
@@ -583,7 +583,7 @@ pub struct Guard {
 impl Parse for Guard {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Guard { tests: track!(parser.parse())? })
     }
@@ -617,7 +617,7 @@ pub enum GuardTest {
 impl Parse for GuardTest {
     fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let kind = track!(parser.peek(
             |parser| LeftKind::guess::<T, GuardTest>(parser),
@@ -639,7 +639,7 @@ impl Parse for GuardTest {
     }
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let test = track!(Self::parse_non_left_recor(parser))?;
         let kind = parser.peek(|parser| Ok(RightKind::guess(parser))).expect(
@@ -730,7 +730,7 @@ pub enum Type {
 impl Parse for Type {
     fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let kind = track!(parser.peek(|parser| LeftKind::guess::<T, Type>(parser)))?;
         let ty = match kind {
@@ -757,7 +757,7 @@ impl Parse for Type {
     }
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let ty = track!(Type::parse_non_left_recor(parser))?;
         let kind = parser.peek(|parser| Ok(RightKind::guess(parser))).expect(
@@ -859,7 +859,7 @@ pub enum Form {
 impl Parse for Form {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let kind = parser.peek(|parser| {
             let token = track!(parser.read_token())?;

@@ -6,7 +6,7 @@ extern crate trackable;
 
 pub use error::{Error, ErrorKind};
 pub use parser::Parser;
-pub use token_reader::{TokenReader, Tokens};
+pub use token_reader::TokenReader;
 
 pub mod cst;
 pub mod traits;

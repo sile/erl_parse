@@ -1,4 +1,4 @@
-use erl_tokenize::{LexicalToken, Position, PositionRange};
+use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
@@ -7,7 +7,7 @@ use cst::{Pattern, GuardSeq, Type};
 use cst::exprs::Body;
 use cst::building_blocks::{Args, AtomOrVariable};
 use cst::types;
-use traits::{Parse, Preprocessor};
+use traits::{Parse, TokenRead};
 
 #[derive(Debug, Clone)]
 pub struct ExceptionClass {
@@ -17,7 +17,7 @@ pub struct ExceptionClass {
 impl Parse for ExceptionClass {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(ExceptionClass {
             class: track!(parser.parse())?,
@@ -45,7 +45,7 @@ pub struct CatchClause {
 impl Parse for CatchClause {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(CatchClause {
             class: track!(parser.parse())?,
@@ -78,7 +78,7 @@ pub struct SpecClause {
 impl Parse for SpecClause {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(SpecClause {
             args: track!(parser.parse())?,
@@ -110,7 +110,7 @@ pub struct CaseClause {
 impl Parse for CaseClause {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(CaseClause {
             pattern: track!(parser.parse())?,
@@ -138,7 +138,7 @@ pub struct IfClause {
 impl Parse for IfClause {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(IfClause {
             guard: track!(parser.parse())?,
@@ -166,7 +166,7 @@ pub struct FunClause {
 impl Parse for FunClause {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(FunClause {
             patterns: track!(parser.parse())?,
@@ -196,7 +196,7 @@ pub struct NamedFunClause {
 impl Parse for NamedFunClause {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(NamedFunClause {
             name: track!(parser.parse())?,
@@ -224,7 +224,7 @@ pub struct Guard {
 impl Parse for Guard {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Guard {
             _when: track!(parser.expect(&Keyword::When))?,
@@ -249,7 +249,7 @@ pub struct Clauses<T> {
 impl<T: Parse> Parse for Clauses<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(Clauses {
             item: track!(parser.parse())?,
@@ -278,7 +278,7 @@ pub struct ClausesTail<T> {
 impl<T: Parse> Parse for ClausesTail<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(ClausesTail {
             _semicolon: track!(parser.expect(&Symbol::Semicolon))?,

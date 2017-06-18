@@ -3,7 +3,7 @@ use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken, IntegerToken, 
 use erl_tokenize::values::{Symbol, Keyword};
 
 use {Result, Parser, ErrorKind};
-use traits::{Parse, ParseTail, Preprocessor};
+use traits::{Parse, ParseTail, TokenRead};
 use cst::Pattern;
 
 #[derive(Debug, Clone)]
@@ -15,7 +15,7 @@ pub struct Match<T> {
 impl<T: Parse> Parse for Match<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(Match {
             pattern: track!(Pattern::parse_non_left_recor(parser))?,
@@ -28,7 +28,7 @@ impl<T: Parse> ParseTail for Match<T> {
     type Head = Pattern;
     fn parse_tail<U>(parser: &mut Parser<U>, head: Pattern) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(Match {
             pattern: head,
@@ -78,7 +78,7 @@ pub enum BinaryOp {
 impl Parse for BinaryOp {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         match token {
@@ -195,7 +195,7 @@ impl<T: Parse> ParseTail for BinaryOpCall<T> {
     type Head = T;
     fn parse_tail<U>(parser: &mut Parser<U>, head: Self::Head) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(BinaryOpCall {
             left: head,
@@ -221,7 +221,7 @@ pub struct UnaryOpCall<T> {
 impl<T: Parse> Parse for UnaryOpCall<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(UnaryOpCall {
             op: track!(parser.parse())?,
@@ -248,7 +248,7 @@ pub enum UnaryOp {
 impl Parse for UnaryOp {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let token = track!(parser.read_token())?;
         match token {
@@ -297,7 +297,7 @@ pub struct LocalCall<T> {
 impl<T: Parse> Parse for LocalCall<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(LocalCall {
             name: track!(T::parse_non_left_recor(parser))?,
@@ -309,7 +309,7 @@ impl<T: Parse> ParseTail for LocalCall<T> {
     type Head = T;
     fn parse_tail<U>(parser: &mut Parser<U>, head: T) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(LocalCall {
             name: head,
@@ -336,7 +336,7 @@ impl<T: Parse> ParseTail for RemoteCall<T> {
     type Head = T;
     fn parse_tail<U>(parser: &mut Parser<U>, head: Self::Head) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(RemoteCall {
             module_name: head,
@@ -363,7 +363,7 @@ pub struct Args<T> {
 impl<T: Parse> Parse for Args<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         let _open = track!(parser.expect(&Symbol::OpenParen))?;
         let args = track!(parser.parse())?;
@@ -393,7 +393,7 @@ pub struct Parenthesized<T> {
 impl<T: Parse> Parse for Parenthesized<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(Parenthesized {
             _open: track!(parser.expect(&Symbol::OpenParen))?,
@@ -425,7 +425,7 @@ impl<T> Sequence<T> {
 impl<T: Parse> Parse for Sequence<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(Sequence {
             item: track!(parser.parse())?,
@@ -454,7 +454,7 @@ pub struct SequenceTail<T> {
 impl<T: Parse> Parse for SequenceTail<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(SequenceTail {
             _comma: track!(parser.expect(&Symbol::Comma))?,
@@ -524,7 +524,7 @@ pub struct HyphenSeq<T> {
 impl<T: Parse> Parse for HyphenSeq<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(HyphenSeq {
             item: track!(parser.parse())?,
@@ -553,7 +553,7 @@ pub struct HyphenSeqTail<T> {
 impl<T: Parse> Parse for HyphenSeqTail<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(HyphenSeqTail {
             _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
@@ -582,7 +582,7 @@ pub struct ConsCell<T> {
 impl<T: Parse> Parse for ConsCell<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(ConsCell {
             item: track!(parser.parse())?,
@@ -614,7 +614,7 @@ pub enum ConsCellTail<T> {
 impl<T: Parse> Parse for ConsCellTail<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         let symbol: SymbolToken = track!(parser.parse())?;
         match symbol.value() {
@@ -665,7 +665,7 @@ pub struct MapField<T> {
 impl<T: Parse> Parse for MapField<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(MapField {
             key: track!(parser.parse())?,
@@ -694,7 +694,7 @@ pub struct RecordField<T> {
 impl<T: Parse> Parse for RecordField<T> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         Ok(RecordField {
             key: track!(parser.parse())?,
@@ -734,7 +734,7 @@ impl AtomOrVariable {
 impl Parse for AtomOrVariable {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         let token = track!(parser.read_token())?;
         match token {
@@ -775,7 +775,7 @@ impl IntegerOrVariable {
 impl Parse for IntegerOrVariable {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
-        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        U: TokenRead,
     {
         let token = track!(parser.read_token())?;
         match token {

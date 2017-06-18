@@ -1,4 +1,4 @@
-use erl_tokenize::{LexicalToken, Position, PositionRange};
+use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{SymbolToken, VariableToken, IntegerToken, KeywordToken, AtomToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
@@ -6,7 +6,7 @@ use {Result, Parser};
 use cst::Type;
 use cst::building_blocks::{self, Args, Sequence};
 use cst::collections;
-use traits::{Parse, ParseTail, Preprocessor};
+use traits::{Parse, ParseTail, TokenRead};
 
 #[derive(Debug, Clone)]
 pub struct AnyArgFun {
@@ -22,7 +22,7 @@ pub struct AnyArgFun {
 impl Parse for AnyArgFun {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(AnyArgFun {
             _fun: track!(parser.expect(&Keyword::Fun))?,
@@ -57,7 +57,7 @@ pub struct Fun {
 impl Parse for Fun {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Fun {
             _fun: track!(parser.expect(&Keyword::Fun))?,
@@ -86,7 +86,7 @@ pub struct FunConstraints {
 impl Parse for FunConstraints {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(FunConstraints {
             _when: track!(parser.expect(&Keyword::When))?,
@@ -111,7 +111,7 @@ pub enum FunConstraint {
 impl Parse for FunConstraint {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         if let Ok(t) = parser.transaction(|parser| parser.parse()) {
             Ok(FunConstraint::Annotated(t))
@@ -148,7 +148,7 @@ pub struct IsSubtype {
 impl Parse for IsSubtype {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(IsSubtype {
             _is_subtype: track!(parser.expect("is_subtype"))?,
@@ -179,7 +179,7 @@ impl ParseTail for Range {
     type Head = Type;
     fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Range {
             low: head,
@@ -207,7 +207,7 @@ impl ParseTail for Union {
     type Head = Type;
     fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Union {
             left: head,
@@ -234,7 +234,7 @@ pub struct Annotated {
 impl Parse for Annotated {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Annotated {
             var: track!(parser.parse())?,
@@ -261,7 +261,7 @@ pub struct List {
 impl Parse for List {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(List {
             _open: track!(parser.expect(&Symbol::OpenSquare))?,
@@ -288,7 +288,7 @@ pub struct ListElement {
 impl Parse for ListElement {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(ListElement {
             element_type: track!(parser.parse())?,
@@ -316,7 +316,7 @@ pub struct NonEmpty {
 impl Parse for NonEmpty {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(NonEmpty {
             _comma: track!(parser.expect(&Symbol::Comma))?,
@@ -342,7 +342,7 @@ pub struct Bits {
 impl Parse for Bits {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Bits {
             _open: track!(parser.expect(&Symbol::DoubleLeftAngle))?,
@@ -369,7 +369,7 @@ pub struct ByteAndBitSize {
 impl Parse for ByteAndBitSize {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(ByteAndBitSize {
             byte: track!(parser.parse())?,
@@ -396,7 +396,7 @@ pub struct ByteSize {
 impl Parse for ByteSize {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(ByteSize {
             _underscore: track!(parser.expect("_"))?,
@@ -425,7 +425,7 @@ pub struct BitSize {
 impl Parse for BitSize {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(BitSize {
             _underscore0: track!(parser.expect("_"))?,
@@ -454,7 +454,7 @@ pub enum BitsSpec {
 impl Parse for BitsSpec {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         if let Ok(x) = parser.transaction(|parser| parser.parse()) {
             Ok(BitsSpec::BytesAndBits(x))

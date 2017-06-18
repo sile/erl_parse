@@ -10,7 +10,7 @@ use std::fs::File;
 use std::io::Read;
 use clap::{App, Arg};
 use erl_pp::Preprocessor;
-use erl_parse::{TokenReader, Tokens, Parser};
+use erl_parse::{TokenReader, Parser};
 use erl_parse::cst::ModuleDecl;
 use erl_tokenize::Lexer;
 use trackable::error::{Failed, ErrorKindExt};
@@ -44,7 +44,7 @@ fn main() {
             pp.code_paths_mut().push_back(dir.into());
         }
     }
-    let mut parser = Parser::new(TokenReader::new(Tokens::new(pp)));
+    let mut parser = Parser::new(TokenReader::new(pp));
 
     let module: ModuleDecl = track_try_unwrap!(parser.parse(), "next={:?}", parser.read_token());
     println!("{:?}", module);

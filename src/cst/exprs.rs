@@ -1,4 +1,4 @@
-use erl_tokenize::{LexicalToken, Position, PositionRange};
+use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken, AtomToken, IntegerToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
@@ -7,7 +7,7 @@ use cst::{Expr, Pattern};
 use cst::building_blocks::{self, Sequence, AtomOrVariable, IntegerOrVariable};
 use cst::clauses::{Clauses, FunClause, NamedFunClause, IfClause, CaseClause, CatchClause};
 use cst::collections;
-use traits::{Parse, ParseTail, Preprocessor};
+use traits::{Parse, ParseTail, TokenRead};
 
 #[derive(Debug, Clone)]
 pub struct MapUpdate {
@@ -18,7 +18,7 @@ impl ParseTail for MapUpdate {
     type Head = Expr;
     fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(MapUpdate {
             map: head,
@@ -44,7 +44,7 @@ impl ParseTail for RecordUpdate {
     type Head = Expr;
     fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(RecordUpdate {
             record: head,
@@ -70,7 +70,7 @@ impl ParseTail for RecordFieldAccess {
     type Head = Expr;
     fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(RecordFieldAccess {
             record: head,
@@ -99,7 +99,7 @@ pub struct Try {
 impl Parse for Try {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Try {
             _try: track!(parser.expect(&Keyword::Try))?,
@@ -128,7 +128,7 @@ pub struct TryOf {
 impl Parse for TryOf {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(TryOf {
             _of: track!(parser.expect(&Keyword::Of))?,
@@ -153,7 +153,7 @@ pub struct TryCatch {
 impl Parse for TryCatch {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(TryCatch {
             _catch: track!(parser.expect(&Keyword::Catch))?,
@@ -178,7 +178,7 @@ pub struct TryAfter {
 impl Parse for TryAfter {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(TryAfter {
             _after: track!(parser.expect(&Keyword::After))?,
@@ -205,7 +205,7 @@ pub struct Receive {
 impl Parse for Receive {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Receive {
             _receive: track!(parser.expect(&Keyword::Receive))?,
@@ -234,7 +234,7 @@ pub struct Timeout {
 impl Parse for Timeout {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Timeout {
             _after: track!(parser.expect(&Keyword::After))?,
@@ -262,7 +262,7 @@ pub struct If {
 impl Parse for If {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(If {
             _if: track!(parser.expect(&Keyword::If))?,
@@ -291,7 +291,7 @@ pub struct Case {
 impl Parse for Case {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Case {
             _case: track!(parser.expect(&Keyword::Case))?,
@@ -321,7 +321,7 @@ pub struct LocalFun {
 impl Parse for LocalFun {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(LocalFun {
             _fun: track!(parser.expect(&Keyword::Fun))?,
@@ -352,7 +352,7 @@ pub struct RemoteFun {
 impl Parse for RemoteFun {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(RemoteFun {
             _fun: track!(parser.expect(&Keyword::Fun))?,
@@ -382,7 +382,7 @@ pub struct AnonymousFun {
 impl Parse for AnonymousFun {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(AnonymousFun {
             _fun: track!(parser.expect(&Keyword::Fun))?,
@@ -409,7 +409,7 @@ pub struct NamedFun {
 impl Parse for NamedFun {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(NamedFun {
             _fun: track!(parser.expect(&Keyword::Fun))?,
@@ -438,7 +438,7 @@ pub struct ListComprehension {
 impl Parse for ListComprehension {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(ListComprehension {
             _open: track!(parser.expect(&Symbol::OpenSquare))?,
@@ -469,7 +469,7 @@ pub struct BitsComprehension {
 impl Parse for BitsComprehension {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(BitsComprehension {
             _open: track!(parser.expect(&Symbol::DoubleLeftAngle))?,
@@ -497,7 +497,7 @@ pub enum Qualifier {
 impl Parse for Qualifier {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         if let Ok(generator) = parser.transaction(|parser| parser.parse()) {
             Ok(Qualifier::Generator(generator))
@@ -530,7 +530,7 @@ pub struct Generator {
 impl Parse for Generator {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Generator {
             pattern: track!(parser.parse())?,
@@ -558,7 +558,7 @@ pub struct Catch {
 impl Parse for Catch {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Catch {
             _catch: track!(parser.expect(&Keyword::Catch))?,
@@ -584,7 +584,7 @@ pub struct Block {
 impl Parse for Block {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         Ok(Block {
             _begin: track!(parser.expect(&Keyword::Begin))?,
@@ -609,7 +609,7 @@ pub struct Body {
 impl Parse for Body {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where
-        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+        T: TokenRead,
     {
         let exprs = track!(parser.parse())?;
         Ok(Body { exprs })
