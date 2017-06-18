@@ -1,10 +1,11 @@
 use erl_tokenize::{LexicalToken, Position, PositionRange};
-use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, StringToken,
-                           VariableToken, SymbolToken};
+use erl_tokenize::tokens::{SymbolToken, VariableToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
 use {Result, Parser, ErrorKind, Error};
 use traits::{Parse, TokenRead};
+
+pub use self::literal::Literal;
 
 pub mod building_blocks;
 pub mod clauses;
@@ -14,6 +15,8 @@ pub mod forms;
 pub mod guard_tests;
 pub mod patterns;
 pub mod types;
+
+mod literal;
 
 #[derive(Debug, Clone)]
 pub struct ModuleDecl {
@@ -34,7 +37,7 @@ impl Parse for ModuleDecl {
 }
 
 #[derive(Debug)]
-pub enum RightKind {
+enum RightKind {
     LocalCall,
     RemoteCall,
     MapUpdate,
@@ -84,7 +87,7 @@ impl RightKind {
 }
 
 #[derive(Debug)]
-pub enum RightKind2 {
+enum RightKind2 {
     BinaryOpCall,
     Match,
     Range,
@@ -123,7 +126,7 @@ impl RightKind2 {
 }
 
 #[derive(Debug)]
-pub enum LeftKind {
+enum LeftKind {
     Literal,
     Variable,
     Tuple,
@@ -498,60 +501,6 @@ impl PositionRange for Pattern {
             Pattern::UnaryOpCall(ref x) => x.end_position(),
             Pattern::BinaryOpCall(ref x) => x.end_position(),
             Pattern::Match(ref x) => x.end_position(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Literal {
-    Atom(AtomToken),
-    Char(CharToken),
-    Float(FloatToken),
-    Integer(IntegerToken),
-
-    // TODO
-    // String(StringToken),
-    String(Vec<StringToken>),
-}
-impl Parse for Literal {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        match track!(parser.parse())? {
-            LexicalToken::Atom(t) => Ok(Literal::Atom(t)),
-            LexicalToken::Char(t) => Ok(Literal::Char(t)),
-            LexicalToken::Float(t) => Ok(Literal::Float(t)),
-            LexicalToken::Integer(t) => Ok(Literal::Integer(t)),
-            LexicalToken::String(t) => {
-                //Ok(Literal::String(t)),
-                let mut s = vec![t];
-                while let Ok(t) = parser.transaction(|p| p.parse()) {
-                    s.push(t);
-                }
-                Ok(Literal::String(s))
-            }
-            token => track_panic!(ErrorKind::UnexpectedToken(token)),
-        }
-    }
-}
-impl PositionRange for Literal {
-    fn start_position(&self) -> Position {
-        match *self {
-            Literal::Atom(ref x) => x.start_position(),
-            Literal::Char(ref x) => x.start_position(),
-            Literal::Float(ref x) => x.start_position(),
-            Literal::Integer(ref x) => x.start_position(),
-            Literal::String(ref x) => x[0].start_position(),//x.start_position(),
-        }
-    }
-    fn end_position(&self) -> Position {
-        match *self {
-            Literal::Atom(ref x) => x.end_position(),
-            Literal::Char(ref x) => x.end_position(),
-            Literal::Float(ref x) => x.end_position(),
-            Literal::Integer(ref x) => x.end_position(),
-            Literal::String(ref x) => x.last().unwrap().end_position(),//x.end_position(),
         }
     }
 }
