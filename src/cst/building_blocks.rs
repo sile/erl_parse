@@ -5,6 +5,7 @@ use erl_tokenize::values::{Symbol, Keyword};
 use {Result, Parser, ErrorKind};
 use traits::{Parse, ParseTail, TokenRead};
 use cst::{Pattern, Expr, Type, GuardTest};
+use cst::clauses::{CaseClause, CatchClause};
 use cst::collections::RecordFieldIndex;
 
 #[derive(Debug, Clone)]
@@ -1256,5 +1257,192 @@ impl<T: PositionRange> PositionRange for ClausesTail<T> {
             .as_ref()
             .map(|t| t.end_position())
             .unwrap_or_else(|| self.item.end_position())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TryOf {
+    pub _of: KeywordToken,
+    pub clauses: Clauses<CaseClause>,
+}
+impl Parse for TryOf {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(TryOf {
+            _of: track!(parser.expect(&Keyword::Of))?,
+            clauses: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for TryOf {
+    fn start_position(&self) -> Position {
+        self._of.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.clauses.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TryCatch {
+    pub _catch: KeywordToken,
+    pub clauses: Clauses<CatchClause>,
+}
+impl Parse for TryCatch {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(TryCatch {
+            _catch: track!(parser.expect(&Keyword::Catch))?,
+            clauses: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for TryCatch {
+    fn start_position(&self) -> Position {
+        self._catch.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.clauses.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TryAfter {
+    pub _after: KeywordToken,
+    pub body: Body,
+}
+impl Parse for TryAfter {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(TryAfter {
+            _after: track!(parser.expect(&Keyword::After))?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for TryAfter {
+    fn start_position(&self) -> Position {
+        self._after.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Timeout {
+    pub _after: KeywordToken,
+    pub duration: Expr,
+    pub _arrow: SymbolToken,
+    pub body: Body,
+}
+impl Parse for Timeout {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(Timeout {
+            _after: track!(parser.expect(&Keyword::After))?,
+            duration: track!(parser.parse())?,
+            _arrow: track!(parser.expect(&Symbol::RightArrow))?,
+            body: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for Timeout {
+    fn start_position(&self) -> Position {
+        self._after.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.body.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Qualifier {
+    Generator(Generator),
+    Filter(Expr),
+}
+impl Parse for Qualifier {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        if let Ok(generator) = parser.transaction(|parser| parser.parse()) {
+            Ok(Qualifier::Generator(generator))
+        } else {
+            Ok(Qualifier::Filter(track!(parser.parse())?))
+        }
+    }
+}
+impl PositionRange for Qualifier {
+    fn start_position(&self) -> Position {
+        match *self {
+            Qualifier::Generator(ref x) => x.start_position(),
+            Qualifier::Filter(ref x) => x.start_position(),
+        }
+    }
+    fn end_position(&self) -> Position {
+        match *self {
+            Qualifier::Generator(ref x) => x.end_position(),
+            Qualifier::Filter(ref x) => x.end_position(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Generator {
+    pub pattern: Pattern,
+    pub _arrow: SymbolToken,
+    pub source: Expr,
+}
+impl Parse for Generator {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(Generator {
+            pattern: track!(parser.parse())?,
+            _arrow: track!(parser.expect_any(
+                &[&Symbol::LeftArrow, &Symbol::DoubleLeftArrow],
+            ))?,
+            source: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for Generator {
+    fn start_position(&self) -> Position {
+        self.pattern.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.source.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Body {
+    pub exprs: Sequence<Expr>,
+}
+impl Parse for Body {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        let exprs = track!(parser.parse())?;
+        Ok(Body { exprs })
+    }
+}
+impl PositionRange for Body {
+    fn start_position(&self) -> Position {
+        self.exprs.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.exprs.end_position()
     }
 }
