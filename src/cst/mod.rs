@@ -3,15 +3,34 @@ use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, Strin
                            VariableToken, SymbolToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parse, Preprocessor, Parser, ErrorKind};
+use {Result, Parse, Preprocessor, Parser, ErrorKind, Error};
 
 pub mod building_blocks;
 pub mod clauses;
 pub mod collections;
 pub mod exprs;
+pub mod forms;
 pub mod guard_tests;
 pub mod patterns;
 pub mod types;
+
+#[derive(Debug, Clone)]
+pub struct ModuleDecl {
+    pub forms: Vec<Form>,
+}
+impl Parse for ModuleDecl {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let mut forms = Vec::new();
+        while !track!(parser.is_eos())? {
+            let form = track!(parser.parse())?;
+            forms.push(form);
+        }
+        Ok(ModuleDecl { forms })
+    }
+}
 
 #[derive(Debug)]
 pub enum RightKind {
@@ -793,6 +812,116 @@ impl PositionRange for Type {
             Type::BinaryOpCall(ref x) => x.end_position(),
             Type::Range(ref x) => x.end_position(),
             Type::Union(ref x) => x.end_position(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum FormKind {
+    ModuleAttr,
+    ExportAttr,
+    ExportTypeAttr,
+    ImportAttr,
+    FileAttr,
+    WildAttr,
+    FunSpec,
+    CallbackSpec,
+    FunDecl,
+    RecordDecl,
+    TypeDecl,
+}
+
+#[derive(Debug, Clone)]
+pub enum Form {
+    ModuleAttr(forms::ModuleAttr),
+    ExportAttr(forms::ExportAttr),
+    ExportTypeAttr(forms::ExportTypeAttr),
+    ImportAttr(forms::ImportAttr),
+    FileAttr(forms::FileAttr),
+    WildAttr(forms::WildAttr),
+    FunSpec(forms::FunSpec),
+    CallbackSpec(forms::CallbackSpec),
+    FunDecl(forms::FunDecl),
+    RecordDecl(forms::RecordDecl),
+    TypeDecl(forms::TypeDecl),
+}
+impl Parse for Form {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let kind = parser.peek(|parser| {
+            let token = track!(parser.read_token())?;
+            Ok(match token {
+                LexicalToken::Symbol(ref t) if t.value() == Symbol::Hyphen => {
+                    let token = track!(parser.read_token())?;
+                    let token = track!(
+                        token
+                            .into_atom_token()
+                            .map_err(ErrorKind::UnexpectedToken)
+                            .map_err(Error::from)
+                    )?;
+                    match token.value() {
+                        "module" => FormKind::ModuleAttr,
+                        "export" => FormKind::ExportAttr,
+                        "export_type" => FormKind::ExportTypeAttr,
+                        "import" => FormKind::ImportAttr,
+                        "file" => FormKind::FileAttr,
+                        "spec" => FormKind::FunSpec,
+                        "callback" => FormKind::CallbackSpec,
+                        "record" => FormKind::RecordDecl,
+                        "type" | "opaque" => FormKind::TypeDecl,
+                        _ => FormKind::WildAttr,
+                    }
+                }
+                LexicalToken::Atom(_) => FormKind::FunDecl,
+                _ => track_panic!(ErrorKind::UnexpectedToken(token)),
+            })
+        });
+        Ok(match track!(kind)? {
+            FormKind::ModuleAttr => Form::ModuleAttr(track!(parser.parse())?),
+            FormKind::ExportAttr => Form::ExportAttr(track!(parser.parse())?),
+            FormKind::ExportTypeAttr => Form::ExportTypeAttr(track!(parser.parse())?),
+            FormKind::ImportAttr => Form::ImportAttr(track!(parser.parse())?),
+            FormKind::FileAttr => Form::FileAttr(track!(parser.parse())?),
+            FormKind::WildAttr => Form::WildAttr(track!(parser.parse())?),
+            FormKind::FunSpec => Form::FunSpec(track!(parser.parse())?),
+            FormKind::CallbackSpec => Form::CallbackSpec(track!(parser.parse())?),
+            FormKind::FunDecl => Form::FunDecl(track!(parser.parse())?),
+            FormKind::RecordDecl => Form::RecordDecl(track!(parser.parse())?),
+            FormKind::TypeDecl => Form::TypeDecl(track!(parser.parse())?),
+        })
+    }
+}
+impl PositionRange for Form {
+    fn start_position(&self) -> Position {
+        match *self {
+            Form::ModuleAttr(ref t) => t.start_position(),
+            Form::ExportAttr(ref t) => t.start_position(),
+            Form::ExportTypeAttr(ref t) => t.start_position(),
+            Form::ImportAttr(ref t) => t.start_position(),
+            Form::FileAttr(ref t) => t.start_position(),
+            Form::WildAttr(ref t) => t.start_position(),
+            Form::FunSpec(ref t) => t.start_position(),
+            Form::CallbackSpec(ref t) => t.start_position(),
+            Form::FunDecl(ref t) => t.start_position(),
+            Form::RecordDecl(ref t) => t.start_position(),
+            Form::TypeDecl(ref t) => t.start_position(),
+        }
+    }
+    fn end_position(&self) -> Position {
+        match *self {
+            Form::ModuleAttr(ref t) => t.end_position(),
+            Form::ExportAttr(ref t) => t.end_position(),
+            Form::ExportTypeAttr(ref t) => t.end_position(),
+            Form::ImportAttr(ref t) => t.end_position(),
+            Form::FileAttr(ref t) => t.end_position(),
+            Form::WildAttr(ref t) => t.end_position(),
+            Form::FunSpec(ref t) => t.end_position(),
+            Form::CallbackSpec(ref t) => t.end_position(),
+            Form::FunDecl(ref t) => t.end_position(),
+            Form::RecordDecl(ref t) => t.end_position(),
+            Form::TypeDecl(ref t) => t.end_position(),
         }
     }
 }

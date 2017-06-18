@@ -3,9 +3,10 @@ use erl_tokenize::tokens::{KeywordToken, SymbolToken, VariableToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
 use {Result, Parser, Preprocessor, Parse};
-use cst::{Pattern, GuardSeq};
+use cst::{Pattern, GuardSeq, Type};
 use cst::exprs::Body;
 use cst::building_blocks::{Args, AtomOrVariable};
+use cst::types;
 
 #[derive(Debug, Clone)]
 pub struct ExceptionClass {
@@ -63,6 +64,38 @@ impl PositionRange for CatchClause {
     }
     fn end_position(&self) -> Position {
         self.body.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SpecClause {
+    pub args: Args<Type>,
+    pub _arrow: SymbolToken,
+    pub return_type: Type,
+    pub constraints: Option<types::FunConstraints>,
+}
+impl Parse for SpecClause {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(SpecClause {
+            args: track!(parser.parse())?,
+            _arrow: track!(parser.expect(&Symbol::RightArrow))?,
+            return_type: track!(parser.parse())?,
+            constraints: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for SpecClause {
+    fn start_position(&self) -> Position {
+        self.args.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.constraints
+            .as_ref()
+            .map(|t| t.end_position())
+            .unwrap_or_else(|| self.return_type.end_position())
     }
 }
 

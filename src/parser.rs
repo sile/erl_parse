@@ -17,6 +17,14 @@ where
             transactions: Vec::new(),
         }
     }
+    pub fn is_eos(&mut self) -> Result<bool> {
+        if let Some(t) = track!(self.reader.try_read_token())? {
+            self.reader.unread_token(t);
+            Ok(false)
+        } else {
+            Ok(true)
+        }
+    }
     pub fn read_token(&mut self) -> Result<LexicalToken> {
         match self.reader.read_token() {
             Err(e) => Err(e),

@@ -1,318 +1,587 @@
-use cst::{Term, Type, Expr};
-use cst::commons;
-use cst::clauses;
-use cst::literals;
-use cst::types;
+use erl_tokenize::{LexicalToken, Position, PositionRange};
+use erl_tokenize::tokens::{SymbolToken, VariableToken, IntegerToken, AtomToken, StringToken};
+use erl_tokenize::values::Symbol;
+
+use {Result, Parser, Preprocessor, Parse};
+use cst::{Type, Expr};
+use cst::building_blocks::{Args, Sequence};
+use cst::clauses::{Clauses, SpecClause, FunClause};
 
 #[derive(Debug, Clone)]
 pub struct ModuleAttr {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _module: literals::A_MODULE,
-    pub _open: literals::S_OPEN_PAREN,
-    pub module_name: literals::Atom,
-    pub _close: literals::S_CLOSE_PAREN,
-    pub _dot: literals::S_DOT,
+    pub _hyphen: SymbolToken,
+    pub _module: AtomToken,
+    pub _open: SymbolToken,
+    pub module_name: AtomToken,
+    pub _close: SymbolToken,
+    pub _dot: SymbolToken,
 }
-derive_parse!(
-    ModuleAttr,
-    _hyphen,
-    _module,
-    _open,
-    module_name,
-    _close,
-    _dot
-);
-derive_token_range!(ModuleAttr, _hyphen, _dot);
+impl Parse for ModuleAttr {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(ModuleAttr {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            _module: track!(parser.expect("module"))?,
+            _open: track!(parser.expect(&Symbol::OpenParen))?,
+            module_name: track!(parser.parse())?,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
+}
+impl PositionRange for ModuleAttr {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct List<T> {
+    pub _open: SymbolToken,
+    pub elements: Option<Sequence<T>>,
+    pub _close: SymbolToken,
+}
+impl<T: Parse> Parse for List<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(List {
+            _open: track!(parser.expect(&Symbol::OpenSquare))?,
+            elements: track!(parser.parse())?,
+            _close: track!(parser.expect(&Symbol::CloseSquare))?,
+        })
+    }
+}
+impl<T> PositionRange for List<T> {
+    fn start_position(&self) -> Position {
+        self._open.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._close.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ExportAttr {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _export: literals::A_EXPORT,
-    pub _open: literals::S_OPEN_PAREN,
-    pub exports: commons::List<Export>,
-    pub _close: literals::S_CLOSE_PAREN,
-    pub _dot: literals::S_DOT,
+    pub _hyphen: SymbolToken,
+    pub _export: AtomToken,
+    pub _open: SymbolToken,
+    pub exports: List<Export>,
+    pub _close: SymbolToken,
+    pub _dot: SymbolToken,
 }
-derive_parse!(ExportAttr, _hyphen, _export, _open, exports, _close, _dot);
-derive_token_range!(ExportAttr, _hyphen, _dot);
-
-#[derive(Debug, Clone)]
-pub struct ExportTypeAttr {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _export_type: literals::A_EXPORT_TYPE,
-    pub _open: literals::S_OPEN_PAREN,
-    pub exports: commons::List<Export>,
-    pub _close: literals::S_CLOSE_PAREN,
-    pub _dot: literals::S_DOT,
+impl Parse for ExportAttr {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(ExportAttr {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            _export: track!(parser.expect("export"))?,
+            _open: track!(parser.expect(&Symbol::OpenParen))?,
+            exports: track!(parser.parse())?,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
 }
-derive_parse!(
-    ExportTypeAttr,
-    _hyphen,
-    _export_type,
-    _open,
-    exports,
-    _close,
-    _dot
-);
-derive_token_range!(ExportTypeAttr, _hyphen, _dot);
+impl PositionRange for ExportAttr {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Export {
-    pub name: literals::Atom,
-    pub _slash: literals::S_SLASH,
-    pub arity: literals::Int,
+    pub name: AtomToken,
+    pub _slash: SymbolToken,
+    pub arity: IntegerToken,
 }
-derive_parse!(Export, name, _slash, arity);
-derive_token_range!(Export, name, arity);
-
-#[derive(Debug, Clone)]
-pub struct ImportAttr {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _import: literals::A_IMPORT,
-    pub _open: literals::S_OPEN_PAREN,
-    pub module_name: literals::Atom,
-    pub _comma: literals::S_COMMA,
-    pub imports: commons::List<Import>,
-    pub _close: literals::S_CLOSE_PAREN,
-    pub _dot: literals::S_DOT,
+impl Parse for Export {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Export {
+            name: track!(parser.parse())?,
+            _slash: track!(parser.expect(&Symbol::Slash))?,
+            arity: track!(parser.parse())?,
+        })
+    }
 }
-derive_parse!(
-    ImportAttr,
-    _hyphen,
-    _import,
-    _open,
-    module_name,
-    _comma,
-    imports,
-    _close,
-    _dot
-);
-derive_token_range!(ImportAttr, _hyphen, _dot);
+impl PositionRange for Export {
+    fn start_position(&self) -> Position {
+        self.name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.arity.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Import {
-    pub name: literals::Atom,
-    pub _slash: literals::S_SLASH,
-    pub arity: literals::Int,
+    pub name: AtomToken,
+    pub _slash: SymbolToken,
+    pub arity: IntegerToken,
 }
-derive_parse!(Import, name, _slash, arity);
-derive_token_range!(Import, name, arity);
+impl Parse for Import {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(Import {
+            name: track!(parser.parse())?,
+            _slash: track!(parser.expect(&Symbol::Slash))?,
+            arity: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for Import {
+    fn start_position(&self) -> Position {
+        self.name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.arity.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExportTypeAttr {
+    pub _hyphen: SymbolToken,
+    pub _export_type: AtomToken,
+    pub _open: SymbolToken,
+    pub exports: List<Export>,
+    pub _close: SymbolToken,
+    pub _dot: SymbolToken,
+}
+impl Parse for ExportTypeAttr {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(ExportTypeAttr {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            _export_type: track!(parser.expect("export_type"))?,
+            _open: track!(parser.expect(&Symbol::OpenParen))?,
+            exports: track!(parser.parse())?,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
+}
+impl PositionRange for ExportTypeAttr {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ImportAttr {
+    pub _hyphen: SymbolToken,
+    pub _import: AtomToken,
+    pub _open: SymbolToken,
+    pub module_name: AtomToken,
+    pub _comma: SymbolToken,
+    pub imports: List<Import>,
+    pub _close: SymbolToken,
+    pub _dot: SymbolToken,
+}
+impl Parse for ImportAttr {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(ImportAttr {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            _import: track!(parser.expect("import"))?,
+            _open: track!(parser.expect(&Symbol::OpenParen))?,
+            module_name: track!(parser.parse())?,
+            _comma: track!(parser.expect(&Symbol::Comma))?,
+            imports: track!(parser.parse())?,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
+}
+impl PositionRange for ImportAttr {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct FileAttr {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _file: literals::A_FILE,
-    pub _open: literals::S_OPEN_PAREN,
-    pub file_name: literals::Str,
-    pub _comma: literals::S_COMMA,
-    pub line_num: literals::Int,
-    pub _close: literals::S_CLOSE_PAREN,
-    pub _dot: literals::S_DOT,
+    pub _hyphen: SymbolToken,
+    pub _file: AtomToken,
+    pub _open: SymbolToken,
+    pub file_name: StringToken,
+    pub _comma: SymbolToken,
+    pub line_num: IntegerToken,
+    pub _close: SymbolToken,
+    pub _dot: SymbolToken,
 }
-derive_parse!(
-    FileAttr,
-    _hyphen,
-    _file,
-    _open,
-    file_name,
-    _comma,
-    line_num,
-    _close,
-    _dot
-);
-derive_token_range!(FileAttr, _hyphen, _dot);
+impl Parse for FileAttr {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(FileAttr {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            _file: track!(parser.expect("file"))?,
+            _open: track!(parser.expect(&Symbol::OpenParen))?,
+            file_name: track!(parser.parse())?,
+            _comma: track!(parser.expect(&Symbol::Comma))?,
+            line_num: track!(parser.parse())?,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
+}
+impl PositionRange for FileAttr {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct WildAttr {
-    pub _hyphen: literals::S_HYPHEN,
-    pub attr_name: literals::Atom,
-    pub _open: literals::S_OPEN_PAREN,
-    pub attr_value: Term,
-    pub _close: literals::S_CLOSE_PAREN,
-    pub _dot: literals::S_DOT,
+    pub _hyphen: SymbolToken,
+    pub attr_name: AtomToken,
+    pub _open: SymbolToken,
+    pub attr_value: Vec<LexicalToken>,
+    pub _close: SymbolToken,
+    pub _dot: SymbolToken,
 }
-derive_parse!(
-    WildAttr,
-    _hyphen,
-    attr_name,
-    _open,
-    attr_value,
-    _close,
-    _dot
-);
-derive_token_range!(WildAttr, _hyphen, _dot);
+impl Parse for WildAttr {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let _hyphen = track!(parser.expect(&Symbol::Hyphen))?;
+        let attr_name = track!(parser.parse())?;
+        let _open = track!(parser.expect(&Symbol::OpenParen))?;
+
+        let count = parser.peek(|parser| {
+            for i in 0.. {
+                let v = track!(parser.read_token())?.as_symbol_token().map(
+                    |t| t.value(),
+                );
+                if v == Some(Symbol::Dot) {
+                    use std::cmp;
+                    return Ok(cmp::max(i, 1) - 1);
+                }
+            }
+            unreachable!()
+        });
+        let attr_value = (0..track!(count)?)
+            .map(|_| parser.read_token().expect("Never fails"))
+            .collect();
+        Ok(WildAttr {
+            _hyphen,
+            attr_name,
+            _open,
+            attr_value,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
+}
+impl PositionRange for WildAttr {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct FunSpec {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _spec: literals::A_SPEC,
-    pub fun_name: literals::Atom,
-    pub clauses: commons::NonEmptySeq<FunClause, literals::S_SEMICOLON>,
-    pub _dot: literals::S_DOT,
+    pub _hyphen: SymbolToken,
+    pub _spec: AtomToken,
+    pub module: Option<ModulePrefix>,
+    pub fun_name: AtomToken,
+    pub clauses: Clauses<SpecClause>,
+    pub _dot: SymbolToken,
 }
-derive_parse!(FunSpec, _hyphen, _spec, fun_name, clauses, _dot);
-derive_token_range!(FunSpec, _hyphen, _dot);
-
-#[derive(Debug, Clone)]
-pub struct RemoteFunSpec {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _spec: literals::A_SPEC,
-    pub module_name: literals::Atom,
-    pub _colon: literals::S_COLON,
-    pub fun_name: literals::Atom,
-    pub clauses: commons::NonEmptySeq<FunClause, literals::S_SEMICOLON>,
-    pub _dot: literals::S_DOT,
+impl Parse for FunSpec {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(FunSpec {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            _spec: track!(parser.expect("spec"))?,
+            module: track!(parser.parse())?,
+            fun_name: track!(parser.parse())?,
+            clauses: track!(parser.parse())?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
 }
-derive_parse!(
-    RemoteFunSpec,
-    _hyphen,
-    _spec,
-    module_name,
-    _colon,
-    fun_name,
-    clauses,
-    _dot
-);
-derive_token_range!(RemoteFunSpec, _hyphen, _dot);
+impl PositionRange for FunSpec {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct CallbackSpec {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _callback: literals::A_CALLBACK,
-    pub callback_name: literals::Atom,
-    pub clauses: commons::NonEmptySeq<FunClause, literals::S_SEMICOLON>,
-    pub _dot: literals::S_DOT,
+    pub _hyphen: SymbolToken,
+    pub _spec: AtomToken,
+    pub callback_name: AtomToken,
+    pub clauses: Clauses<SpecClause>,
+    pub _dot: SymbolToken,
 }
-derive_parse!(
-    CallbackSpec,
-    _hyphen,
-    _callback,
-    callback_name,
-    clauses,
-    _dot
-);
-derive_token_range!(CallbackSpec, _hyphen, _dot);
+impl Parse for CallbackSpec {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(CallbackSpec {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            _spec: track!(parser.expect("callback"))?,
+            callback_name: track!(parser.parse())?,
+            clauses: track!(parser.parse())?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
+}
+impl PositionRange for CallbackSpec {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
-pub struct FunClause {
-    pub args: commons::Args<Type>,
-    pub _arrow: literals::S_RIGHT_ARROW,
-    pub return_type: Type,
-    pub constraints: Option<types::FunConstraints>,
-    _position: commons::Void,
+pub struct ModulePrefix {
+    pub name: AtomToken,
+    pub _colon: SymbolToken,
 }
-derive_parse!(FunClause, args, _arrow, return_type, constraints, _position);
-derive_token_range!(FunClause, args, _position);
+impl Parse for ModulePrefix {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(ModulePrefix {
+            name: track!(parser.parse())?,
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+        })
+    }
+}
+impl PositionRange for ModulePrefix {
+    fn start_position(&self) -> Position {
+        self.name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._colon.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct FunDecl {
-    pub fun_name: literals::Atom,
-    pub clauses: commons::NonEmptySeq<clauses::FunClause<commons::Void>, literals::S_SEMICOLON>,
-    pub _dot: literals::S_DOT,
+    pub fun_name: AtomToken,
+    pub clauses: Clauses<FunClause>,
+    pub _dot: SymbolToken,
 }
-derive_parse!(FunDecl, fun_name, clauses, _dot);
-derive_token_range!(FunDecl, fun_name, _dot);
+impl Parse for FunDecl {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(FunDecl {
+            fun_name: track!(parser.parse())?,
+            clauses: track!(parser.parse())?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
+}
+impl PositionRange for FunDecl {
+    fn start_position(&self) -> Position {
+        self.fun_name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct RecordDecl {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _record: literals::A_RECORD,
-    pub _open: literals::S_OPEN_PAREN,
-    pub record_name: literals::Atom,
-    pub _comma: literals::S_COMMA,
-    pub _fields_start: literals::S_OPEN_BRACE,
-    pub fields: commons::Seq<RecordField, literals::S_COMMA>,
-    pub _fields_end: literals::S_CLOSE_BRACE,
-    pub _close: literals::S_CLOSE_PAREN,
-    pub _dot: literals::S_DOT,
+    pub _hyphen: SymbolToken,
+    pub _record: AtomToken,
+    pub _open: SymbolToken,
+    pub record_name: AtomToken,
+    pub _comma: SymbolToken,
+    pub _fields_start: SymbolToken,
+    pub fields: Option<Sequence<RecordField>>,
+    pub _fields_end: SymbolToken,
+    pub _close: SymbolToken,
+    pub _dot: SymbolToken,
 }
-derive_parse!(
-    RecordDecl,
-    _hyphen,
-    _record,
-    _open,
-    record_name,
-    _comma,
-    _fields_start,
-    fields,
-    _fields_end,
-    _close,
-    _dot
-);
-derive_token_range!(RecordDecl, _hyphen, _dot);
+impl Parse for RecordDecl {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(RecordDecl {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            _record: track!(parser.expect("record"))?,
+            _open: track!(parser.expect(&Symbol::OpenParen))?,
+            record_name: track!(parser.parse())?,
+            _comma: track!(parser.expect(&Symbol::Comma))?,
+            _fields_start: track!(parser.expect(&Symbol::OpenBrace))?,
+            fields: track!(parser.parse())?,
+            _fields_end: track!(parser.expect(&Symbol::CloseBrace))?,
+            _close: track!(parser.expect(&Symbol::CloseParen))?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
+}
+impl PositionRange for RecordDecl {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct RecordField {
-    pub field_name: literals::Atom,
+    pub field_name: AtomToken,
     pub field_default: Option<RecordFieldDefault>,
     pub field_type: Option<RecordFieldType>,
-    _position: commons::Void,
 }
-derive_parse!(
-    RecordField,
-    field_name,
-    field_default,
-    field_type,
-    _position
-);
-derive_token_range!(RecordField, field_name, _position);
+impl Parse for RecordField {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(RecordField {
+            field_name: track!(parser.parse())?,
+            field_default: track!(parser.parse())?,
+            field_type: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RecordField {
+    fn start_position(&self) -> Position {
+        self.field_name.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.field_type
+            .as_ref()
+            .map(|t| t.end_position())
+            .or_else(|| self.field_default.as_ref().map(|t| t.end_position()))
+            .unwrap_or_else(|| self.field_name.end_position())
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct RecordFieldDefault {
-    pub _bind: literals::S_MATCH,
+    pub _match: SymbolToken,
     pub value: Expr,
 }
-derive_parse!(RecordFieldDefault, _bind, value);
-derive_token_range!(RecordFieldDefault, _bind, value);
+impl Parse for RecordFieldDefault {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(RecordFieldDefault {
+            _match: track!(parser.expect(&Symbol::Match))?,
+            value: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RecordFieldDefault {
+    fn start_position(&self) -> Position {
+        self._match.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.value.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct RecordFieldType {
-    pub _double_colon: literals::S_DOUBLE_COLON,
+    pub _double_colon: SymbolToken,
     pub field_type: Type,
 }
-derive_parse!(RecordFieldType, _double_colon, field_type);
-derive_token_range!(RecordFieldType, _double_colon, field_type);
+impl Parse for RecordFieldType {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(RecordFieldType {
+            _double_colon: track!(parser.expect(&Symbol::DoubleColon))?,
+            field_type: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for RecordFieldType {
+    fn start_position(&self) -> Position {
+        self._double_colon.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.field_type.end_position()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TypeDecl {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _type: literals::A_TYPE,
-    pub name: literals::Atom,
-    pub vars: commons::Args<commons::Var>,
-    pub _double_colon: literals::S_DOUBLE_COLON,
+    pub _hyphen: SymbolToken,
+    pub type_kind: AtomToken,
+    pub type_name: AtomToken,
+    pub variables: Args<VariableToken>,
+    pub _double_colon: SymbolToken,
     pub ty: Type,
-    pub _dot: literals::S_DOT,
+    pub _dot: SymbolToken,
 }
-derive_parse!(
-    TypeDecl,
-    _hyphen,
-    _type,
-    name,
-    vars,
-    _double_colon,
-    ty,
-    _dot
-);
-derive_token_range!(TypeDecl, _hyphen, _dot);
-
-#[derive(Debug, Clone)]
-pub struct OpaqueDecl {
-    pub _hyphen: literals::S_HYPHEN,
-    pub _opaque: literals::A_OPAQUE,
-    pub name: literals::Atom,
-    pub vars: commons::Args<commons::Var>,
-    pub _double_colon: literals::S_DOUBLE_COLON,
-    pub ty: Type,
-    pub _dot: literals::S_DOT,
+impl Parse for TypeDecl {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        Ok(TypeDecl {
+            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
+            type_kind: track!(parser.expect_any(&["type", "opaque"]))?,
+            type_name: track!(parser.parse())?,
+            variables: track!(parser.parse())?,
+            _double_colon: track!(parser.expect(&Symbol::DoubleColon))?,
+            ty: track!(parser.parse())?,
+            _dot: track!(parser.expect(&Symbol::Dot))?,
+        })
+    }
 }
-derive_parse!(
-    OpaqueDecl,
-    _hyphen,
-    _opaque,
-    name,
-    vars,
-    _double_colon,
-    ty,
-    _dot
-);
-derive_token_range!(OpaqueDecl, _hyphen, _dot);
+impl PositionRange for TypeDecl {
+    fn start_position(&self) -> Position {
+        self._hyphen.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._dot.end_position()
+    }
+}
