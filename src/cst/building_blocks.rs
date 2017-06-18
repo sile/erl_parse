@@ -75,12 +75,8 @@ pub enum BinaryOp {
     Orelse(KeywordToken),
     Send(SymbolToken),
 }
-impl Parse for BinaryOp {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        let token = track!(parser.parse::<LexicalToken>())?;
+impl BinaryOp {
+    pub fn from_token(token: LexicalToken) -> ::std::result::Result<Self, LexicalToken> {
         match token {
             LexicalToken::Symbol(s) => {
                 match s.value() {
@@ -99,7 +95,7 @@ impl Parse for BinaryOp {
                     Symbol::Greater => Ok(BinaryOp::Greater(s)),
                     Symbol::GreaterEq => Ok(BinaryOp::GreaterEq(s)),
                     Symbol::Not => Ok(BinaryOp::Send(s)),
-                    _ => track_panic!(ErrorKind::UnexpectedToken(s.into())),
+                    _ => Err(s.into()),
                 }
             }
             LexicalToken::Keyword(k) => {
@@ -115,10 +111,22 @@ impl Parse for BinaryOp {
                     Keyword::Xor => Ok(BinaryOp::Xor(k)),
                     Keyword::Andalso => Ok(BinaryOp::Andalso(k)),
                     Keyword::Orelse => Ok(BinaryOp::Orelse(k)),
-                    _ => track_panic!(ErrorKind::UnexpectedToken(k.into())),
+                    _ => Err(k.into()),
                 }
             }
-            _ => track_panic!(ErrorKind::UnexpectedToken(token)),
+            _ => Err(token),
+        }
+    }
+}
+impl Parse for BinaryOp {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        let token = track!(parser.parse::<LexicalToken>())?;
+        match Self::from_token(token) {
+            Err(token) => track_panic!(ErrorKind::UnexpectedToken(token)),
+            Ok(op) => Ok(op),
         }
     }
 }
@@ -245,27 +253,36 @@ pub enum UnaryOp {
     Not(KeywordToken),
     Bnot(KeywordToken),
 }
-impl Parse for UnaryOp {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        match track!(parser.parse())? {
+impl UnaryOp {
+    pub fn from_token(token: LexicalToken) -> ::std::result::Result<Self, LexicalToken> {
+        match token {
             LexicalToken::Symbol(s) => {
                 match s.value() {
                     Symbol::Plus => Ok(UnaryOp::Plus(s)),
                     Symbol::Hyphen => Ok(UnaryOp::Minus(s)),
-                    _ => track_panic!(ErrorKind::UnexpectedToken(s.into())),
+                    _ => Err(s.into()),
                 }
             }
             LexicalToken::Keyword(k) => {
                 match k.value() {
                     Keyword::Not => Ok(UnaryOp::Not(k)),
                     Keyword::Bnot => Ok(UnaryOp::Bnot(k)),
-                    _ => track_panic!(ErrorKind::UnexpectedToken(k.into())),
+                    _ => Err(k.into()),
                 }
             }
-            token => track_panic!(ErrorKind::UnexpectedToken(token)),
+            token => Err(token),
+        }
+    }
+}
+impl Parse for UnaryOp {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        let token = track!(parser.parse())?;
+        match UnaryOp::from_token(token) {
+            Err(token) => track_panic!(ErrorKind::UnexpectedToken(token)),
+            Ok(op) => Ok(op),
         }
     }
 }

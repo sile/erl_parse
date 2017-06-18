@@ -7,6 +7,7 @@ use traits::{Parse, TokenRead};
 
 pub use self::form::Form;
 pub use self::literal::Literal;
+pub use self::pattern::Pattern;
 
 pub mod building_blocks;
 pub mod clauses;
@@ -19,6 +20,7 @@ pub mod types;
 
 mod form;
 mod literal;
+mod pattern;
 
 /// `Vec<Form>`
 #[derive(Debug, Clone)]
@@ -415,95 +417,6 @@ impl PositionRange for Expr {
             Expr::Case(ref x) => x.end_position(),
             Expr::Receive(ref x) => x.end_position(),
             Expr::Try(ref x) => x.end_position(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Pattern {
-    Literal(Literal),
-    Variable(VariableToken),
-    Tuple(Box<patterns::Tuple>),
-    Map(Box<patterns::Map>),
-    Record(Box<patterns::Record>),
-    RecordFieldIndex(Box<patterns::RecordFieldIndex>),
-    List(Box<patterns::List>),
-    Bits(Box<patterns::Bits>),
-    Parenthesized(Box<patterns::Parenthesized>),
-    UnaryOpCall(Box<patterns::UnaryOpCall>),
-    BinaryOpCall(Box<patterns::BinaryOpCall>),
-    Match(Box<patterns::Match>),
-}
-impl Parse for Pattern {
-    fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        let kind = track!(parser.peek(|parser| LeftKind::guess::<T, Pattern>(parser)))?;
-        let pattern = match kind {
-            LeftKind::Literal => Pattern::Literal(track!(parser.parse())?),
-            LeftKind::Variable => Pattern::Variable(track!(parser.parse())?),
-            LeftKind::Tuple => Pattern::Tuple(track!(parser.parse())?),
-            LeftKind::Map => Pattern::Map(track!(parser.parse())?),
-            LeftKind::Record => Pattern::Record(track!(parser.parse())?),
-            LeftKind::RecordFieldIndex => Pattern::RecordFieldIndex(track!(parser.parse())?),
-            LeftKind::List => Pattern::List(track!(parser.parse())?),            
-            LeftKind::Bits => Pattern::Bits(track!(parser.parse())?),
-            LeftKind::UnaryOpCall => Pattern::UnaryOpCall(track!(parser.parse())?),
-            LeftKind::Parenthesized => Pattern::Parenthesized(track!(parser.parse())?),
-            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
-        };
-        Ok(pattern)
-    }
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        let left = track!(Pattern::parse_non_left_recor(parser))?;
-
-        let kind = parser.peek(|parser| Ok(RightKind2::guess(parser))).expect(
-            "Never fails",
-        );
-        match kind {
-            RightKind2::BinaryOpCall => Ok(Pattern::BinaryOpCall(track!(parser.parse_tail(left))?)),
-            RightKind2::Match => Ok(Pattern::Match(track!(parser.parse_tail(left))?)),
-            RightKind2::None |
-            RightKind2::Union => Ok(left),
-            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),            
-        }
-    }
-}
-impl PositionRange for Pattern {
-    fn start_position(&self) -> Position {
-        match *self {
-            Pattern::Literal(ref x) => x.start_position(),
-            Pattern::Variable(ref x) => x.start_position(),
-            Pattern::Tuple(ref x) => x.start_position(),
-            Pattern::Map(ref x) => x.start_position(),
-            Pattern::Record(ref x) => x.start_position(),
-            Pattern::RecordFieldIndex(ref x) => x.start_position(),
-            Pattern::List(ref x) => x.start_position(),
-            Pattern::Bits(ref x) => x.start_position(),
-            Pattern::Parenthesized(ref x) => x.start_position(),
-            Pattern::UnaryOpCall(ref x) => x.start_position(),
-            Pattern::BinaryOpCall(ref x) => x.start_position(),
-            Pattern::Match(ref x) => x.start_position(),
-        }
-    }
-    fn end_position(&self) -> Position {
-        match *self {
-            Pattern::Literal(ref x) => x.end_position(),
-            Pattern::Variable(ref x) => x.end_position(),
-            Pattern::Tuple(ref x) => x.end_position(),
-            Pattern::Map(ref x) => x.end_position(),
-            Pattern::Record(ref x) => x.end_position(),
-            Pattern::RecordFieldIndex(ref x) => x.end_position(),
-            Pattern::List(ref x) => x.end_position(),
-            Pattern::Bits(ref x) => x.end_position(),
-            Pattern::Parenthesized(ref x) => x.end_position(),
-            Pattern::UnaryOpCall(ref x) => x.end_position(),
-            Pattern::BinaryOpCall(ref x) => x.end_position(),
-            Pattern::Match(ref x) => x.end_position(),
         }
     }
 }
