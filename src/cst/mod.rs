@@ -110,9 +110,9 @@ impl RightKind2 {
             }
             Ok(LexicalToken::Keyword(t)) => {
                 match t.value() {
-                    Keyword::Div | Keyword::Rem | Keyword::Bor | Keyword::Bxor | Keyword::Bsl |
-                    Keyword::Bsr | Keyword::Or | Keyword::Xor | Keyword::Andalso |
-                    Keyword::Orelse => RightKind2::BinaryOpCall,
+                    Keyword::Div | Keyword::Rem | Keyword::Bor | Keyword::Bxor |
+                    Keyword::Band | Keyword::Bsl | Keyword::Bsr | Keyword::Or | Keyword::Xor |
+                    Keyword::Andalso | Keyword::Orelse => RightKind2::BinaryOpCall,
                     _ => RightKind2::None,
                 }
             }
