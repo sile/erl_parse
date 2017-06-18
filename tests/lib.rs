@@ -6,7 +6,7 @@ extern crate trackable;
 
 use erl_pp::Preprocessor;
 use erl_parse::{TokenReader, Tokens, Parse, Parser};
-use erl_parse::cst::{Expr, Pattern};
+use erl_parse::cst::{Expr, Pattern, Type};
 use erl_tokenize::{Lexer, PositionRange};
 
 macro_rules! parse_expr {
@@ -24,6 +24,16 @@ macro_rules! parse_pattern {
         let mut tokens = Parser::new(
             TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text)))));
         let value = track_try_unwrap!(Pattern::parse(&mut tokens),
+                                      "text={:?}, next={:?}", $text, tokens.read_token());
+        assert_eq!(value.end_position().offset(), $text.len());
+    }
+ }
+
+macro_rules! parse_type {
+    ($text:expr) => {
+        let mut tokens = Parser::new(
+            TokenReader::new(Tokens::new(Preprocessor::new(Lexer::new($text)))));
+        let value = track_try_unwrap!(Type::parse(&mut tokens),
                                       "text={:?}, next={:?}", $text, tokens.read_token());
         assert_eq!(value.end_position().offset(), $text.len());
     }
@@ -235,67 +245,58 @@ fn parse_pattern_works() {
     parse_pattern!("{A, B = 2, 3} = {1, 2, 3}");
 }
 
-// macro_rules! parse_type {
-//     ($text:expr) => {
-//         let parser = track_try_unwrap!(Parser::from_text($text));
-//         let ty = track_try_unwrap!(parser.parse_type(), "text={:?}", $text);
-//         assert_eq!(ty.token_end(), parser.tokens().len());
-//     }
-//  }
+#[test]
+fn parse_type_works() {
+    // integer
+    parse_type!("10");
+    parse_type!("-10");
+    parse_type!("(3)");
+    parse_type!("(10 - 2)");
+    parse_type!("1 + 2 - 3 rem 4");
+    parse_type!("(1 + 2) - 3");
+    parse_type!("1 + (2 - -3)");
 
-// #[test]
-// fn parse_type_works() {
-//     // integer
-//     parse_type!("10");
-//     parse_type!("-10");
-//     parse_type!("(3)");
-//     parse_type!("(10 - 2)");
-//     parse_type!("1 + 2 - 3 rem 4");
-//     parse_type!("(1 + 2) - 3");
-//     parse_type!("1 + (2 - -3)");
+    // integer range
+    parse_type!("0..10");
+    parse_type!("-10..+10");
+    parse_type!("(1 + 2)..(10 * 30 - 1)");
 
-//     // integer range
-//     parse_type!("0..10");
-//     parse_type!("-10..+10");
-//     parse_type!("(1 + 2)..(10 * 30 - 1)");
+    // annotated
+    parse_type!("A :: 10");
 
-//     // annotated
-//     parse_type!("A :: 10");
+    // list
+    parse_type!("[]");
+    parse_type!("[foo]");
 
-//     // list
-//     parse_type!("[]");
-//     parse_type!("[foo]");
+    // parenthesized
+    parse_type!("([10])");
 
-//     // parenthesized
-//     parse_type!("([10])");
+    // tuple
+    parse_type!("{1, 2, 3}");
 
-//     // tuple
-//     parse_type!("{1, 2, 3}");
+    // map
+    parse_type!("#{a => 10, b := 20}");
 
-//     // map
-//     parse_type!("#{a => 10, b := 20}");
+    // record
+    parse_type!("#foo{bar = integer()}");
 
-//     // record
-//     parse_type!("#foo{bar = integer()}");
+    // bitstring
+    parse_type!("<<>>");
+    parse_type!("<<_:1>>");
+    parse_type!("<<_:_*3>>");
+    parse_type!("<<_:10,_:_*3>>");
 
-//     // bitstring
-//     parse_type!("<<>>");
-//     parse_type!("<<_:1>>");
-//     parse_type!("<<_:_*3>>");
-//     parse_type!("<<_:10,_:_*3>>");
+    // call
+    parse_type!("foo()");
+    parse_type!("foo:bar(1,2,3)");
 
-//     // call
-//     parse_type!("foo()");
-//     parse_type!("foo:bar(1,2,3)");
+    // fun
+    parse_type!("fun ((...) -> number())");
+    parse_type!("fun ((A, b) -> c:d())");
 
-//     // fun
-//     parse_type!("fun ((...) -> number())");
-//     parse_type!("fun ((A, b) -> c:d())");
-//     parse_type!("fun ((Ab) -> c:d() when V :: T, is_subtype(V, T))");
-
-//     // union
-//     parse_type!("10 | 1 + 2 | (foo | {a, b, c}) | baz");
-// }
+    // union
+    parse_type!("10 | 1 + 2 | (foo | {a, b, c}) | baz");
+}
 
 // macro_rules! parse_form {
 //     ($text:expr) => {

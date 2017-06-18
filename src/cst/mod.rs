@@ -11,6 +11,7 @@ pub mod collections;
 pub mod exprs;
 pub mod guard_tests;
 pub mod patterns;
+pub mod types;
 
 #[derive(Debug)]
 pub enum RightKind {
@@ -66,6 +67,8 @@ impl RightKind {
 pub enum RightKind2 {
     BinaryOpCall,
     Match,
+    Range,
+    Union,
     None,
 }
 impl RightKind2 {
@@ -76,6 +79,8 @@ impl RightKind2 {
         match parser.read_token() {
             Ok(LexicalToken::Symbol(t)) => {
                 match t.value() {
+                    Symbol::VerticalBar => RightKind2::Union,
+                    Symbol::DoubleDot => RightKind2::Range,
                     Symbol::Match => RightKind2::Match,
                     Symbol::Plus | Symbol::Hyphen | Symbol::Multiply | Symbol::Slash |
                     Symbol::PlusPlus | Symbol::MinusMinus | Symbol::Eq | Symbol::ExactEq |
@@ -121,6 +126,7 @@ pub enum LeftKind {
     Case,
     Receive,
     Try,
+    Annotated,
 }
 impl LeftKind {
     fn guess<T, U>(parser: &mut Parser<T>) -> Result<Self>
@@ -206,7 +212,13 @@ impl LeftKind {
                     _ => track_panic!(ErrorKind::UnexpectedToken(t.into())),
                 }
             }
-            LexicalToken::Variable(_) => LeftKind::Variable,
+            LexicalToken::Variable(_) => {
+                if parser.expect::<SymbolToken>(&Symbol::DoubleColon).is_ok() {
+                    LeftKind::Annotated
+                } else {
+                    LeftKind::Variable
+                }
+            }
             _ => LeftKind::Literal,
         })
     }
@@ -273,6 +285,7 @@ impl Parse for Expr {
             LeftKind::Case => Expr::Case(track!(parser.parse())?),
             LeftKind::Receive => Expr::Receive(track!(parser.parse())?),
             LeftKind::Try => Expr::Try(track!(parser.parse())?),
+            _ => track_panic!(ErrorKind::InvalidInput, "unreachable"),            
         };
         Ok(expr)
     }
@@ -306,8 +319,9 @@ impl Parse for Expr {
             RightKind2::BinaryOpCall => Ok(
                 Expr::BinaryOpCall(track!(parser.parse_left_recur(left))?),
             ),
-            RightKind2::Match => track_panic!(ErrorKind::InvalidInput, "unreachable"),
-            RightKind2::None => Ok(left),
+            RightKind2::None |
+            RightKind2::Union => Ok(left),
+            _ => track_panic!(ErrorKind::InvalidInput, "unreachable"),            
         }
     }
 }
@@ -430,7 +444,9 @@ impl Parse for Pattern {
                 track!(parser.parse_left_recur(left))?,
             )),
             RightKind2::Match => Ok(Pattern::Match(track!(parser.parse_left_recur(left))?)),
-            RightKind2::None => Ok(left),
+            RightKind2::None |
+            RightKind2::Union => Ok(left),
+            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),            
         }
     }
 }
@@ -606,7 +622,7 @@ impl Parse for GuardTest {
             RightKind::LocalCall => GuardTest::LocalCall(track!(parser.parse_left_recur(test))?),
             RightKind::RemoteCall => GuardTest::RemoteCall(track!(parser.parse_left_recur(test))?),
             RightKind::None => test,
-            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),            
+            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
         };
 
         let kind = parser.peek(|parser| Ok(RightKind2::guess(parser))).expect(
@@ -616,7 +632,8 @@ impl Parse for GuardTest {
             RightKind2::BinaryOpCall => Ok(GuardTest::BinaryOpCall(
                 track!(parser.parse_left_recur(left))?,
             )),
-            RightKind2::None => Ok(left),
+            RightKind2::None |
+            RightKind2::Union => Ok(left),
             _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
         }
     }
@@ -654,6 +671,128 @@ impl PositionRange for GuardTest {
             GuardTest::RemoteCall(ref x) => x.end_position(),
             GuardTest::UnaryOpCall(ref x) => x.end_position(),
             GuardTest::BinaryOpCall(ref x) => x.end_position(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Type {
+    Literal(Literal),
+    Variable(VariableToken),
+    Annotated(Box<types::Annotated>),
+    Tuple(Box<types::Tuple>),
+    Map(Box<types::Map>),
+    Record(Box<types::Record>),
+    List(Box<types::List>),
+    Bits(Box<types::Bits>),
+    Parenthesized(Box<types::Parenthesized>),
+    LocalCall(Box<types::LocalCall>),
+    RemoteCall(Box<types::RemoteCall>),
+    UnaryOpCall(Box<types::UnaryOpCall>),
+    BinaryOpCall(Box<types::BinaryOpCall>),
+    AnyArgFun(Box<types::AnyArgFun>),
+    Fun(Box<types::Fun>),
+    Range(Box<types::Range>),
+    Union(Box<types::Union>),
+}
+impl Parse for Type {
+    fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let kind = track!(parser.peek(|parser| LeftKind::guess::<T, Type>(parser)))?;
+        let ty = match kind {
+            LeftKind::Literal => Type::Literal(track!(parser.parse())?),
+            LeftKind::Variable => Type::Variable(track!(parser.parse())?),
+            LeftKind::Annotated => Type::Annotated(track!(parser.parse())?),
+            LeftKind::List => Type::List(track!(parser.parse())?),
+            LeftKind::Bits => Type::Bits(track!(parser.parse())?),            
+            LeftKind::Tuple => Type::Tuple(track!(parser.parse())?),
+            LeftKind::Map => Type::Map(track!(parser.parse())?),
+            LeftKind::Record => Type::Record(track!(parser.parse())?),
+            LeftKind::UnaryOpCall => Type::UnaryOpCall(track!(parser.parse())?),
+            LeftKind::Parenthesized => Type::Parenthesized(track!(parser.parse())?),
+            LeftKind::AnonymousFun => {
+                if let Ok(t) = parser.transaction(|parser| parser.parse()) {
+                    Type::AnyArgFun(t)
+                } else {
+                    Type::Fun(track!(parser.parse())?)
+                }
+            }
+            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
+        };
+        Ok(ty)
+    }
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
+    {
+        let ty = track!(Type::parse_non_left_recor(parser))?;
+        let kind = parser.peek(|parser| Ok(RightKind::guess(parser))).expect(
+            "Never fails",
+        );
+        let left = match kind {
+            RightKind::LocalCall => Type::LocalCall(track!(parser.parse_left_recur(ty))?),
+            RightKind::RemoteCall => Type::RemoteCall(track!(parser.parse_left_recur(ty))?),
+            RightKind::None => ty,
+            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
+        };
+
+        let kind = parser.peek(|parser| Ok(RightKind2::guess(parser))).expect(
+            "Never fails",
+        );
+        match kind {
+            RightKind2::BinaryOpCall => Ok(
+                Type::BinaryOpCall(track!(parser.parse_left_recur(left))?),
+            ),
+            RightKind2::Union => Ok(Type::Union(track!(parser.parse_left_recur(left))?)),
+            RightKind2::Range => Ok(Type::Range(track!(parser.parse_left_recur(left))?)),
+            RightKind2::None => Ok(left),
+            _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),            
+        }
+    }
+}
+impl PositionRange for Type {
+    fn start_position(&self) -> Position {
+        match *self {
+            Type::Literal(ref x) => x.start_position(),
+            Type::Variable(ref x) => x.start_position(),
+            Type::Annotated(ref x) => x.start_position(),
+            Type::List(ref x) => x.start_position(),
+            Type::Bits(ref x) => x.start_position(),            
+            Type::Tuple(ref x) => x.start_position(),
+            Type::Map(ref x) => x.start_position(),
+            Type::Record(ref x) => x.start_position(),
+            Type::AnyArgFun(ref x) => x.start_position(),
+            Type::Fun(ref x) => x.start_position(),
+            Type::Parenthesized(ref x) => x.start_position(),
+            Type::LocalCall(ref x) => x.start_position(),
+            Type::RemoteCall(ref x) => x.start_position(),
+            Type::UnaryOpCall(ref x) => x.start_position(),
+            Type::BinaryOpCall(ref x) => x.start_position(),
+            Type::Range(ref x) => x.start_position(),
+            Type::Union(ref x) => x.start_position(),
+        }
+    }
+    fn end_position(&self) -> Position {
+        match *self {
+            Type::Literal(ref x) => x.end_position(),
+            Type::Variable(ref x) => x.end_position(),
+            Type::Annotated(ref x) => x.end_position(),
+            Type::List(ref x) => x.end_position(),
+            Type::Bits(ref x) => x.end_position(),
+            Type::Tuple(ref x) => x.end_position(),
+            Type::Map(ref x) => x.end_position(),
+            Type::Record(ref x) => x.end_position(),
+            Type::AnyArgFun(ref x) => x.end_position(),
+            Type::Fun(ref x) => x.end_position(),
+            Type::Parenthesized(ref x) => x.end_position(),
+            Type::LocalCall(ref x) => x.end_position(),
+            Type::RemoteCall(ref x) => x.end_position(),
+            Type::UnaryOpCall(ref x) => x.end_position(),
+            Type::BinaryOpCall(ref x) => x.end_position(),
+            Type::Range(ref x) => x.end_position(),
+            Type::Union(ref x) => x.end_position(),
         }
     }
 }
