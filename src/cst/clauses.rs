@@ -4,7 +4,8 @@ use erl_tokenize::values::Symbol;
 
 use {Result, Parser};
 use cst::{Pattern, GuardTest, Type};
-use cst::building_blocks::{Args, ExceptionClass, Sequence, WhenGuard, Clauses, Body};
+use cst::building_blocks::{Args, ExceptionClass, Sequence, WhenGuard, Clauses};
+use cst::exprs::parts::Body;
 use cst::types;
 use traits::{Parse, TokenRead};
 

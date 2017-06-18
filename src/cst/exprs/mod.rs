@@ -5,11 +5,13 @@ use erl_tokenize::values::{Keyword, Symbol};
 use {Result, Parser};
 use cst::Expr;
 use cst::building_blocks::{self, Clauses, Sequence, AtomOrVariable, IntegerOrVariable,
-                           ModulePrefix, NameAndArity, TryOf, TryCatch, TryAfter, Timeout,
-                           Qualifier, Body};
+                           ModulePrefix, NameAndArity};
 use cst::clauses::{FunClause, NamedFunClause, IfClause, CaseClause};
 use cst::collections;
 use traits::{Parse, ParseTail, TokenRead};
+use self::parts::{Body, Qualifier, Timeout, TryOf, TryCatch, TryAfter};
+
+pub mod parts;
 
 pub type Tuple = collections::Tuple<Expr>;
 pub type Map = collections::Map<Expr>;
