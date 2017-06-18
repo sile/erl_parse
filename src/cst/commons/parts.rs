@@ -6,7 +6,7 @@ use erl_tokenize::values::{Symbol, Keyword};
 use {Result, Parser, ErrorKind};
 use traits::{Parse, TokenRead, Delimiter};
 use super::AtomOrVariable;
-use super::iterators::SequenceIter;
+use super::iterators::{SequenceIter, ConsCellIter};
 
 pub type Clauses<T> = Sequence<T, Semicolon>;
 
@@ -128,6 +128,11 @@ impl PositionRange for BitsElemSpec {
 pub struct ConsCell<T> {
     pub item: T,
     pub tail: Option<ConsCellTail<T>>,
+}
+impl<T> ConsCell<T> {
+    pub fn iter(&self) -> ConsCellIter<T> {
+        ConsCellIter::new(self)
+    }
 }
 impl<T: Parse> Parse for ConsCell<T> {
     fn parse<U: TokenRead>(parser: &mut Parser<U>) -> Result<Self> {
