@@ -4,10 +4,13 @@ use erl_tokenize::values::Symbol;
 
 use {Result, Parser};
 use cst::Type;
-use cst::building_blocks::{Clauses, Args, List, NameAndArity, ModulePrefix, RecordFieldDecl};
+use cst::building_blocks::{Clauses, Args, List, NameAndArity, ModulePrefix};
 use cst::clauses::{SpecClause, FunDeclClause};
 use cst::collections::Tuple;
 use traits::{Parse, TokenRead};
+use self::parts::RecordFieldDecl;
+
+pub mod parts;
 
 /// `-` `module` `(` `AtomToken` `)` `.`
 #[derive(Debug, Clone)]

@@ -4,9 +4,12 @@ use erl_tokenize::values::{Symbol, Keyword};
 
 use {Result, Parser};
 use cst::Type;
-use cst::building_blocks::{self, Args, Sequence, ListElement, BitsSpec};
+use cst::building_blocks::{self, Args, Sequence, BitsSpec};
 use cst::collections;
 use traits::{Parse, ParseTail, TokenRead};
+use self::parts::ListElement;
+
+pub mod parts;
 
 pub type Tuple = collections::Tuple<Type>;
 pub type Map = collections::Map<Type>;
