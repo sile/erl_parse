@@ -1,10 +1,14 @@
+use std::marker::PhantomData;
 use erl_tokenize::{Position, PositionRange, LexicalToken};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, KeywordToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
 use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead};
+use traits::{Parse, TokenRead, Delimiter};
 use super::AtomOrVariable;
+use super::iterators::SequenceIter;
+
+pub type Clauses<T> = Sequence<T, Semicolon>;
 
 /// `T` `Option<BitsElemSize<T>>` `Option<BitsElemSpecs>`
 #[derive(Debug, Clone)]
@@ -58,11 +62,11 @@ impl<T: PositionRange> PositionRange for BitsElemSize<T> {
     }
 }
 
-/// `/` `HyphenSeq<BitsElemSpec>`
+/// `/` `Sequence<BitsElemSpec, Hyphen>`
 #[derive(Debug, Clone)]
 pub struct BitsElemSpecs {
     pub _slash: SymbolToken,
-    pub specs: HyphenSeq<BitsElemSpec>,
+    pub specs: Sequence<BitsElemSpec, Hyphen>,
 }
 impl Parse for BitsElemSpecs {
     fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
@@ -524,18 +528,18 @@ impl<N: PositionRange, A: PositionRange> PositionRange for NameAndArity<N, A> {
     }
 }
 
+/// `item` `Option<SequenceTail<T>>`
 #[derive(Debug, Clone)]
-pub struct Sequence<T> {
+pub struct Sequence<T, D = Comma> {
     pub item: T,
-    pub tail: Option<SequenceTail<T>>,
+    pub tail: Option<SequenceTail<T, D>>,
 }
-impl<T> Sequence<T> {
-    pub fn iter(&self) -> SequenceIter<T> {
-        let inner = SequenceIterInner::Head(self);
-        SequenceIter(inner)
+impl<T, D> Sequence<T, D> {
+    pub fn iter(&self) -> SequenceIter<T, D> {
+        SequenceIter::new(self)
     }
 }
-impl<T: Parse> Parse for Sequence<T> {
+impl<T: Parse, D: Delimiter> Parse for Sequence<T, D> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: TokenRead,
@@ -546,7 +550,7 @@ impl<T: Parse> Parse for Sequence<T> {
         })
     }
 }
-impl<T: PositionRange> PositionRange for Sequence<T> {
+impl<T: PositionRange, D> PositionRange for Sequence<T, D> {
     fn start_position(&self) -> Position {
         self.item.start_position()
     }
@@ -558,25 +562,28 @@ impl<T: PositionRange> PositionRange for Sequence<T> {
     }
 }
 
+/// `,` `item` `Option<SequenceTail<T>>`
 #[derive(Debug, Clone)]
-pub struct SequenceTail<T> {
+pub struct SequenceTail<T, D> {
     pub _comma: SymbolToken,
     pub item: T,
-    pub tail: Option<Box<SequenceTail<T>>>,
+    pub tail: Option<Box<SequenceTail<T, D>>>,
+    _phantom: PhantomData<D>,
 }
-impl<T: Parse> Parse for SequenceTail<T> {
+impl<T: Parse, D: Delimiter> Parse for SequenceTail<T, D> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: TokenRead,
     {
         Ok(SequenceTail {
-            _comma: track!(parser.expect(&Symbol::Comma))?,
+            _comma: track!(parser.expect(&D::delimiter()))?,
             item: track!(parser.parse())?,
             tail: track!(parser.parse())?,
+            _phantom: PhantomData,
         })
     }
 }
-impl<T: PositionRange> PositionRange for SequenceTail<T> {
+impl<T: PositionRange, D> PositionRange for SequenceTail<T, D> {
     fn start_position(&self) -> Position {
         self._comma.start_position()
     }
@@ -588,159 +595,26 @@ impl<T: PositionRange> PositionRange for SequenceTail<T> {
     }
 }
 
-#[derive(Debug)]
-pub struct SequenceIter<'a, T: 'a>(SequenceIterInner<'a, T>);
-impl<'a, T: 'a> Iterator for SequenceIter<'a, T> {
-    type Item = &'a T;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-
-#[derive(Debug)]
-enum SequenceIterInner<'a, T: 'a> {
-    Head(&'a Sequence<T>),
-    Tail(&'a SequenceTail<T>),
-    Eos,
-}
-impl<'a, T: 'a> Iterator for SequenceIterInner<'a, T> {
-    type Item = &'a T;
-    fn next(&mut self) -> Option<Self::Item> {
-        match *self {
-            SequenceIterInner::Head(&Sequence { ref item, ref tail }) => {
-                if let Some(ref tail) = *tail {
-                    *self = SequenceIterInner::Tail(tail);
-                } else {
-                    *self = SequenceIterInner::Eos
-                }
-                Some(item)
-            }
-            SequenceIterInner::Tail(&SequenceTail { ref item, ref tail, .. }) => {
-                if let Some(ref tail) = *tail {
-                    *self = SequenceIterInner::Tail(tail);
-                } else {
-                    *self = SequenceIterInner::Eos
-                }
-                Some(item)
-            }
-            SequenceIterInner::Eos => None,
-        }
-    }
-}
-
-// TODO
 #[derive(Debug, Clone)]
-pub struct HyphenSeq<T> {
-    pub item: T,
-    pub tail: Option<HyphenSeqTail<T>>,
-}
-impl<T: Parse> Parse for HyphenSeq<T> {
-    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
-    where
-        U: TokenRead,
-    {
-        Ok(HyphenSeq {
-            item: track!(parser.parse())?,
-            tail: track!(parser.parse())?,
-        })
-    }
-}
-impl<T: PositionRange> PositionRange for HyphenSeq<T> {
-    fn start_position(&self) -> Position {
-        self.item.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.tail
-            .as_ref()
-            .map(|t| t.end_position())
-            .unwrap_or_else(|| self.item.end_position())
+pub struct Comma;
+impl Delimiter for Comma {
+    fn delimiter() -> Symbol {
+        Symbol::Comma
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct HyphenSeqTail<T> {
-    pub _hyphen: SymbolToken,
-    pub item: T,
-    pub tail: Option<Box<HyphenSeqTail<T>>>,
-}
-impl<T: Parse> Parse for HyphenSeqTail<T> {
-    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
-    where
-        U: TokenRead,
-    {
-        Ok(HyphenSeqTail {
-            _hyphen: track!(parser.expect(&Symbol::Hyphen))?,
-            item: track!(parser.parse())?,
-            tail: track!(parser.parse())?,
-        })
-    }
-}
-impl<T: PositionRange> PositionRange for HyphenSeqTail<T> {
-    fn start_position(&self) -> Position {
-        self._hyphen.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.tail
-            .as_ref()
-            .map(|t| t.end_position())
-            .unwrap_or_else(|| self.item.end_position())
+pub struct Hyphen;
+impl Delimiter for Hyphen {
+    fn delimiter() -> Symbol {
+        Symbol::Hyphen
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Clauses<T> {
-    pub item: T,
-    pub tail: Option<ClausesTail<T>>,
-}
-impl<T: Parse> Parse for Clauses<T> {
-    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
-    where
-        U: TokenRead,
-    {
-        Ok(Clauses {
-            item: track!(parser.parse())?,
-            tail: track!(parser.parse())?,
-        })
-    }
-}
-impl<T: PositionRange> PositionRange for Clauses<T> {
-    fn start_position(&self) -> Position {
-        self.item.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.tail
-            .as_ref()
-            .map(|t| t.end_position())
-            .unwrap_or_else(|| self.item.end_position())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ClausesTail<T> {
-    pub _semicolon: SymbolToken,
-    pub item: T,
-    pub tail: Option<Box<ClausesTail<T>>>,
-}
-impl<T: Parse> Parse for ClausesTail<T> {
-    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
-    where
-        U: TokenRead,
-    {
-        Ok(ClausesTail {
-            _semicolon: track!(parser.expect(&Symbol::Semicolon))?,
-            item: track!(parser.parse())?,
-            tail: track!(parser.parse())?,
-        })
-    }
-}
-impl<T: PositionRange> PositionRange for ClausesTail<T> {
-    fn start_position(&self) -> Position {
-        self._semicolon.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.tail
-            .as_ref()
-            .map(|t| t.end_position())
-            .unwrap_or_else(|| self.item.end_position())
+pub struct Semicolon;
+impl Delimiter for Semicolon {
+    fn delimiter() -> Symbol {
+        Symbol::Semicolon
     }
 }

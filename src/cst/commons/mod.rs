@@ -8,6 +8,7 @@ use super::Pattern;
 use self::parts::{BitsElem, ConsCell, BinaryOp, UnaryOp, ModulePrefix, Args, MapField,
                   RecordField, Sequence};
 
+pub mod iterators;
 pub mod parts;
 
 /// `{` `Option<Sequence<T>>` `}`
