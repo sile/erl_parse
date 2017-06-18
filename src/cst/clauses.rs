@@ -1,44 +1,20 @@
 use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::{KeywordToken, SymbolToken, VariableToken, AtomToken};
-use erl_tokenize::values::{Keyword, Symbol};
+use erl_tokenize::tokens::{SymbolToken, VariableToken, AtomToken};
+use erl_tokenize::values::Symbol;
 
 use {Result, Parser};
-use cst::{Pattern, GuardSeq, Type};
+use cst::{Pattern, GuardTest, Type};
 use cst::exprs::Body;
-use cst::building_blocks::{Args, AtomOrVariable};
+use cst::building_blocks::{Args, ExceptionClass, Sequence, WhenGuard, Clauses};
 use cst::types;
 use traits::{Parse, TokenRead};
 
-#[derive(Debug, Clone)]
-pub struct ExceptionClass {
-    pub class: AtomOrVariable,
-    pub _colon: SymbolToken,
-}
-impl Parse for ExceptionClass {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(ExceptionClass {
-            class: track!(parser.parse())?,
-            _colon: track!(parser.expect(&Symbol::Colon))?,
-        })
-    }
-}
-impl PositionRange for ExceptionClass {
-    fn start_position(&self) -> Position {
-        self.class.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self._colon.end_position()
-    }
-}
-
+/// `Option<ExceptionClass>` `Pattern` `Option<WhenGuard>` `->` `Body`
 #[derive(Debug, Clone)]
 pub struct CatchClause {
     pub class: Option<ExceptionClass>,
     pub pattern: Pattern,
-    pub guard: Option<Guard>,
+    pub guard: Option<WhenGuard>,
     pub _arrow: SymbolToken,
     pub body: Body,
 }
@@ -68,6 +44,7 @@ impl PositionRange for CatchClause {
     }
 }
 
+/// `Args<Type>` `->` `Type` `Option<Constraints>`
 #[derive(Debug, Clone)]
 pub struct SpecClause {
     pub args: Args<Type>,
@@ -100,10 +77,11 @@ impl PositionRange for SpecClause {
     }
 }
 
+/// `Pattern` `Option<WhenGuard>` `->` `Body`
 #[derive(Debug, Clone)]
 pub struct CaseClause {
     pub pattern: Pattern,
-    pub guard: Option<Guard>,
+    pub guard: Option<WhenGuard>,
     pub _arrow: SymbolToken,
     pub body: Body,
 }
@@ -129,9 +107,10 @@ impl PositionRange for CaseClause {
     }
 }
 
+/// `Clauses<Sequence<GuardTest>>` `->` `Body`
 #[derive(Debug, Clone)]
 pub struct IfClause {
-    pub guard: GuardSeq,
+    pub guard: Clauses<Sequence<GuardTest>>,
     pub _arrow: SymbolToken,
     pub body: Body,
 }
@@ -156,10 +135,11 @@ impl PositionRange for IfClause {
     }
 }
 
+/// `Args<Pattern>` `Option<WhenGuard>` `->` `Body`
 #[derive(Debug, Clone)]
 pub struct FunClause {
     pub patterns: Args<Pattern>,
-    pub guard: Option<Guard>,
+    pub guard: Option<WhenGuard>,
     pub _arrow: SymbolToken,
     pub body: Body,
 }
@@ -185,11 +165,12 @@ impl PositionRange for FunClause {
     }
 }
 
+/// `VariableToken` `Args<Pattern>` `Option<WhenGuard>` `->` `Body`
 #[derive(Debug, Clone)]
 pub struct NamedFunClause {
     pub name: VariableToken,
     pub patterns: Args<Pattern>,
-    pub guard: Option<Guard>,
+    pub guard: Option<WhenGuard>,
     pub _arrow: SymbolToken,
     pub body: Body,
 }
@@ -216,11 +197,12 @@ impl PositionRange for NamedFunClause {
     }
 }
 
+/// `AtomToken` `Args<Pattern>` `Option<WhenGuard>` `->` `Body`
 #[derive(Debug, Clone)]
 pub struct FunDeclClause {
     pub name: AtomToken,
     pub patterns: Args<Pattern>,
-    pub guard: Option<Guard>,
+    pub guard: Option<WhenGuard>,
     pub _arrow: SymbolToken,
     pub body: Body,
 }
@@ -245,88 +227,5 @@ impl PositionRange for FunDeclClause {
     }
     fn end_position(&self) -> Position {
         self.body.end_position()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Guard {
-    pub _when: KeywordToken,
-    pub seq: GuardSeq,
-}
-impl Parse for Guard {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(Guard {
-            _when: track!(parser.expect(&Keyword::When))?,
-            seq: track!(parser.parse())?,
-        })
-    }
-}
-impl PositionRange for Guard {
-    fn start_position(&self) -> Position {
-        self._when.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.seq.end_position()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Clauses<T> {
-    pub item: T,
-    pub tail: Option<ClausesTail<T>>,
-}
-impl<T: Parse> Parse for Clauses<T> {
-    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
-    where
-        U: TokenRead,
-    {
-        Ok(Clauses {
-            item: track!(parser.parse())?,
-            tail: track!(parser.parse())?,
-        })
-    }
-}
-impl<T: PositionRange> PositionRange for Clauses<T> {
-    fn start_position(&self) -> Position {
-        self.item.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.tail
-            .as_ref()
-            .map(|t| t.end_position())
-            .unwrap_or_else(|| self.item.end_position())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ClausesTail<T> {
-    pub _semicolon: SymbolToken,
-    pub item: T,
-    pub tail: Option<Box<ClausesTail<T>>>,
-}
-impl<T: Parse> Parse for ClausesTail<T> {
-    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
-    where
-        U: TokenRead,
-    {
-        Ok(ClausesTail {
-            _semicolon: track!(parser.expect(&Symbol::Semicolon))?,
-            item: track!(parser.parse())?,
-            tail: track!(parser.parse())?,
-        })
-    }
-}
-impl<T: PositionRange> PositionRange for ClausesTail<T> {
-    fn start_position(&self) -> Position {
-        self._semicolon.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.tail
-            .as_ref()
-            .map(|t| t.end_position())
-            .unwrap_or_else(|| self.item.end_position())
     }
 }

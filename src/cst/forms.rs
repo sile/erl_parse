@@ -4,8 +4,8 @@ use erl_tokenize::values::Symbol;
 
 use {Result, Parser};
 use cst::Type;
-use cst::building_blocks::{Args, List, NameAndArity, ModulePrefix, RecordFieldDecl};
-use cst::clauses::{Clauses, SpecClause, FunDeclClause};
+use cst::building_blocks::{Clauses, Args, List, NameAndArity, ModulePrefix, RecordFieldDecl};
+use cst::clauses::{SpecClause, FunDeclClause};
 use cst::collections::Tuple;
 use traits::{Parse, TokenRead};
 

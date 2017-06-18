@@ -4,7 +4,7 @@ use erl_tokenize::values::{Symbol, Keyword};
 
 use {Result, Parser, ErrorKind};
 use traits::{Parse, ParseTail, TokenRead};
-use cst::{Pattern, Expr, Type};
+use cst::{Pattern, Expr, Type, GuardTest};
 use cst::collections::RecordFieldIndex;
 
 #[derive(Debug, Clone)]
@@ -1151,5 +1151,113 @@ impl<T: PositionRange> PositionRange for RecordFieldAccess<T> {
     }
     fn end_position(&self) -> Position {
         self.index.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExceptionClass {
+    pub class: AtomOrVariable,
+    pub _colon: SymbolToken,
+}
+impl Parse for ExceptionClass {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(ExceptionClass {
+            class: track!(parser.parse())?,
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+        })
+    }
+}
+impl PositionRange for ExceptionClass {
+    fn start_position(&self) -> Position {
+        self.class.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self._colon.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WhenGuard {
+    pub _when: KeywordToken,
+    pub seq: Clauses<Sequence<GuardTest>>,
+}
+impl Parse for WhenGuard {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        Ok(WhenGuard {
+            _when: track!(parser.expect(&Keyword::When))?,
+            seq: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for WhenGuard {
+    fn start_position(&self) -> Position {
+        self._when.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.seq.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Clauses<T> {
+    pub item: T,
+    pub tail: Option<ClausesTail<T>>,
+}
+impl<T: Parse> Parse for Clauses<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: TokenRead,
+    {
+        Ok(Clauses {
+            item: track!(parser.parse())?,
+            tail: track!(parser.parse())?,
+        })
+    }
+}
+impl<T: PositionRange> PositionRange for Clauses<T> {
+    fn start_position(&self) -> Position {
+        self.item.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.tail
+            .as_ref()
+            .map(|t| t.end_position())
+            .unwrap_or_else(|| self.item.end_position())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ClausesTail<T> {
+    pub _semicolon: SymbolToken,
+    pub item: T,
+    pub tail: Option<Box<ClausesTail<T>>>,
+}
+impl<T: Parse> Parse for ClausesTail<T> {
+    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
+    where
+        U: TokenRead,
+    {
+        Ok(ClausesTail {
+            _semicolon: track!(parser.expect(&Symbol::Semicolon))?,
+            item: track!(parser.parse())?,
+            tail: track!(parser.parse())?,
+        })
+    }
+}
+impl<T: PositionRange> PositionRange for ClausesTail<T> {
+    fn start_position(&self) -> Position {
+        self._semicolon.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.tail
+            .as_ref()
+            .map(|t| t.end_position())
+            .unwrap_or_else(|| self.item.end_position())
     }
 }

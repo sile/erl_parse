@@ -4,8 +4,8 @@ use erl_tokenize::values::{Keyword, Symbol};
 
 use {Result, Parser};
 use cst::{Expr, Pattern};
-use cst::building_blocks::{self, Sequence, AtomOrVariable, IntegerOrVariable};
-use cst::clauses::{Clauses, FunClause, NamedFunClause, IfClause, CaseClause, CatchClause};
+use cst::building_blocks::{self, Clauses, Sequence, AtomOrVariable, IntegerOrVariable};
+use cst::clauses::{FunClause, NamedFunClause, IfClause, CaseClause, CatchClause};
 use cst::collections;
 use traits::{Parse, ParseTail, TokenRead};
 
