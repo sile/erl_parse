@@ -2,10 +2,11 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{SymbolToken, VariableToken, IntegerToken, KeywordToken, AtomToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parser, Preprocessor, Parse, ParseLeftRecur};
+use {Result, Parser};
 use cst::Type;
 use cst::building_blocks::{self, Args, Sequence};
 use cst::collections;
+use traits::{Parse, ParseTail, Preprocessor};
 
 #[derive(Debug, Clone)]
 pub struct AnyArgFun {
@@ -174,14 +175,14 @@ pub struct Range {
     pub _dot: SymbolToken,
     pub high: Type,
 }
-impl ParseLeftRecur for Range {
-    type Left = Type;
-    fn parse_left_recur<T>(parser: &mut Parser<T>, left: Self::Left) -> Result<Self>
+impl ParseTail for Range {
+    type Head = Type;
+    fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(Range {
-            low: left,
+            low: head,
             _dot: track!(parser.expect(&Symbol::DoubleDot))?,
             high: track!(parser.parse())?,
         })
@@ -202,14 +203,14 @@ pub struct Union {
     pub _or: SymbolToken,
     pub right: Type,
 }
-impl ParseLeftRecur for Union {
-    type Left = Type;
-    fn parse_left_recur<T>(parser: &mut Parser<T>, left: Self::Left) -> Result<Self>
+impl ParseTail for Union {
+    type Head = Type;
+    fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(Union {
-            left,
+            left: head,
             _or: track!(parser.expect(&Symbol::VerticalBar))?,
             right: track!(parser.parse())?,
         })

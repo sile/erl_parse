@@ -2,11 +2,12 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
-use {Result, Parser, Preprocessor, Parse};
+use {Result, Parser};
 use cst::{Pattern, GuardSeq, Type};
 use cst::exprs::Body;
 use cst::building_blocks::{Args, AtomOrVariable};
 use cst::types;
+use traits::{Parse, Preprocessor};
 
 #[derive(Debug, Clone)]
 pub struct ExceptionClass {

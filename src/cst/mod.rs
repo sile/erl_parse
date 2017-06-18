@@ -3,7 +3,8 @@ use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, Strin
                            VariableToken, SymbolToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parse, Preprocessor, Parser, ErrorKind, Error};
+use {Result, Parser, ErrorKind, Error};
+use traits::{Parse, Preprocessor};
 
 pub mod building_blocks;
 pub mod clauses;
@@ -321,12 +322,12 @@ impl Parse for Expr {
             "Never fails",
         );
         let left = match kind {
-            RightKind::LocalCall => Expr::LocalCall(track!(parser.parse_left_recur(expr))?),
-            RightKind::RemoteCall => Expr::RemoteCall(track!(parser.parse_left_recur(expr))?),
-            RightKind::MapUpdate => Expr::MapUpdate(track!(parser.parse_left_recur(expr))?),
-            RightKind::RecordUpdate => Expr::RecordUpdate(track!(parser.parse_left_recur(expr))?), 
+            RightKind::LocalCall => Expr::LocalCall(track!(parser.parse_tail(expr))?),
+            RightKind::RemoteCall => Expr::RemoteCall(track!(parser.parse_tail(expr))?),
+            RightKind::MapUpdate => Expr::MapUpdate(track!(parser.parse_tail(expr))?),
+            RightKind::RecordUpdate => Expr::RecordUpdate(track!(parser.parse_tail(expr))?), 
             RightKind::RecordFieldAccess => Expr::RecordFieldAccess(
-                track!(parser.parse_left_recur(expr))?,
+                track!(parser.parse_tail(expr))?,
             ), 
             RightKind::None => expr,
         };
@@ -335,9 +336,7 @@ impl Parse for Expr {
             "Never fails",
         );
         match kind {
-            RightKind2::BinaryOpCall => Ok(
-                Expr::BinaryOpCall(track!(parser.parse_left_recur(left))?),
-            ),
+            RightKind2::BinaryOpCall => Ok(Expr::BinaryOpCall(track!(parser.parse_tail(left))?)),
             RightKind2::None |
             RightKind2::Union => Ok(left),
             _ => track_panic!(ErrorKind::InvalidInput, "unreachable"),            
@@ -459,10 +458,8 @@ impl Parse for Pattern {
             "Never fails",
         );
         match kind {
-            RightKind2::BinaryOpCall => Ok(Pattern::BinaryOpCall(
-                track!(parser.parse_left_recur(left))?,
-            )),
-            RightKind2::Match => Ok(Pattern::Match(track!(parser.parse_left_recur(left))?)),
+            RightKind2::BinaryOpCall => Ok(Pattern::BinaryOpCall(track!(parser.parse_tail(left))?)),
+            RightKind2::Match => Ok(Pattern::Match(track!(parser.parse_tail(left))?)),
             RightKind2::None |
             RightKind2::Union => Ok(left),
             _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),            
@@ -649,10 +646,10 @@ impl Parse for GuardTest {
             "Never fails",
         );
         let left = match kind {
-            RightKind::LocalCall => GuardTest::LocalCall(track!(parser.parse_left_recur(test))?),
-            RightKind::RemoteCall => GuardTest::RemoteCall(track!(parser.parse_left_recur(test))?),
+            RightKind::LocalCall => GuardTest::LocalCall(track!(parser.parse_tail(test))?),
+            RightKind::RemoteCall => GuardTest::RemoteCall(track!(parser.parse_tail(test))?),
             RightKind::RecordFieldAccess => GuardTest::RecordFieldAccess(
-                track!(parser.parse_left_recur(test))?,
+                track!(parser.parse_tail(test))?,
             ), 
             RightKind::None => test,
             _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
@@ -662,9 +659,9 @@ impl Parse for GuardTest {
             "Never fails",
         );
         match kind {
-            RightKind2::BinaryOpCall => Ok(GuardTest::BinaryOpCall(
-                track!(parser.parse_left_recur(left))?,
-            )),
+            RightKind2::BinaryOpCall => Ok(
+                GuardTest::BinaryOpCall(track!(parser.parse_tail(left))?),
+            ),
             RightKind2::None |
             RightKind2::Union => Ok(left),
             _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
@@ -767,8 +764,8 @@ impl Parse for Type {
             "Never fails",
         );
         let left = match kind {
-            RightKind::LocalCall => Type::LocalCall(track!(parser.parse_left_recur(ty))?),
-            RightKind::RemoteCall => Type::RemoteCall(track!(parser.parse_left_recur(ty))?),
+            RightKind::LocalCall => Type::LocalCall(track!(parser.parse_tail(ty))?),
+            RightKind::RemoteCall => Type::RemoteCall(track!(parser.parse_tail(ty))?),
             RightKind::None => ty,
             _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),
         };
@@ -777,11 +774,9 @@ impl Parse for Type {
             "Never fails",
         );
         match kind {
-            RightKind2::BinaryOpCall => Ok(
-                Type::BinaryOpCall(track!(parser.parse_left_recur(left))?),
-            ),
-            RightKind2::Union => Ok(Type::Union(track!(parser.parse_left_recur(left))?)),
-            RightKind2::Range => Ok(Type::Range(track!(parser.parse_left_recur(left))?)),
+            RightKind2::BinaryOpCall => Ok(Type::BinaryOpCall(track!(parser.parse_tail(left))?)),
+            RightKind2::Union => Ok(Type::Union(track!(parser.parse_tail(left))?)),
+            RightKind2::Range => Ok(Type::Range(track!(parser.parse_tail(left))?)),
             RightKind2::None => Ok(left),
             _ => track_panic!(ErrorKind::InvalidInput, "kind={:?}", kind),            
         }

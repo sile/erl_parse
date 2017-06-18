@@ -1,9 +1,10 @@
 use erl_tokenize::{LexicalToken, PositionRange, Position};
 
-use {Result, ParseLeftRecur, Preprocessor, Parser};
+use {Result, Parser};
 use cst::GuardTest;
 use cst::building_blocks;
 use cst::collections;
+use traits::{ParseTail, Preprocessor};
 
 // TODO: 共通化
 #[derive(Debug, Clone)]
@@ -11,14 +12,14 @@ pub struct RecordFieldAccess {
     pub record: GuardTest,
     pub index: RecordFieldIndex,
 }
-impl ParseLeftRecur for RecordFieldAccess {
-    type Left = GuardTest;
-    fn parse_left_recur<T>(parser: &mut Parser<T>, left: Self::Left) -> Result<Self>
+impl ParseTail for RecordFieldAccess {
+    type Head = GuardTest;
+    fn parse_tail<T>(parser: &mut Parser<T>, head: Self::Head) -> Result<Self>
     where
         T: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(RecordFieldAccess {
-            record: left,
+            record: head,
             index: track!(parser.parse())?,
         })
     }

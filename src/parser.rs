@@ -1,6 +1,7 @@
 use erl_tokenize::LexicalToken;
 
-use {Result, TokenReader, Parse, Preprocessor, Expect, ParseLeftRecur};
+use {Result, TokenReader};
+use traits::{Expect, Parse, ParseTail, Preprocessor};
 
 #[derive(Debug)]
 pub struct Parser<T> {
@@ -88,8 +89,8 @@ where
     pub fn parse<P: Parse>(&mut self) -> Result<P> {
         track!(P::parse(self))
     }
-    pub fn parse_left_recur<P: ParseLeftRecur>(&mut self, left: P::Left) -> Result<P> {
-        track!(P::parse_left_recur(self, left))
+    pub fn parse_tail<P: ParseTail>(&mut self, head: P::Head) -> Result<P> {
+        track!(P::parse_tail(self, head))
     }
     pub fn expect<P: Parse + Expect>(&mut self, expected: &P::Value) -> Result<P> {
         self.transaction(|parser| {

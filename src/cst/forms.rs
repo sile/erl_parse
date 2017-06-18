@@ -2,10 +2,11 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{SymbolToken, VariableToken, IntegerToken, AtomToken, StringToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parser, Preprocessor, Parse};
+use {Result, Parser};
 use cst::{Type, Expr};
 use cst::building_blocks::{Args, Sequence};
 use cst::clauses::{Clauses, SpecClause, NamedFunClause};
+use traits::{Parse, Preprocessor};
 
 #[derive(Debug, Clone)]
 pub struct ModuleAttr {

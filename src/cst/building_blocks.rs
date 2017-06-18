@@ -2,7 +2,8 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken, IntegerToken, KeywordToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parse, Preprocessor, Parser, ErrorKind, ParseLeftRecur};
+use {Result, Parser, ErrorKind};
+use traits::{Parse, ParseTail, Preprocessor};
 use cst::Pattern;
 
 #[derive(Debug, Clone)]
@@ -23,14 +24,14 @@ impl<T: Parse> Parse for Match<T> {
         })
     }
 }
-impl<T: Parse> ParseLeftRecur for Match<T> {
-    type Left = Pattern;
-    fn parse_left_recur<U>(parser: &mut Parser<U>, left: Pattern) -> Result<Self>
+impl<T: Parse> ParseTail for Match<T> {
+    type Head = Pattern;
+    fn parse_tail<U>(parser: &mut Parser<U>, head: Pattern) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(Match {
-            pattern: left,
+            pattern: head,
             _match: track!(parser.expect(&Symbol::Match))?,
             value: track!(parser.parse())?,
         })
@@ -190,14 +191,14 @@ pub struct BinaryOpCall<T> {
     pub op: BinaryOp,
     pub right: T,
 }
-impl<T: Parse> ParseLeftRecur for BinaryOpCall<T> {
-    type Left = T;
-    fn parse_left_recur<U>(parser: &mut Parser<U>, left: Self::Left) -> Result<Self>
+impl<T: Parse> ParseTail for BinaryOpCall<T> {
+    type Head = T;
+    fn parse_tail<U>(parser: &mut Parser<U>, head: Self::Head) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(BinaryOpCall {
-            left,
+            left: head,
             op: track!(parser.parse())?,
             right: track!(parser.parse())?,
         })
@@ -304,14 +305,14 @@ impl<T: Parse> Parse for LocalCall<T> {
         })
     }
 }
-impl<T: Parse> ParseLeftRecur for LocalCall<T> {
-    type Left = T;
-    fn parse_left_recur<U>(parser: &mut Parser<U>, left: Self::Left) -> Result<Self>
+impl<T: Parse> ParseTail for LocalCall<T> {
+    type Head = T;
+    fn parse_tail<U>(parser: &mut Parser<U>, head: T) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(LocalCall {
-            name: left,
+            name: head,
             args: track!(parser.parse())?,
         })
     }
@@ -331,14 +332,14 @@ pub struct RemoteCall<T> {
     pub _colon: SymbolToken,
     pub fun: LocalCall<T>,
 }
-impl<T: Parse> ParseLeftRecur for RemoteCall<T> {
-    type Left = T;
-    fn parse_left_recur<U>(parser: &mut Parser<U>, left: Self::Left) -> Result<Self>
+impl<T: Parse> ParseTail for RemoteCall<T> {
+    type Head = T;
+    fn parse_tail<U>(parser: &mut Parser<U>, head: Self::Head) -> Result<Self>
     where
         U: Iterator<Item = Result<LexicalToken>> + Preprocessor,
     {
         Ok(RemoteCall {
-            module_name: left,
+            module_name: head,
             _colon: track!(parser.expect(&Symbol::Colon))?,
             fun: track!(parser.parse())?,
         })

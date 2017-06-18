@@ -5,14 +5,13 @@ extern crate num;
 extern crate trackable;
 
 pub use error::{Error, ErrorKind};
-pub use parse::{Parse, ParseLeftRecur, Expect};
 pub use parser::Parser;
-pub use token_reader::{TokenReader, Tokens, Preprocessor};
+pub use token_reader::{TokenReader, Tokens};
 
 pub mod cst;
+pub mod traits;
 
 mod error;
-mod parse;
 mod parser;
 mod token_reader;
 

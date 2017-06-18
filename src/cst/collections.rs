@@ -3,8 +3,9 @@ use erl_tokenize::{Position, PositionRange, LexicalToken};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parse, Preprocessor, Parser};
+use {Result, Parser};
 use cst::building_blocks::{Sequence, MapField, RecordField, ConsCell, HyphenSeq};
+use traits::{Parse, Preprocessor};
 
 #[derive(Debug, Clone)]
 pub struct Tuple<T> {
