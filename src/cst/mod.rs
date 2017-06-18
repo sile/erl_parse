@@ -45,8 +45,7 @@ impl Parse for ModuleDecl {
 
 #[derive(Debug)]
 enum RightKind {
-    LocalCall,
-    RemoteCall,
+    FunCall,
     MapUpdate,
     RecordUpdate,
     RecordFieldAccess,
@@ -60,8 +59,7 @@ impl RightKind {
         match parser.parse() {
             Ok(LexicalToken::Symbol(t)) => {
                 match t.value() {
-                    Symbol::OpenParen => RightKind::LocalCall,
-                    Symbol::Colon => RightKind::RemoteCall,
+                    Symbol::OpenParen | Symbol::Colon => RightKind::FunCall,
                     Symbol::Sharp => {
                         if parser
                             .parse::<LexicalToken>()
@@ -275,8 +273,7 @@ pub enum Expr {
     AnonymousFun(Box<exprs::AnonymousFun>),
     NamedFun(Box<exprs::NamedFun>),
     Parenthesized(Box<exprs::Parenthesized>),
-    LocalCall(Box<exprs::LocalCall>),
-    RemoteCall(Box<exprs::RemoteCall>),
+    FunCall(Box<exprs::FunCall>),
     UnaryOpCall(Box<exprs::UnaryOpCall>),
     BinaryOpCall(Box<exprs::BinaryOpCall>),
     Match(Box<exprs::Match>),
@@ -333,8 +330,7 @@ impl Parse for Expr {
             "Never fails",
         );
         let left = match kind {
-            RightKind::LocalCall => Expr::LocalCall(track!(parser.parse_tail(expr))?),
-            RightKind::RemoteCall => Expr::RemoteCall(track!(parser.parse_tail(expr))?),
+            RightKind::FunCall => Expr::FunCall(track!(parser.parse_tail(expr))?),
             RightKind::MapUpdate => Expr::MapUpdate(track!(parser.parse_tail(expr))?),
             RightKind::RecordUpdate => Expr::RecordUpdate(track!(parser.parse_tail(expr))?), 
             RightKind::RecordFieldAccess => Expr::RecordFieldAccess(
@@ -375,8 +371,7 @@ impl PositionRange for Expr {
             Expr::RemoteFun(ref x) => x.start_position(),
             Expr::AnonymousFun(ref x) => x.start_position(),
             Expr::NamedFun(ref x) => x.start_position(),
-            Expr::LocalCall(ref x) => x.start_position(),
-            Expr::RemoteCall(ref x) => x.start_position(),
+            Expr::FunCall(ref x) => x.start_position(),
             Expr::UnaryOpCall(ref x) => x.start_position(),
             Expr::BinaryOpCall(ref x) => x.start_position(),
             Expr::Match(ref x) => x.start_position(),
@@ -408,8 +403,7 @@ impl PositionRange for Expr {
             Expr::RemoteFun(ref x) => x.end_position(),
             Expr::AnonymousFun(ref x) => x.end_position(),
             Expr::NamedFun(ref x) => x.end_position(),
-            Expr::LocalCall(ref x) => x.end_position(),
-            Expr::RemoteCall(ref x) => x.end_position(),
+            Expr::FunCall(ref x) => x.end_position(),
             Expr::UnaryOpCall(ref x) => x.end_position(),
             Expr::BinaryOpCall(ref x) => x.end_position(),
             Expr::Match(ref x) => x.end_position(),
@@ -477,8 +471,7 @@ pub enum GuardTest {
     List(Box<guard_tests::List>),
     Bits(Box<guard_tests::Bits>),
     Parenthesized(Box<guard_tests::Parenthesized>),
-    LocalCall(Box<guard_tests::LocalCall>),
-    RemoteCall(Box<guard_tests::RemoteCall>),
+    FunCall(Box<guard_tests::FunCall>),
     UnaryOpCall(Box<guard_tests::UnaryOpCall>),
     BinaryOpCall(Box<guard_tests::BinaryOpCall>),
 }
@@ -514,8 +507,7 @@ impl Parse for GuardTest {
             "Never fails",
         );
         let left = match kind {
-            RightKind::LocalCall => GuardTest::LocalCall(track!(parser.parse_tail(test))?),
-            RightKind::RemoteCall => GuardTest::RemoteCall(track!(parser.parse_tail(test))?),
+            RightKind::FunCall => GuardTest::FunCall(track!(parser.parse_tail(test))?),
             RightKind::RecordFieldAccess => GuardTest::RecordFieldAccess(
                 track!(parser.parse_tail(test))?,
             ), 
@@ -549,8 +541,7 @@ impl PositionRange for GuardTest {
             GuardTest::List(ref x) => x.start_position(),
             GuardTest::Bits(ref x) => x.start_position(),
             GuardTest::Parenthesized(ref x) => x.start_position(),
-            GuardTest::LocalCall(ref x) => x.start_position(),
-            GuardTest::RemoteCall(ref x) => x.start_position(),
+            GuardTest::FunCall(ref x) => x.start_position(),
             GuardTest::UnaryOpCall(ref x) => x.start_position(),
             GuardTest::BinaryOpCall(ref x) => x.start_position(),
         }
@@ -567,8 +558,7 @@ impl PositionRange for GuardTest {
             GuardTest::List(ref x) => x.end_position(),
             GuardTest::Bits(ref x) => x.end_position(),
             GuardTest::Parenthesized(ref x) => x.end_position(),
-            GuardTest::LocalCall(ref x) => x.end_position(),
-            GuardTest::RemoteCall(ref x) => x.end_position(),
+            GuardTest::FunCall(ref x) => x.end_position(),
             GuardTest::UnaryOpCall(ref x) => x.end_position(),
             GuardTest::BinaryOpCall(ref x) => x.end_position(),
         }

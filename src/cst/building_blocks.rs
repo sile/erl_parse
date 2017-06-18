@@ -306,79 +306,53 @@ impl PositionRange for UnaryOp {
 }
 
 #[derive(Debug, Clone)]
-pub struct LocalCall<T, A = T> {
+pub struct Call<T, A = T> {
+    pub module: Option<ModulePrefix<T>>,
     pub name: T,
     pub args: Args<A>,
 }
-impl<T: Parse, A: Parse> Parse for LocalCall<T, A> {
+impl<T: Parse, A: Parse> Parse for Call<T, A> {
     fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
     where
         U: TokenRead,
     {
-        Ok(LocalCall {
+        Ok(Call {
+            module: track!(parser.parse())?,
             name: track!(T::parse_non_left_recor(parser))?,
             args: track!(parser.parse())?,
         })
     }
 }
-impl<T: Parse, A: Parse> ParseTail for LocalCall<T, A> {
-    type Head = T;
-    fn parse_tail<U>(parser: &mut Parser<U>, head: T) -> Result<Self>
-    where
-        U: TokenRead,
-    {
-        Ok(LocalCall {
-            name: head,
-            args: track!(parser.parse())?,
-        })
-    }
-}
-impl<T: PositionRange, A> PositionRange for LocalCall<T, A> {
-    fn start_position(&self) -> Position {
-        self.name.start_position()
-    }
-    fn end_position(&self) -> Position {
-        self.args.end_position()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RemoteCall<T, A = T> {
-    pub module_name: T,
-    pub _colon: SymbolToken,
-    pub fun: LocalCall<T, A>,
-}
-impl<T: Parse, A: Parse> Parse for RemoteCall<T, A> {
-    fn parse<U>(parser: &mut Parser<U>) -> Result<Self>
-    where
-        U: TokenRead,
-    {
-        Ok(RemoteCall {
-            module_name: track!(T::parse_non_left_recor(parser))?,
-            _colon: track!(parser.expect(&Symbol::Colon))?,
-            fun: track!(parser.parse())?,
-        })
-    }
-}
-impl<T: Parse, A: Parse> ParseTail for RemoteCall<T, A> {
+impl<T: Parse, A: Parse> ParseTail for Call<T, A> {
     type Head = T;
     fn parse_tail<U>(parser: &mut Parser<U>, head: Self::Head) -> Result<Self>
     where
         U: TokenRead,
     {
-        Ok(RemoteCall {
-            module_name: head,
-            _colon: track!(parser.expect(&Symbol::Colon))?,
-            fun: track!(parser.parse())?,
-        })
+        if let Ok(_colon) = parser.transaction(|parser| parser.expect(&Symbol::Colon)) {
+            Ok(Call {
+                module: Some(ModulePrefix { name: head, _colon }),
+                name: track!(T::parse_non_left_recor(parser))?,
+                args: track!(parser.parse())?,
+            })
+        } else {
+            Ok(Call {
+                module: None,
+                name: track!(T::parse_non_left_recor(parser))?,
+                args: track!(parser.parse())?,
+            })
+        }
     }
 }
-impl<T: PositionRange, A> PositionRange for RemoteCall<T, A> {
+impl<T: PositionRange, A> PositionRange for Call<T, A> {
     fn start_position(&self) -> Position {
-        self.module_name.start_position()
+        self.module
+            .as_ref()
+            .map(|x| x.start_position())
+            .unwrap_or_else(|| self.name.start_position())
     }
     fn end_position(&self) -> Position {
-        self.fun.end_position()
+        self.args.end_position()
     }
 }
 
@@ -878,22 +852,19 @@ impl PositionRange for NameAndArity {
 }
 
 #[derive(Debug, Clone)]
-pub struct ModulePrefix {
-    pub name: AtomToken,
+pub struct ModulePrefix<T> {
+    pub name: T,
     pub _colon: SymbolToken,
 }
-impl Parse for ModulePrefix {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
+impl<T: Parse> Parse for ModulePrefix<T> {
+    fn parse<U: TokenRead>(parser: &mut Parser<U>) -> Result<Self> {
         Ok(ModulePrefix {
-            name: track!(parser.parse())?,
+            name: track!(T::parse_non_left_recor(parser))?,
             _colon: track!(parser.expect(&Symbol::Colon))?,
         })
     }
 }
-impl PositionRange for ModulePrefix {
+impl<T: PositionRange> PositionRange for ModulePrefix<T> {
     fn start_position(&self) -> Position {
         self.name.start_position()
     }

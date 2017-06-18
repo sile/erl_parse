@@ -253,7 +253,7 @@ impl PositionRange for WildAttr {
 pub struct FunSpec {
     pub _hyphen: SymbolToken,
     pub _spec: AtomToken,
-    pub module: Option<ModulePrefix>,
+    pub module: Option<ModulePrefix<AtomToken>>,
     pub fun_name: AtomToken,
     pub clauses: Clauses<SpecClause>,
     pub _dot: SymbolToken,

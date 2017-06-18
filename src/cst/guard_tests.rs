@@ -1,4 +1,5 @@
 use erl_tokenize::{PositionRange, Position};
+use erl_tokenize::tokens::AtomToken;
 
 use {Result, Parser};
 use cst::GuardTest;
@@ -41,10 +42,6 @@ pub type RecordFieldIndex = collections::RecordFieldIndex;
 pub type List = collections::List<GuardTest>;
 pub type Bits = collections::Bits<GuardTest>;
 pub type Parenthesized = building_blocks::Parenthesized<GuardTest>;
-
-// TODO: s/GuardTest/AtomToken/
-pub type LocalCall = building_blocks::LocalCall<GuardTest>;
-pub type RemoteCall = building_blocks::RemoteCall<GuardTest>;
-
+pub type FunCall = building_blocks::Call<AtomToken, GuardTest>;
 pub type UnaryOpCall = building_blocks::UnaryOpCall<GuardTest>;
 pub type BinaryOpCall = building_blocks::BinaryOpCall<GuardTest>;

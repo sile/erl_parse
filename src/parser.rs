@@ -84,8 +84,8 @@ where
     }
 
     pub(crate) fn next_token(&mut self) -> Result<LexicalToken> {
-        if let Some(e) = self.last_read_error.clone() {
-            return Err(e);
+        if let Some(ref e) = self.last_read_error {
+            return Err(e.clone());
         }
         match self.reader.read_token() {
             Err(e) => {

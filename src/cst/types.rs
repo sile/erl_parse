@@ -12,8 +12,7 @@ pub type Tuple = collections::Tuple<Type>;
 pub type Map = collections::Map<Type>;
 pub type Record = collections::Record<Type>;
 pub type Parenthesized = building_blocks::Parenthesized<Type>;
-pub type LocalCall = building_blocks::LocalCall<AtomToken, Type>;
-pub type RemoteCall = building_blocks::RemoteCall<AtomToken, Type>;
+pub type TypeCall = building_blocks::Call<AtomToken, Type>;
 pub type UnaryOpCall = building_blocks::UnaryOpCall<Type>;
 pub type BinaryOpCall = building_blocks::BinaryOpCall<Type>;
 

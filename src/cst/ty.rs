@@ -20,8 +20,7 @@ pub enum Type {
     List(Box<types::List>),
     Bits(Box<types::Bits>),
     Parenthesized(Box<types::Parenthesized>),
-    LocalCall(Box<types::LocalCall>),
-    RemoteCall(Box<types::RemoteCall>),
+    TypeCall(Box<types::TypeCall>),
     UnaryOpCall(Box<types::UnaryOpCall>),
     BinaryOpCall(Box<types::BinaryOpCall>),
     Fun(Box<types::Fun>),
@@ -43,8 +42,7 @@ impl Parse for Type {
             HeadKind::Tuple => Type::Tuple(track!(parser.parse())?),
             HeadKind::Map => Type::Map(track!(parser.parse())?),
             HeadKind::Record => Type::Record(track!(parser.parse())?),
-            HeadKind::LocalCall => Type::LocalCall(track!(parser.parse())?),
-            HeadKind::RemoteCall => Type::RemoteCall(track!(parser.parse())?),
+            HeadKind::TypeCall => Type::TypeCall(track!(parser.parse())?),
             HeadKind::UnaryOpCall => Type::UnaryOpCall(track!(parser.parse())?),
             HeadKind::Parenthesized => Type::Parenthesized(track!(parser.parse())?),
             HeadKind::Fun => Type::Fun(track!(parser.parse())?),
@@ -78,8 +76,7 @@ impl PositionRange for Type {
             Type::Record(ref x) => x.start_position(),
             Type::Fun(ref x) => x.start_position(),
             Type::Parenthesized(ref x) => x.start_position(),
-            Type::LocalCall(ref x) => x.start_position(),
-            Type::RemoteCall(ref x) => x.start_position(),
+            Type::TypeCall(ref x) => x.start_position(),
             Type::UnaryOpCall(ref x) => x.start_position(),
             Type::BinaryOpCall(ref x) => x.start_position(),
             Type::Range(ref x) => x.start_position(),
@@ -98,8 +95,7 @@ impl PositionRange for Type {
             Type::Record(ref x) => x.end_position(),
             Type::Fun(ref x) => x.end_position(),
             Type::Parenthesized(ref x) => x.end_position(),
-            Type::LocalCall(ref x) => x.end_position(),
-            Type::RemoteCall(ref x) => x.end_position(),
+            Type::TypeCall(ref x) => x.end_position(),
             Type::UnaryOpCall(ref x) => x.end_position(),
             Type::BinaryOpCall(ref x) => x.end_position(),
             Type::Range(ref x) => x.end_position(),
@@ -119,8 +115,7 @@ enum HeadKind {
     List,
     Bits,
     Fun,
-    LocalCall,
-    RemoteCall,
+    TypeCall,
     UnaryOpCall,
     Parenthesized,
 }
@@ -177,8 +172,8 @@ impl HeadKind {
                 } else {
                     let token = track!(parser.parse::<LexicalToken>())?;
                     match token.as_symbol_token().map(|t| t.value()) {
-                        Some(Symbol::OpenParen) => HeadKind::LocalCall,
-                        Some(Symbol::Colon) => HeadKind::RemoteCall,
+                        Some(Symbol::OpenParen) |
+                        Some(Symbol::Colon) => HeadKind::TypeCall,
                         _ => HeadKind::Literal,
                     }
                 }
