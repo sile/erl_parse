@@ -1,10 +1,11 @@
 use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::{KeywordToken, SymbolToken, AtomToken, IntegerToken};
+use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
 use {Result, Parser};
 use cst::{Expr, Pattern};
-use cst::building_blocks::{self, Clauses, Sequence, AtomOrVariable, IntegerOrVariable};
+use cst::building_blocks::{self, Clauses, Sequence, AtomOrVariable, IntegerOrVariable,
+                           ModulePrefix, NameAndArity};
 use cst::clauses::{FunClause, NamedFunClause, IfClause, CaseClause, CatchClause};
 use cst::collections;
 use traits::{Parse, ParseTail, TokenRead};
@@ -286,64 +287,61 @@ impl PositionRange for Case {
 }
 
 #[derive(Debug, Clone)]
-pub struct LocalFun {
-    pub _fun: KeywordToken,
-    pub fun_name: AtomToken,
-    pub _slash: SymbolToken,
-    pub arity: IntegerToken,
+pub enum Fun {
+    Defined(DefinedFun),
+    Anonymous(AnonymousFun),
+    Named(NamedFun),
 }
-impl Parse for LocalFun {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(LocalFun {
-            _fun: track!(parser.expect(&Keyword::Fun))?,
-            fun_name: track!(parser.parse())?,
-            _slash: track!(parser.expect(&Symbol::Slash))?,
-            arity: track!(parser.parse())?,
-        })
+impl Parse for Fun {
+    fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
+        // TODO: look ahead
+        if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+            Ok(Fun::Defined(x))
+        } else if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+            Ok(Fun::Anonymous(x))
+        } else {
+            Ok(Fun::Named(track!(parser.parse())?))
+        }
     }
 }
-impl PositionRange for LocalFun {
+impl PositionRange for Fun {
     fn start_position(&self) -> Position {
-        self._fun.start_position()
+        match *self {
+            Fun::Defined(ref x) => x.start_position(),
+            Fun::Anonymous(ref x) => x.start_position(),
+            Fun::Named(ref x) => x.start_position(),
+        }
     }
     fn end_position(&self) -> Position {
-        self.arity.end_position()
+        match *self {
+            Fun::Defined(ref x) => x.end_position(),
+            Fun::Anonymous(ref x) => x.end_position(),
+            Fun::Named(ref x) => x.end_position(),
+        }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct RemoteFun {
+pub struct DefinedFun {
     pub _fun: KeywordToken,
-    pub module_name: AtomOrVariable,
-    pub _colon: SymbolToken,
-    pub fun_name: AtomOrVariable,
-    pub _slash: SymbolToken,
-    pub arity: IntegerOrVariable,
+    pub module: Option<ModulePrefix<AtomOrVariable>>,
+    pub fun: NameAndArity<AtomOrVariable, IntegerOrVariable>,
 }
-impl Parse for RemoteFun {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        Ok(RemoteFun {
+impl Parse for DefinedFun {
+    fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
+        Ok(DefinedFun {
             _fun: track!(parser.expect(&Keyword::Fun))?,
-            module_name: track!(parser.parse())?,
-            _colon: track!(parser.expect(&Symbol::Colon))?,
-            fun_name: track!(parser.parse())?,
-            _slash: track!(parser.expect(&Symbol::Slash))?,
-            arity: track!(parser.parse())?,
+            module: track!(parser.parse())?,
+            fun: track!(parser.parse())?,
         })
     }
 }
-impl PositionRange for RemoteFun {
+impl PositionRange for DefinedFun {
     fn start_position(&self) -> Position {
         self._fun.start_position()
     }
     fn end_position(&self) -> Position {
-        self.arity.end_position()
+        self.fun.end_position()
     }
 }
 

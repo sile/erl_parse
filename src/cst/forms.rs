@@ -57,7 +57,7 @@ pub struct ExportAttr {
     pub _hyphen: SymbolToken,
     pub _export: AtomToken,
     pub _open: SymbolToken,
-    pub exports: List<NameAndArity>,
+    pub exports: List<NameAndArity<AtomToken>>,
     pub _close: SymbolToken,
     pub _dot: SymbolToken,
 }
@@ -91,7 +91,7 @@ pub struct ExportTypeAttr {
     pub _hyphen: SymbolToken,
     pub _export_type: AtomToken,
     pub _open: SymbolToken,
-    pub exports: List<NameAndArity>,
+    pub exports: List<NameAndArity<AtomToken>>,
     pub _close: SymbolToken,
     pub _dot: SymbolToken,
 }
@@ -127,7 +127,7 @@ pub struct ImportAttr {
     pub _open: SymbolToken,
     pub module_name: AtomToken,
     pub _comma: SymbolToken,
-    pub imports: List<NameAndArity>,
+    pub imports: List<NameAndArity<AtomToken>>,
     pub _close: SymbolToken,
     pub _dot: SymbolToken,
 }

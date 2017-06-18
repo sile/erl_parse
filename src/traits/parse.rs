@@ -32,14 +32,6 @@ impl<T: Parse> Parse for Option<T> {
         Ok(parser.transaction(|parser| parser.parse()).ok())
     }
 }
-impl Parse for LexicalToken {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
-        track!(parser.next_token())
-    }
-}
 impl Parse for AtomToken {
     fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
     where

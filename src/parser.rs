@@ -83,7 +83,7 @@ where
         }
     }
 
-    pub(crate) fn next_token(&mut self) -> Result<LexicalToken> {
+    fn next_token(&mut self) -> Result<LexicalToken> {
         if let Some(ref e) = self.last_read_error {
             return Err(e.clone());
         }
@@ -103,7 +103,6 @@ where
             }
         }
     }
-
     fn start_transaction(&mut self) {
         self.transactions.push(Vec::new());
     }
@@ -129,5 +128,13 @@ impl<T> Parser<T> {
     }
     pub fn into_reader(self) -> T {
         self.reader
+    }
+}
+impl Parse for LexicalToken {
+    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
+    where
+        T: TokenRead,
+    {
+        track!(parser.next_token())
     }
 }

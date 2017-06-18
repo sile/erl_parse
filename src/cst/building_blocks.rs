@@ -826,16 +826,13 @@ impl<T> PositionRange for List<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct NameAndArity {
-    pub name: AtomToken,
+pub struct NameAndArity<N, A = IntegerToken> {
+    pub name: N,
     pub _slash: SymbolToken,
-    pub arity: IntegerToken,
+    pub arity: A,
 }
-impl Parse for NameAndArity {
-    fn parse<T>(parser: &mut Parser<T>) -> Result<Self>
-    where
-        T: TokenRead,
-    {
+impl<N: Parse, A: Parse> Parse for NameAndArity<N, A> {
+    fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
         Ok(NameAndArity {
             name: track!(parser.parse())?,
             _slash: track!(parser.expect(&Symbol::Slash))?,
@@ -843,7 +840,7 @@ impl Parse for NameAndArity {
         })
     }
 }
-impl PositionRange for NameAndArity {
+impl<N: PositionRange, A: PositionRange> PositionRange for NameAndArity<N, A> {
     fn start_position(&self) -> Position {
         self.name.start_position()
     }
