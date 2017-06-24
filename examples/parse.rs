@@ -10,9 +10,7 @@ use std::fs::File;
 use std::io::Read;
 use clap::{App, Arg};
 use erl_pp::Preprocessor;
-use erl_parse::{TokenReader, Parser};
-use erl_parse::cst::ModuleDecl;
-use erl_tokenize::{Lexer, LexicalToken};
+use erl_tokenize::Lexer;
 use trackable::error::{Failed, ErrorKindExt};
 
 fn main() {
@@ -38,15 +36,14 @@ fn main() {
     let mut text = String::new();
     track_try_unwrap!(file.read_to_string(&mut text).map_err(|e| Failed.cause(e)));
 
-    let mut pp = Preprocessor::new(Lexer::new(text));
+    let mut pp = Preprocessor::new(Lexer::new(text.as_str()));
     if let Some(libs) = matches.values_of("ERL_LIBS") {
         for dir in libs {
             pp.code_paths_mut().push_back(dir.into());
         }
     }
-    let mut parser = Parser::new(TokenReader::new(pp));
 
-    let module: ModuleDecl =
-        track_try_unwrap!(parser.parse(), "next={:?}", parser.parse::<LexicalToken>());
+    let mut parser = erl_parse::builtin::ModuleParser::new(pp);
+    let module = track_try_unwrap!(parser.parse_module());
     println!("{:?}", module);
 }

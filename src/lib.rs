@@ -28,6 +28,7 @@ pub use error::{Error, ErrorKind};
 pub use parser::Parser;
 pub use token_reader::TokenReader;
 
+pub mod builtin;
 pub mod cst;
 pub mod traits;
 
