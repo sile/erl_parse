@@ -43,7 +43,7 @@ fn main() {
         }
     }
 
-    let mut parser = erl_parse::builtin::ModuleParser::new(pp);
-    let module = track_try_unwrap!(parser.parse_module());
+    let reader = &mut erl_parse::TokenReader::new(&mut pp);
+    let module = track_try_unwrap!(erl_parse::builtin::parse_module(reader));
     println!("{:?}", module);
 }

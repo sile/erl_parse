@@ -5,7 +5,22 @@ pub trait Preprocessor {
     fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>);
     fn undef_macro(&mut self, name: &str);
 }
-
+impl<'a> Preprocessor for &'a mut Preprocessor {
+    fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>) {
+        (*self).define_macro(name, replacement);
+    }
+    fn undef_macro(&mut self, name: &str) {
+        (*self).undef_macro(name);
+    }
+}
+impl<'a, T, E> Preprocessor for &'a mut erl_pp::Preprocessor<T, E> {
+    fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>) {
+        (*self).define_macro(name, replacement);
+    }
+    fn undef_macro(&mut self, name: &str) {
+        (*self).undef_macro(name);
+    }
+}
 impl<T, E> Preprocessor for erl_pp::Preprocessor<T, E> {
     fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>) {
         self.macros_mut().insert(

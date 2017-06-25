@@ -3,6 +3,7 @@ use erl_tokenize::{Lexer, LexicalToken};
 
 use {Result, TokenReader, Parser};
 use cst::ModuleDecl;
+use traits::TokenRead;
 
 #[derive(Debug)]
 pub struct ModuleParser<'a>(Parser<TokenReader<Preprocessor<Lexer<&'a str>>, erl_pp::Error>>);
@@ -19,4 +20,8 @@ impl<'a> ModuleParser<'a> {
     pub fn preprocessor_mut(&mut self) -> &mut Preprocessor<Lexer<&'a str>> {
         self.0.reader_mut().inner_mut()
     }
+}
+
+pub fn parse_module(tokens: &mut TokenRead) -> Result<ModuleDecl> {
+    Parser::new(tokens).parse()
 }

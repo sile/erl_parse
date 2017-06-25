@@ -14,3 +14,19 @@ pub trait TokenRead: Preprocessor {
     }
     fn unread_token(&mut self, token: LexicalToken);
 }
+impl<'a> Preprocessor for &'a mut TokenRead {
+    fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>) {
+        (*self).define_macro(name, replacement);
+    }
+    fn undef_macro(&mut self, name: &str) {
+        (*self).undef_macro(name);
+    }
+}
+impl<'a> TokenRead for &'a mut TokenRead {
+    fn try_read_token(&mut self) -> Result<Option<LexicalToken>> {
+        (*self).try_read_token()
+    }
+    fn unread_token(&mut self, token: LexicalToken) {
+        (*self).unread_token(token);
+    }
+}
