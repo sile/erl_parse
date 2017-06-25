@@ -36,7 +36,7 @@ fn main() {
     let mut text = String::new();
     track_try_unwrap!(file.read_to_string(&mut text).map_err(|e| Failed.cause(e)));
 
-    let mut pp = Preprocessor::new(Lexer::new(text.as_str()));
+    let mut pp = Preprocessor::new(Lexer::new(text));
     if let Some(libs) = matches.values_of("ERL_LIBS") {
         for dir in libs {
             pp.code_paths_mut().push_back(dir.into());
