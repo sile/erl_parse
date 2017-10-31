@@ -21,6 +21,7 @@ pub type BinaryOpCall = commons::BinaryOpCall<Type>;
 
 /// `AnyFun | AnyArityFun | NormalFun`
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
 pub enum Fun {
     Any(AnyFun),
     AnyArity(AnyArityFun),

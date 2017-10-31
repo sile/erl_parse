@@ -7,6 +7,7 @@ use traits::{Parse, TokenRead};
 use super::forms;
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
 pub enum Form {
     ModuleAttr(forms::ModuleAttr),
     ExportAttr(forms::ExportAttr),

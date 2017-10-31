@@ -174,7 +174,8 @@ enum TailKind {
 }
 impl TailKind {
     fn guess<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
-        if track!(parser.eos())? {
+        let is_eos = track!(parser.eos())?;
+        if is_eos {
             return Ok(TailKind::None);
         }
         Ok(match track!(parser.parse())? {

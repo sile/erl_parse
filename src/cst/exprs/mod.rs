@@ -186,6 +186,7 @@ impl PositionRange for Case {
 
 /// `DefinedFun | AnonymousFun | NamedFun`
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
 pub enum Fun {
     Defined(DefinedFun),
     Anonymous(AnonymousFun),

@@ -27,7 +27,11 @@ impl Expect for CharToken {
 impl Expect for FloatToken {
     type Value = f64;
     fn expect(&self, expected: &Self::Value) -> Result<()> {
-        track_assert_eq!(self.value(), *expected, ErrorKind::InvalidInput);
+        use std::f64;
+        track_assert!(
+            (self.value() - *expected).abs() < f64::EPSILON,
+            ErrorKind::InvalidInput
+        );
         Ok(())
     }
 }

@@ -256,7 +256,8 @@ enum TailKind {
 }
 impl TailKind {
     fn guess<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
-        if track!(parser.eos())? {
+        let is_eos = track!(parser.eos())?;
+        if is_eos {
             return Ok(TailKind::None);
         }
 
@@ -271,14 +272,14 @@ impl TailKind {
                     .and_then(|t| t.as_atom_token().map(|_| ()))
                     .is_some()
                 {
-                    if parser
+                    let is_record_update = parser
                         .parse::<LexicalToken>()
                         .ok()
                         .and_then(|t| {
                             t.as_symbol_token().map(|t| t.value() == Symbol::OpenBrace)
                         })
-                        .unwrap_or(false)
-                    {
+                        .unwrap_or(false);
+                    if is_record_update {
                         TailKind::RecordUpdate
                     } else {
                         TailKind::RecordFieldAccess

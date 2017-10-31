@@ -136,6 +136,7 @@ impl PositionRange for BitSize {
 
 /// `ByteAndBitSize` | `ByteSize` | `BitSize`
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
 pub enum BitsSpec {
     BytesAndBits(ByteAndBitSize),
     Bytes(ByteSize),

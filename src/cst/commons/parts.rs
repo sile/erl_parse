@@ -265,7 +265,7 @@ impl BinaryOp {
                     Keyword::Bxor => Ok(BinaryOp::Bxor(k)),
                     Keyword::Band => Ok(BinaryOp::Band(k)),
                     Keyword::Bsl => Ok(BinaryOp::Bsl(k)),
-                    Keyword::Bsr => Ok(BinaryOp::Bsl(k)),
+                    Keyword::Bsr => Ok(BinaryOp::Bsr(k)),
                     Keyword::Or => Ok(BinaryOp::Or(k)),
                     Keyword::Xor => Ok(BinaryOp::Xor(k)),
                     Keyword::Andalso => Ok(BinaryOp::Andalso(k)),
@@ -289,61 +289,61 @@ impl Parse for BinaryOp {
 impl PositionRange for BinaryOp {
     fn start_position(&self) -> Position {
         match *self {
-            BinaryOp::Plus(ref t) => t.start_position(),
-            BinaryOp::Minus(ref t) => t.start_position(),
-            BinaryOp::Mul(ref t) => t.start_position(),
-            BinaryOp::FloatDiv(ref t) => t.start_position(),
-            BinaryOp::IntDiv(ref t) => t.start_position(),
-            BinaryOp::Rem(ref t) => t.start_position(),
-            BinaryOp::Bor(ref t) => t.start_position(),
-            BinaryOp::Bxor(ref t) => t.start_position(),
-            BinaryOp::Band(ref t) => t.start_position(),
-            BinaryOp::Bsl(ref t) => t.start_position(),
-            BinaryOp::Bsr(ref t) => t.start_position(),
-            BinaryOp::Or(ref t) => t.start_position(),
-            BinaryOp::Xor(ref t) => t.start_position(),
-            BinaryOp::PlusPlus(ref t) => t.start_position(),
-            BinaryOp::MinusMinus(ref t) => t.start_position(),
-            BinaryOp::Eq(ref t) => t.start_position(),
-            BinaryOp::ExactEq(ref t) => t.start_position(),
-            BinaryOp::NotEq(ref t) => t.start_position(),
-            BinaryOp::ExactNotEq(ref t) => t.start_position(),
-            BinaryOp::Less(ref t) => t.start_position(),
-            BinaryOp::LessEq(ref t) => t.start_position(),
-            BinaryOp::Greater(ref t) => t.start_position(),
-            BinaryOp::GreaterEq(ref t) => t.start_position(),
-            BinaryOp::Andalso(ref t) => t.start_position(),
+            BinaryOp::IntDiv(ref t) |
+            BinaryOp::Rem(ref t) |
+            BinaryOp::Bor(ref t) |
+            BinaryOp::Bxor(ref t) |
+            BinaryOp::Band(ref t) |
+            BinaryOp::Bsl(ref t) |
+            BinaryOp::Bsr(ref t) |
+            BinaryOp::Or(ref t) |
+            BinaryOp::Xor(ref t) |
+            BinaryOp::Andalso(ref t) |
             BinaryOp::Orelse(ref t) => t.start_position(),
+            BinaryOp::Plus(ref t) |
+            BinaryOp::Minus(ref t) |
+            BinaryOp::Mul(ref t) |
+            BinaryOp::FloatDiv(ref t) |
+            BinaryOp::PlusPlus(ref t) |
+            BinaryOp::MinusMinus(ref t) |
+            BinaryOp::Eq(ref t) |
+            BinaryOp::ExactEq(ref t) |
+            BinaryOp::NotEq(ref t) |
+            BinaryOp::ExactNotEq(ref t) |
+            BinaryOp::Less(ref t) |
+            BinaryOp::LessEq(ref t) |
+            BinaryOp::Greater(ref t) |
+            BinaryOp::GreaterEq(ref t) |
             BinaryOp::Send(ref t) => t.start_position(),
         }
     }
     fn end_position(&self) -> Position {
         match *self {
-            BinaryOp::Plus(ref t) => t.end_position(),
-            BinaryOp::Minus(ref t) => t.end_position(),
-            BinaryOp::Mul(ref t) => t.end_position(),
-            BinaryOp::FloatDiv(ref t) => t.end_position(),
-            BinaryOp::IntDiv(ref t) => t.end_position(),
-            BinaryOp::Rem(ref t) => t.end_position(),
-            BinaryOp::Bor(ref t) => t.end_position(),
-            BinaryOp::Bxor(ref t) => t.end_position(),
-            BinaryOp::Band(ref t) => t.end_position(),
-            BinaryOp::Bsl(ref t) => t.end_position(),
-            BinaryOp::Bsr(ref t) => t.end_position(),
-            BinaryOp::Or(ref t) => t.end_position(),
-            BinaryOp::Xor(ref t) => t.end_position(),
-            BinaryOp::PlusPlus(ref t) => t.end_position(),
-            BinaryOp::MinusMinus(ref t) => t.end_position(),
-            BinaryOp::Eq(ref t) => t.end_position(),
-            BinaryOp::ExactEq(ref t) => t.end_position(),
-            BinaryOp::NotEq(ref t) => t.end_position(),
-            BinaryOp::ExactNotEq(ref t) => t.end_position(),
-            BinaryOp::Less(ref t) => t.end_position(),
-            BinaryOp::LessEq(ref t) => t.end_position(),
-            BinaryOp::Greater(ref t) => t.end_position(),
-            BinaryOp::GreaterEq(ref t) => t.end_position(),
-            BinaryOp::Andalso(ref t) => t.end_position(),
+            BinaryOp::IntDiv(ref t) |
+            BinaryOp::Rem(ref t) |
+            BinaryOp::Bor(ref t) |
+            BinaryOp::Bxor(ref t) |
+            BinaryOp::Band(ref t) |
+            BinaryOp::Bsl(ref t) |
+            BinaryOp::Bsr(ref t) |
+            BinaryOp::Or(ref t) |
+            BinaryOp::Xor(ref t) |
+            BinaryOp::Andalso(ref t) |
             BinaryOp::Orelse(ref t) => t.end_position(),
+            BinaryOp::Plus(ref t) |
+            BinaryOp::Minus(ref t) |
+            BinaryOp::Mul(ref t) |
+            BinaryOp::FloatDiv(ref t) |
+            BinaryOp::PlusPlus(ref t) |
+            BinaryOp::MinusMinus(ref t) |
+            BinaryOp::Eq(ref t) |
+            BinaryOp::ExactEq(ref t) |
+            BinaryOp::NotEq(ref t) |
+            BinaryOp::ExactNotEq(ref t) |
+            BinaryOp::Less(ref t) |
+            BinaryOp::LessEq(ref t) |
+            BinaryOp::Greater(ref t) |
+            BinaryOp::GreaterEq(ref t) |
             BinaryOp::Send(ref t) => t.end_position(),
         }
     }
@@ -389,17 +389,17 @@ impl Parse for UnaryOp {
 impl PositionRange for UnaryOp {
     fn start_position(&self) -> Position {
         match *self {
-            UnaryOp::Plus(ref t) => t.start_position(),
+            UnaryOp::Plus(ref t) |
             UnaryOp::Minus(ref t) => t.start_position(),
-            UnaryOp::Not(ref t) => t.start_position(),
+            UnaryOp::Not(ref t) |
             UnaryOp::Bnot(ref t) => t.start_position(),
         }
     }
     fn end_position(&self) -> Position {
         match *self {
-            UnaryOp::Plus(ref t) => t.end_position(),
+            UnaryOp::Plus(ref t) |
             UnaryOp::Minus(ref t) => t.end_position(),
-            UnaryOp::Not(ref t) => t.end_position(),
+            UnaryOp::Not(ref t) |
             UnaryOp::Bnot(ref t) => t.end_position(),
         }
     }
