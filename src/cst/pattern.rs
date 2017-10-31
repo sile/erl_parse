@@ -37,7 +37,7 @@ impl Parse for Pattern {
             HeadKind::Map => Pattern::Map(track!(parser.parse())?),
             HeadKind::Record => Pattern::Record(track!(parser.parse())?),
             HeadKind::RecordFieldIndex => Pattern::RecordFieldIndex(track!(parser.parse())?),
-            HeadKind::List => Pattern::List(track!(parser.parse())?),            
+            HeadKind::List => Pattern::List(track!(parser.parse())?),
             HeadKind::Bits => Pattern::Bits(track!(parser.parse())?),
             HeadKind::UnaryOpCall => Pattern::UnaryOpCall(track!(parser.parse())?),
             HeadKind::Parenthesized => Pattern::Parenthesized(track!(parser.parse())?),
