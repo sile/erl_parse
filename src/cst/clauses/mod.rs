@@ -2,7 +2,7 @@ use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
 use erl_tokenize::values::Symbol;
 use erl_tokenize::{Position, PositionRange};
 
-use self::parts::{ExceptionClass, WhenGuard};
+use self::parts::{ExceptionClass, StackTrace, WhenGuard};
 use crate::cst::commons::parts::{Args, Clauses, Sequence};
 use crate::cst::exprs::parts::Body;
 use crate::cst::types;
@@ -17,6 +17,7 @@ pub mod parts;
 pub struct CatchClause {
     pub class: Option<ExceptionClass>,
     pub pattern: Pattern,
+    pub stacktrace: Option<StackTrace>,
     pub guard: Option<WhenGuard>,
     pub _arrow: SymbolToken,
     pub body: Body,
@@ -29,6 +30,7 @@ impl Parse for CatchClause {
         Ok(CatchClause {
             class: track!(parser.parse())?,
             pattern: track!(parser.parse())?,
+            stacktrace: track!(parser.parse())?,
             guard: track!(parser.parse())?,
             _arrow: track!(parser.expect(&Symbol::RightArrow))?,
             body: track!(parser.parse())?,

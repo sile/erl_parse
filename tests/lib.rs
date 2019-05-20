@@ -182,6 +182,7 @@ fn parse_expr_works() {
     parse_expr!("try foo, bar of 10 -> 2; _ -> 30 catch baz -> 1; _:_ -> qux end");
     parse_expr!("try foo, bar after baz, qux end");
     parse_expr!("try foo of _ -> 1 catch throw:_ -> ok end");
+    parse_expr!("try foo catch _:Expr:StackTrace -> ok end");
 
     parse_expr!("try foo of _ -> 1 after ok end");
     parse_expr!("try foo of _ -> 1 catch _ -> err after ok end");

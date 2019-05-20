@@ -1,4 +1,4 @@
-use erl_tokenize::tokens::{KeywordToken, SymbolToken};
+use erl_tokenize::tokens::{KeywordToken, SymbolToken, VariableToken};
 use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{Position, PositionRange};
 
@@ -28,6 +28,28 @@ impl PositionRange for ExceptionClass {
     }
     fn end_position(&self) -> Position {
         self._colon.end_position()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StackTrace {
+    pub _colon: SymbolToken,
+    pub variable: VariableToken,
+}
+impl Parse for StackTrace {
+    fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
+        Ok(StackTrace {
+            _colon: track!(parser.expect(&Symbol::Colon))?,
+            variable: track!(parser.parse())?,
+        })
+    }
+}
+impl PositionRange for StackTrace {
+    fn start_position(&self) -> Position {
+        self._colon.start_position()
+    }
+    fn end_position(&self) -> Position {
+        self.variable.end_position()
     }
 }
 
