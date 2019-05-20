@@ -1,12 +1,12 @@
+use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
+use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{LexicalToken, Position, PositionRange};
-use erl_tokenize::tokens::{SymbolToken, VariableToken, AtomToken};
-use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead};
-use super::Literal;
 use super::commons::parts::BinaryOp;
 use super::exprs;
+use super::Literal;
+use crate::traits::{Parse, TokenRead};
+use crate::{ErrorKind, Parser, Result};
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -81,9 +81,9 @@ impl Parse for Expr {
                 TailKind::FunCall => Expr::FunCall(track!(parser.parse_tail(head))?),
                 TailKind::MapUpdate => Expr::MapUpdate(track!(parser.parse_tail(head))?),
                 TailKind::RecordUpdate => Expr::RecordUpdate(track!(parser.parse_tail(head))?),
-                TailKind::RecordFieldAccess => Expr::RecordFieldAccess(
-                    track!(parser.parse_tail(head))?,
-                ),
+                TailKind::RecordFieldAccess => {
+                    Expr::RecordFieldAccess(track!(parser.parse_tail(head))?)
+                }
                 TailKind::BinaryOpCall => Expr::BinaryOpCall(track!(parser.parse_tail(head))?),
                 TailKind::None => break,
             };
@@ -178,61 +178,57 @@ enum HeadKind {
 impl HeadKind {
     fn guess<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
         Ok(match track!(parser.parse())? {
-            LexicalToken::Symbol(t) => {
-                match t.value() {
-                    Symbol::OpenBrace => HeadKind::Tuple,
-                    Symbol::DoubleLeftAngle => {
-                        let maybe_comprehension = parser.parse::<Expr>().is_ok() &&
-                            parser
-                                .expect::<SymbolToken>(&Symbol::DoubleVerticalBar)
-                                .is_ok();
-                        if maybe_comprehension {
-                            HeadKind::BitsComprehension
-                        } else {
-                            HeadKind::Bits
-                        }
+            LexicalToken::Symbol(t) => match t.value() {
+                Symbol::OpenBrace => HeadKind::Tuple,
+                Symbol::DoubleLeftAngle => {
+                    let maybe_comprehension = parser.parse::<Expr>().is_ok()
+                        && parser
+                            .expect::<SymbolToken>(&Symbol::DoubleVerticalBar)
+                            .is_ok();
+                    if maybe_comprehension {
+                        HeadKind::BitsComprehension
+                    } else {
+                        HeadKind::Bits
                     }
-                    Symbol::OpenParen => HeadKind::Parenthesized,
-                    Symbol::OpenSquare => {
-                        let maybe_comprehension = parser.parse::<Expr>().is_ok() &&
-                            parser
-                                .expect::<SymbolToken>(&Symbol::DoubleVerticalBar)
-                                .is_ok();
-                        if maybe_comprehension {
-                            HeadKind::ListComprehension
-                        } else {
-                            HeadKind::List
-                        }
-                    }
-                    Symbol::Sharp => {
-                        if parser.parse::<AtomToken>().is_ok() {
-                            let next = parser.parse::<SymbolToken>().map(|t| t.value()).ok();
-                            if next == Some(Symbol::Dot) {
-                                HeadKind::RecordFieldIndex
-                            } else {
-                                HeadKind::Record
-                            }
-                        } else {
-                            HeadKind::Map
-                        }
-                    }
-                    Symbol::Plus | Symbol::Hyphen => HeadKind::UnaryOpCall,
-                    _ => track_panic!(ErrorKind::UnexpectedToken(t.into())),
                 }
-            }
-            LexicalToken::Keyword(t) => {
-                match t.value() {
-                    Keyword::Begin => HeadKind::Block,
-                    Keyword::Catch => HeadKind::Catch,
-                    Keyword::If => HeadKind::If,
-                    Keyword::Case => HeadKind::Case,
-                    Keyword::Receive => HeadKind::Receive,
-                    Keyword::Try => HeadKind::Try,
-                    Keyword::Fun => HeadKind::Fun,
-                    Keyword::Bnot | Keyword::Not => HeadKind::UnaryOpCall,
-                    _ => track_panic!(ErrorKind::UnexpectedToken(t.into())),
+                Symbol::OpenParen => HeadKind::Parenthesized,
+                Symbol::OpenSquare => {
+                    let maybe_comprehension = parser.parse::<Expr>().is_ok()
+                        && parser
+                            .expect::<SymbolToken>(&Symbol::DoubleVerticalBar)
+                            .is_ok();
+                    if maybe_comprehension {
+                        HeadKind::ListComprehension
+                    } else {
+                        HeadKind::List
+                    }
                 }
-            }
+                Symbol::Sharp => {
+                    if parser.parse::<AtomToken>().is_ok() {
+                        let next = parser.parse::<SymbolToken>().map(|t| t.value()).ok();
+                        if next == Some(Symbol::Dot) {
+                            HeadKind::RecordFieldIndex
+                        } else {
+                            HeadKind::Record
+                        }
+                    } else {
+                        HeadKind::Map
+                    }
+                }
+                Symbol::Plus | Symbol::Hyphen => HeadKind::UnaryOpCall,
+                _ => track_panic!(ErrorKind::UnexpectedToken(t.into())),
+            },
+            LexicalToken::Keyword(t) => match t.value() {
+                Keyword::Begin => HeadKind::Block,
+                Keyword::Catch => HeadKind::Catch,
+                Keyword::If => HeadKind::If,
+                Keyword::Case => HeadKind::Case,
+                Keyword::Receive => HeadKind::Receive,
+                Keyword::Try => HeadKind::Try,
+                Keyword::Fun => HeadKind::Fun,
+                Keyword::Bnot | Keyword::Not => HeadKind::UnaryOpCall,
+                _ => track_panic!(ErrorKind::UnexpectedToken(t.into())),
+            },
             LexicalToken::Variable(_) => {
                 if parser.expect::<SymbolToken>(&Symbol::DoubleColon).is_ok() {
                     HeadKind::Annotated
@@ -263,8 +259,7 @@ impl TailKind {
 
         let token = track!(parser.parse::<LexicalToken>())?;
         Ok(match token.as_symbol_token().map(|t| t.value()) {
-            Some(Symbol::OpenParen) |
-            Some(Symbol::Colon) => TailKind::FunCall,
+            Some(Symbol::OpenParen) | Some(Symbol::Colon) => TailKind::FunCall,
             Some(Symbol::Sharp) => {
                 if parser
                     .parse::<LexicalToken>()
@@ -275,9 +270,7 @@ impl TailKind {
                     let is_record_update = parser
                         .parse::<LexicalToken>()
                         .ok()
-                        .and_then(|t| {
-                            t.as_symbol_token().map(|t| t.value() == Symbol::OpenBrace)
-                        })
+                        .and_then(|t| t.as_symbol_token().map(|t| t.value() == Symbol::OpenBrace))
                         .unwrap_or(false);
                     if is_record_update {
                         TailKind::RecordUpdate

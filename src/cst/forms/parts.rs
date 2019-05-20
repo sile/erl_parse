@@ -1,11 +1,11 @@
-use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::{SymbolToken, AtomToken};
+use erl_tokenize::tokens::{AtomToken, SymbolToken};
 use erl_tokenize::values::Symbol;
+use erl_tokenize::{Position, PositionRange};
 
-use {Result, Parser};
-use traits::{Parse, TokenRead};
-use super::Type;
 use super::super::Expr;
+use super::Type;
+use crate::traits::{Parse, TokenRead};
+use crate::{Parser, Result};
 
 /// `AtomToken` `Option<RecordFieldDefault>` `Option<RecordFieldType>`
 #[derive(Debug, Clone)]

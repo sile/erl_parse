@@ -1,9 +1,9 @@
 use erl_pp::{self, Preprocessor};
 use erl_tokenize::{Lexer, LexicalToken};
 
-use {Result, TokenReader, Parser};
-use cst::ModuleDecl;
-use traits::TokenRead;
+use crate::cst::ModuleDecl;
+use crate::traits::TokenRead;
+use crate::{Parser, Result, TokenReader};
 
 #[derive(Debug)]
 pub struct ModuleParser<'a>(Parser<TokenReader<Preprocessor<Lexer<&'a str>>, erl_pp::Error>>);

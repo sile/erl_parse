@@ -1,12 +1,12 @@
+use erl_tokenize::tokens::{AtomToken, IntegerToken, KeywordToken, SymbolToken};
+use erl_tokenize::values::{Keyword, Symbol};
+use erl_tokenize::{LexicalToken, Position, PositionRange};
 use std::marker::PhantomData;
-use erl_tokenize::{Position, PositionRange, LexicalToken};
-use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, KeywordToken};
-use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead, Delimiter};
+use super::iterators::{ConsCellIter, SequenceIter};
 use super::AtomOrVariable;
-use super::iterators::{SequenceIter, ConsCellIter};
+use crate::traits::{Delimiter, Parse, TokenRead};
+use crate::{ErrorKind, Parser, Result};
 
 pub type Clauses<T> = Sequence<T, Semicolon>;
 
@@ -161,25 +161,24 @@ pub enum ConsCellTail<T> {
         item: T,
         tail: Option<Box<ConsCellTail<T>>>,
     },
-    Improper { _bar: SymbolToken, item: T },
+    Improper {
+        _bar: SymbolToken,
+        item: T,
+    },
 }
 impl<T: Parse> Parse for ConsCellTail<T> {
     fn parse<U: TokenRead>(parser: &mut Parser<U>) -> Result<Self> {
         let symbol: SymbolToken = track!(parser.parse())?;
         match symbol.value() {
-            Symbol::Comma => {
-                Ok(ConsCellTail::Proper {
-                    _comma: symbol,
-                    item: track!(parser.parse())?,
-                    tail: track!(parser.parse())?,
-                })
-            }
-            Symbol::VerticalBar => {
-                Ok(ConsCellTail::Improper {
-                    _bar: symbol,
-                    item: track!(parser.parse())?,
-                })
-            }
+            Symbol::Comma => Ok(ConsCellTail::Proper {
+                _comma: symbol,
+                item: track!(parser.parse())?,
+                tail: track!(parser.parse())?,
+            }),
+            Symbol::VerticalBar => Ok(ConsCellTail::Improper {
+                _bar: symbol,
+                item: track!(parser.parse())?,
+            }),
             _ => {
                 track_panic!(ErrorKind::InvalidInput, "Unexpected symbol: {:?}", symbol);
             }
@@ -195,11 +194,12 @@ impl<T: PositionRange> PositionRange for ConsCellTail<T> {
     }
     fn end_position(&self) -> Position {
         match *self {
-            ConsCellTail::Proper { ref item, ref tail, .. } => {
-                tail.as_ref().map(|t| t.end_position()).unwrap_or_else(|| {
-                    item.end_position()
-                })
-            }
+            ConsCellTail::Proper {
+                ref item, ref tail, ..
+            } => tail
+                .as_ref()
+                .map(|t| t.end_position())
+                .unwrap_or_else(|| item.end_position()),
             ConsCellTail::Improper { ref item, .. } => item.end_position(),
         }
     }
@@ -237,42 +237,38 @@ pub enum BinaryOp {
 impl BinaryOp {
     pub fn from_token(token: LexicalToken) -> ::std::result::Result<Self, LexicalToken> {
         match token {
-            LexicalToken::Symbol(s) => {
-                match s.value() {
-                    Symbol::Plus => Ok(BinaryOp::Plus(s)),
-                    Symbol::Hyphen => Ok(BinaryOp::Minus(s)),
-                    Symbol::Multiply => Ok(BinaryOp::Mul(s)),
-                    Symbol::Slash => Ok(BinaryOp::FloatDiv(s)),
-                    Symbol::PlusPlus => Ok(BinaryOp::PlusPlus(s)),
-                    Symbol::MinusMinus => Ok(BinaryOp::MinusMinus(s)),
-                    Symbol::Eq => Ok(BinaryOp::Eq(s)),
-                    Symbol::ExactEq => Ok(BinaryOp::ExactEq(s)),
-                    Symbol::NotEq => Ok(BinaryOp::NotEq(s)),
-                    Symbol::ExactNotEq => Ok(BinaryOp::ExactNotEq(s)),
-                    Symbol::Less => Ok(BinaryOp::Less(s)),
-                    Symbol::LessEq => Ok(BinaryOp::LessEq(s)),
-                    Symbol::Greater => Ok(BinaryOp::Greater(s)),
-                    Symbol::GreaterEq => Ok(BinaryOp::GreaterEq(s)),
-                    Symbol::Not => Ok(BinaryOp::Send(s)),
-                    _ => Err(s.into()),
-                }
-            }
-            LexicalToken::Keyword(k) => {
-                match k.value() {
-                    Keyword::Div => Ok(BinaryOp::IntDiv(k)),
-                    Keyword::Rem => Ok(BinaryOp::Rem(k)),
-                    Keyword::Bor => Ok(BinaryOp::Bor(k)),
-                    Keyword::Bxor => Ok(BinaryOp::Bxor(k)),
-                    Keyword::Band => Ok(BinaryOp::Band(k)),
-                    Keyword::Bsl => Ok(BinaryOp::Bsl(k)),
-                    Keyword::Bsr => Ok(BinaryOp::Bsr(k)),
-                    Keyword::Or => Ok(BinaryOp::Or(k)),
-                    Keyword::Xor => Ok(BinaryOp::Xor(k)),
-                    Keyword::Andalso => Ok(BinaryOp::Andalso(k)),
-                    Keyword::Orelse => Ok(BinaryOp::Orelse(k)),
-                    _ => Err(k.into()),
-                }
-            }
+            LexicalToken::Symbol(s) => match s.value() {
+                Symbol::Plus => Ok(BinaryOp::Plus(s)),
+                Symbol::Hyphen => Ok(BinaryOp::Minus(s)),
+                Symbol::Multiply => Ok(BinaryOp::Mul(s)),
+                Symbol::Slash => Ok(BinaryOp::FloatDiv(s)),
+                Symbol::PlusPlus => Ok(BinaryOp::PlusPlus(s)),
+                Symbol::MinusMinus => Ok(BinaryOp::MinusMinus(s)),
+                Symbol::Eq => Ok(BinaryOp::Eq(s)),
+                Symbol::ExactEq => Ok(BinaryOp::ExactEq(s)),
+                Symbol::NotEq => Ok(BinaryOp::NotEq(s)),
+                Symbol::ExactNotEq => Ok(BinaryOp::ExactNotEq(s)),
+                Symbol::Less => Ok(BinaryOp::Less(s)),
+                Symbol::LessEq => Ok(BinaryOp::LessEq(s)),
+                Symbol::Greater => Ok(BinaryOp::Greater(s)),
+                Symbol::GreaterEq => Ok(BinaryOp::GreaterEq(s)),
+                Symbol::Not => Ok(BinaryOp::Send(s)),
+                _ => Err(s.into()),
+            },
+            LexicalToken::Keyword(k) => match k.value() {
+                Keyword::Div => Ok(BinaryOp::IntDiv(k)),
+                Keyword::Rem => Ok(BinaryOp::Rem(k)),
+                Keyword::Bor => Ok(BinaryOp::Bor(k)),
+                Keyword::Bxor => Ok(BinaryOp::Bxor(k)),
+                Keyword::Band => Ok(BinaryOp::Band(k)),
+                Keyword::Bsl => Ok(BinaryOp::Bsl(k)),
+                Keyword::Bsr => Ok(BinaryOp::Bsr(k)),
+                Keyword::Or => Ok(BinaryOp::Or(k)),
+                Keyword::Xor => Ok(BinaryOp::Xor(k)),
+                Keyword::Andalso => Ok(BinaryOp::Andalso(k)),
+                Keyword::Orelse => Ok(BinaryOp::Orelse(k)),
+                _ => Err(k.into()),
+            },
             _ => Err(token),
         }
     }
@@ -289,62 +285,62 @@ impl Parse for BinaryOp {
 impl PositionRange for BinaryOp {
     fn start_position(&self) -> Position {
         match *self {
-            BinaryOp::IntDiv(ref t) |
-            BinaryOp::Rem(ref t) |
-            BinaryOp::Bor(ref t) |
-            BinaryOp::Bxor(ref t) |
-            BinaryOp::Band(ref t) |
-            BinaryOp::Bsl(ref t) |
-            BinaryOp::Bsr(ref t) |
-            BinaryOp::Or(ref t) |
-            BinaryOp::Xor(ref t) |
-            BinaryOp::Andalso(ref t) |
-            BinaryOp::Orelse(ref t) => t.start_position(),
-            BinaryOp::Plus(ref t) |
-            BinaryOp::Minus(ref t) |
-            BinaryOp::Mul(ref t) |
-            BinaryOp::FloatDiv(ref t) |
-            BinaryOp::PlusPlus(ref t) |
-            BinaryOp::MinusMinus(ref t) |
-            BinaryOp::Eq(ref t) |
-            BinaryOp::ExactEq(ref t) |
-            BinaryOp::NotEq(ref t) |
-            BinaryOp::ExactNotEq(ref t) |
-            BinaryOp::Less(ref t) |
-            BinaryOp::LessEq(ref t) |
-            BinaryOp::Greater(ref t) |
-            BinaryOp::GreaterEq(ref t) |
-            BinaryOp::Send(ref t) => t.start_position(),
+            BinaryOp::IntDiv(ref t)
+            | BinaryOp::Rem(ref t)
+            | BinaryOp::Bor(ref t)
+            | BinaryOp::Bxor(ref t)
+            | BinaryOp::Band(ref t)
+            | BinaryOp::Bsl(ref t)
+            | BinaryOp::Bsr(ref t)
+            | BinaryOp::Or(ref t)
+            | BinaryOp::Xor(ref t)
+            | BinaryOp::Andalso(ref t)
+            | BinaryOp::Orelse(ref t) => t.start_position(),
+            BinaryOp::Plus(ref t)
+            | BinaryOp::Minus(ref t)
+            | BinaryOp::Mul(ref t)
+            | BinaryOp::FloatDiv(ref t)
+            | BinaryOp::PlusPlus(ref t)
+            | BinaryOp::MinusMinus(ref t)
+            | BinaryOp::Eq(ref t)
+            | BinaryOp::ExactEq(ref t)
+            | BinaryOp::NotEq(ref t)
+            | BinaryOp::ExactNotEq(ref t)
+            | BinaryOp::Less(ref t)
+            | BinaryOp::LessEq(ref t)
+            | BinaryOp::Greater(ref t)
+            | BinaryOp::GreaterEq(ref t)
+            | BinaryOp::Send(ref t) => t.start_position(),
         }
     }
     fn end_position(&self) -> Position {
         match *self {
-            BinaryOp::IntDiv(ref t) |
-            BinaryOp::Rem(ref t) |
-            BinaryOp::Bor(ref t) |
-            BinaryOp::Bxor(ref t) |
-            BinaryOp::Band(ref t) |
-            BinaryOp::Bsl(ref t) |
-            BinaryOp::Bsr(ref t) |
-            BinaryOp::Or(ref t) |
-            BinaryOp::Xor(ref t) |
-            BinaryOp::Andalso(ref t) |
-            BinaryOp::Orelse(ref t) => t.end_position(),
-            BinaryOp::Plus(ref t) |
-            BinaryOp::Minus(ref t) |
-            BinaryOp::Mul(ref t) |
-            BinaryOp::FloatDiv(ref t) |
-            BinaryOp::PlusPlus(ref t) |
-            BinaryOp::MinusMinus(ref t) |
-            BinaryOp::Eq(ref t) |
-            BinaryOp::ExactEq(ref t) |
-            BinaryOp::NotEq(ref t) |
-            BinaryOp::ExactNotEq(ref t) |
-            BinaryOp::Less(ref t) |
-            BinaryOp::LessEq(ref t) |
-            BinaryOp::Greater(ref t) |
-            BinaryOp::GreaterEq(ref t) |
-            BinaryOp::Send(ref t) => t.end_position(),
+            BinaryOp::IntDiv(ref t)
+            | BinaryOp::Rem(ref t)
+            | BinaryOp::Bor(ref t)
+            | BinaryOp::Bxor(ref t)
+            | BinaryOp::Band(ref t)
+            | BinaryOp::Bsl(ref t)
+            | BinaryOp::Bsr(ref t)
+            | BinaryOp::Or(ref t)
+            | BinaryOp::Xor(ref t)
+            | BinaryOp::Andalso(ref t)
+            | BinaryOp::Orelse(ref t) => t.end_position(),
+            BinaryOp::Plus(ref t)
+            | BinaryOp::Minus(ref t)
+            | BinaryOp::Mul(ref t)
+            | BinaryOp::FloatDiv(ref t)
+            | BinaryOp::PlusPlus(ref t)
+            | BinaryOp::MinusMinus(ref t)
+            | BinaryOp::Eq(ref t)
+            | BinaryOp::ExactEq(ref t)
+            | BinaryOp::NotEq(ref t)
+            | BinaryOp::ExactNotEq(ref t)
+            | BinaryOp::Less(ref t)
+            | BinaryOp::LessEq(ref t)
+            | BinaryOp::Greater(ref t)
+            | BinaryOp::GreaterEq(ref t)
+            | BinaryOp::Send(ref t) => t.end_position(),
         }
     }
 }
@@ -359,20 +355,16 @@ pub enum UnaryOp {
 impl UnaryOp {
     pub fn from_token(token: LexicalToken) -> ::std::result::Result<Self, LexicalToken> {
         match token {
-            LexicalToken::Symbol(s) => {
-                match s.value() {
-                    Symbol::Plus => Ok(UnaryOp::Plus(s)),
-                    Symbol::Hyphen => Ok(UnaryOp::Minus(s)),
-                    _ => Err(s.into()),
-                }
-            }
-            LexicalToken::Keyword(k) => {
-                match k.value() {
-                    Keyword::Not => Ok(UnaryOp::Not(k)),
-                    Keyword::Bnot => Ok(UnaryOp::Bnot(k)),
-                    _ => Err(k.into()),
-                }
-            }
+            LexicalToken::Symbol(s) => match s.value() {
+                Symbol::Plus => Ok(UnaryOp::Plus(s)),
+                Symbol::Hyphen => Ok(UnaryOp::Minus(s)),
+                _ => Err(s.into()),
+            },
+            LexicalToken::Keyword(k) => match k.value() {
+                Keyword::Not => Ok(UnaryOp::Not(k)),
+                Keyword::Bnot => Ok(UnaryOp::Bnot(k)),
+                _ => Err(k.into()),
+            },
             token => Err(token),
         }
     }
@@ -389,18 +381,14 @@ impl Parse for UnaryOp {
 impl PositionRange for UnaryOp {
     fn start_position(&self) -> Position {
         match *self {
-            UnaryOp::Plus(ref t) |
-            UnaryOp::Minus(ref t) => t.start_position(),
-            UnaryOp::Not(ref t) |
-            UnaryOp::Bnot(ref t) => t.start_position(),
+            UnaryOp::Plus(ref t) | UnaryOp::Minus(ref t) => t.start_position(),
+            UnaryOp::Not(ref t) | UnaryOp::Bnot(ref t) => t.start_position(),
         }
     }
     fn end_position(&self) -> Position {
         match *self {
-            UnaryOp::Plus(ref t) |
-            UnaryOp::Minus(ref t) => t.end_position(),
-            UnaryOp::Not(ref t) |
-            UnaryOp::Bnot(ref t) => t.end_position(),
+            UnaryOp::Plus(ref t) | UnaryOp::Minus(ref t) => t.end_position(),
+            UnaryOp::Not(ref t) | UnaryOp::Bnot(ref t) => t.end_position(),
         }
     }
 }
@@ -467,9 +455,7 @@ impl<T: Parse> Parse for MapField<T> {
     fn parse<U: TokenRead>(parser: &mut Parser<U>) -> Result<Self> {
         Ok(MapField {
             key: track!(parser.parse())?,
-            _relation: track!(parser.expect_any(
-                &[&Symbol::DoubleRightArrow, &Symbol::MapMatch],
-            ))?,
+            _relation: track!(parser.expect_any(&[&Symbol::DoubleRightArrow, &Symbol::MapMatch],))?,
             value: track!(parser.parse())?,
         })
     }

@@ -1,13 +1,13 @@
+use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
+use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{LexicalToken, Position, PositionRange};
-use erl_tokenize::tokens::{AtomToken, VariableToken, SymbolToken};
-use erl_tokenize::values::{Symbol, Keyword};
 use trackable::error::ErrorKindExt;
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead};
-use super::Literal;
-use super::commons::parts::{UnaryOp, BinaryOp};
+use super::commons::parts::{BinaryOp, UnaryOp};
 use super::types;
+use super::Literal;
+use crate::traits::{Parse, TokenRead};
+use crate::{ErrorKind, Parser, Result};
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -122,37 +122,29 @@ enum HeadKind {
 impl HeadKind {
     fn guess<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
         Ok(match track!(parser.parse())? {
-            LexicalToken::Symbol(t) => {
-                match t.value() {
-                    Symbol::OpenBrace => HeadKind::Tuple,
-                    Symbol::DoubleLeftAngle => HeadKind::Bits,
-                    Symbol::OpenParen => HeadKind::Parenthesized,
-                    Symbol::OpenSquare => HeadKind::List,
-                    Symbol::Sharp => {
-                        if parser.parse::<AtomToken>().is_ok() {
-                            HeadKind::Record
-                        } else {
-                            HeadKind::Map
-                        }
-                    }
-                    _ => {
-                        track!(
-                            UnaryOp::from_token(t.into())
-                                .map(|_| HeadKind::UnaryOpCall)
-                                .map_err(|e| ErrorKind::UnexpectedToken(e).error())
-                        )?
+            LexicalToken::Symbol(t) => match t.value() {
+                Symbol::OpenBrace => HeadKind::Tuple,
+                Symbol::DoubleLeftAngle => HeadKind::Bits,
+                Symbol::OpenParen => HeadKind::Parenthesized,
+                Symbol::OpenSquare => HeadKind::List,
+                Symbol::Sharp => {
+                    if parser.parse::<AtomToken>().is_ok() {
+                        HeadKind::Record
+                    } else {
+                        HeadKind::Map
                     }
                 }
-            }
+                _ => track!(UnaryOp::from_token(t.into())
+                    .map(|_| HeadKind::UnaryOpCall)
+                    .map_err(|e| ErrorKind::UnexpectedToken(e).error()))?,
+            },
             LexicalToken::Keyword(t) => {
                 if t.value() == Keyword::Fun {
                     HeadKind::Fun
                 } else {
-                    track!(
-                        UnaryOp::from_token(t.into())
-                            .map(|_| HeadKind::UnaryOpCall)
-                            .map_err(|e| ErrorKind::UnexpectedToken(e).error())
-                    )?
+                    track!(UnaryOp::from_token(t.into())
+                        .map(|_| HeadKind::UnaryOpCall)
+                        .map_err(|e| ErrorKind::UnexpectedToken(e).error()))?
                 }
             }
             LexicalToken::Variable(_) => {
@@ -165,8 +157,7 @@ impl HeadKind {
             LexicalToken::Atom(_) => {
                 let token = parser.parse::<SymbolToken>();
                 match token.ok().map(|t| t.value()) {
-                    Some(Symbol::OpenParen) |
-                    Some(Symbol::Colon) => HeadKind::TypeCall,
+                    Some(Symbol::OpenParen) | Some(Symbol::Colon) => HeadKind::TypeCall,
                     _ => HeadKind::Literal,
                 }
             }

@@ -1,10 +1,12 @@
-use std::fmt::Debug;
+use erl_tokenize::tokens::{
+    AtomToken, CharToken, FloatToken, IntegerToken, KeywordToken, StringToken, SymbolToken,
+    VariableToken,
+};
+use erl_tokenize::values::{Keyword, Symbol};
 use num::BigUint;
-use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, KeywordToken,
-                           StringToken, SymbolToken, VariableToken};
-use erl_tokenize::values::{Symbol, Keyword};
+use std::fmt::Debug;
 
-use {Result, ErrorKind};
+use crate::{ErrorKind, Result};
 
 pub trait Expect: Sized {
     type Value: ?Sized + Debug;

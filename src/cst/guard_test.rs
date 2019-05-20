@@ -1,13 +1,13 @@
-use erl_tokenize::{LexicalToken, Position, PositionRange};
-use erl_tokenize::tokens::{SymbolToken, VariableToken, AtomToken};
+use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
 use erl_tokenize::values::Symbol;
+use erl_tokenize::{LexicalToken, Position, PositionRange};
 use trackable::error::ErrorKindExt;
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead};
-use super::Literal;
-use super::commons::parts::{UnaryOp, BinaryOp};
+use super::commons::parts::{BinaryOp, UnaryOp};
 use super::guard_tests;
+use super::Literal;
+use crate::traits::{Parse, TokenRead};
+use crate::{ErrorKind, Parser, Result};
 
 #[derive(Debug, Clone)]
 pub enum GuardTest {
@@ -54,9 +54,9 @@ impl Parse for GuardTest {
         loop {
             let kind = track!(parser.peek(|parser| TailKind::guess(parser)))?;
             head = match kind {
-                TailKind::RecordFieldAccess => GuardTest::RecordFieldAccess(
-                    track!(parser.parse_tail(head))?,
-                ),
+                TailKind::RecordFieldAccess => {
+                    GuardTest::RecordFieldAccess(track!(parser.parse_tail(head))?)
+                }
                 TailKind::BinaryOpCall => GuardTest::BinaryOpCall(track!(parser.parse_tail(head))?),
                 TailKind::None => break,
             };
@@ -118,46 +118,35 @@ enum HeadKind {
 impl HeadKind {
     fn guess<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
         Ok(match track!(parser.parse())? {
-            LexicalToken::Symbol(t) => {
-                match t.value() {
-                    Symbol::OpenBrace => HeadKind::Tuple,
-                    Symbol::DoubleLeftAngle => HeadKind::Bits,
-                    Symbol::OpenParen => HeadKind::Parenthesized,
-                    Symbol::OpenSquare => HeadKind::List,
-                    Symbol::Sharp => {
-                        if parser.parse::<AtomToken>().is_ok() {
-                            let next = parser.parse::<SymbolToken>().map(|t| t.value()).ok();
-                            if next == Some(Symbol::Dot) {
-                                HeadKind::RecordFieldIndex
-                            } else {
-                                HeadKind::Record
-                            }
+            LexicalToken::Symbol(t) => match t.value() {
+                Symbol::OpenBrace => HeadKind::Tuple,
+                Symbol::DoubleLeftAngle => HeadKind::Bits,
+                Symbol::OpenParen => HeadKind::Parenthesized,
+                Symbol::OpenSquare => HeadKind::List,
+                Symbol::Sharp => {
+                    if parser.parse::<AtomToken>().is_ok() {
+                        let next = parser.parse::<SymbolToken>().map(|t| t.value()).ok();
+                        if next == Some(Symbol::Dot) {
+                            HeadKind::RecordFieldIndex
                         } else {
-                            HeadKind::Map
+                            HeadKind::Record
                         }
-                    }
-                    _ => {
-                        track!(
-                            UnaryOp::from_token(t.into())
-                                .map(|_| HeadKind::UnaryOpCall)
-                                .map_err(|e| ErrorKind::UnexpectedToken(e).error())
-                        )?
+                    } else {
+                        HeadKind::Map
                     }
                 }
-            }
-            LexicalToken::Keyword(t) => {
-                track!(
-                    UnaryOp::from_token(t.into())
-                        .map(|_| HeadKind::UnaryOpCall)
-                        .map_err(|e| ErrorKind::UnexpectedToken(e).error())
-                )?
-            }
+                _ => track!(UnaryOp::from_token(t.into())
+                    .map(|_| HeadKind::UnaryOpCall)
+                    .map_err(|e| ErrorKind::UnexpectedToken(e).error()))?,
+            },
+            LexicalToken::Keyword(t) => track!(UnaryOp::from_token(t.into())
+                .map(|_| HeadKind::UnaryOpCall)
+                .map_err(|e| ErrorKind::UnexpectedToken(e).error()))?,
             LexicalToken::Variable(_) => HeadKind::Variable,
             LexicalToken::Atom(_) => {
                 let token = parser.parse::<SymbolToken>();
                 match token.ok().map(|t| t.value()) {
-                    Some(Symbol::OpenParen) |
-                    Some(Symbol::Colon) => HeadKind::FunCall,
+                    Some(Symbol::OpenParen) | Some(Symbol::Colon) => HeadKind::FunCall,
                     _ => HeadKind::Literal,
                 }
             }

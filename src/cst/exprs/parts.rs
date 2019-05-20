@@ -1,13 +1,13 @@
-use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
+use erl_tokenize::{Position, PositionRange};
 
-use {Result, Parser};
-use traits::{Parse, TokenRead};
-use super::Expr;
-use super::super::Pattern;
 use super::super::clauses::{CaseClause, CatchClause};
-use super::super::commons::parts::{Sequence, Clauses};
+use super::super::commons::parts::{Clauses, Sequence};
+use super::super::Pattern;
+use super::Expr;
+use crate::traits::{Parse, TokenRead};
+use crate::{Parser, Result};
 
 /// `Sequence<Expr>`
 #[derive(Debug, Clone)]
@@ -70,9 +70,7 @@ impl Parse for Generator {
     fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
         Ok(Generator {
             pattern: track!(parser.parse())?,
-            _arrow: track!(parser.expect_any(
-                &[&Symbol::LeftArrow, &Symbol::DoubleLeftArrow],
-            ))?,
+            _arrow: track!(parser.expect_any(&[&Symbol::LeftArrow, &Symbol::DoubleLeftArrow],))?,
             source: track!(parser.parse())?,
         })
     }

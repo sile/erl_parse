@@ -1,12 +1,13 @@
-use erl_tokenize::{Position, PositionRange, LexicalToken};
-use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, VariableToken};
+use erl_tokenize::tokens::{AtomToken, IntegerToken, SymbolToken, VariableToken};
 use erl_tokenize::values::Symbol;
+use erl_tokenize::{LexicalToken, Position, PositionRange};
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, ParseTail, TokenRead};
+use self::parts::{
+    Args, BinaryOp, BitsElem, ConsCell, MapField, ModulePrefix, RecordField, Sequence, UnaryOp,
+};
 use super::Pattern;
-use self::parts::{BitsElem, ConsCell, BinaryOp, UnaryOp, ModulePrefix, Args, MapField,
-                  RecordField, Sequence};
+use crate::traits::{Parse, ParseTail, TokenRead};
+use crate::{ErrorKind, Parser, Result};
 
 pub mod iterators;
 pub mod parts;

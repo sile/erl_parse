@@ -1,17 +1,17 @@
 extern crate clap;
-extern crate erl_pp;
 extern crate erl_parse;
+extern crate erl_pp;
 extern crate erl_tokenize;
 #[macro_use]
 extern crate trackable;
 
-use std::env;
-use std::fs::File;
-use std::io::Read;
 use clap::{App, Arg};
 use erl_pp::Preprocessor;
 use erl_tokenize::Lexer;
-use trackable::error::{Failed, ErrorKindExt};
+use std::env;
+use std::fs::File;
+use std::io::Read;
+use trackable::error::{ErrorKindExt, Failed};
 
 fn main() {
     let matches = App::new("parse")

@@ -1,14 +1,14 @@
-use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::{SymbolToken, VariableToken, AtomToken};
+use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
 use erl_tokenize::values::Symbol;
+use erl_tokenize::{Position, PositionRange};
 
-use {Result, Parser};
-use cst::{Pattern, GuardTest, Type};
-use cst::commons::parts::{Args, Sequence, Clauses};
-use cst::exprs::parts::Body;
-use cst::types;
-use traits::{Parse, TokenRead};
-use self::parts::{ExceptionClass, WhenGuard};
+use self::parts::{ExceptionClass, StackTrace, WhenGuard};
+use crate::cst::commons::parts::{Args, Clauses, Sequence};
+use crate::cst::exprs::parts::Body;
+use crate::cst::types;
+use crate::cst::{GuardTest, Pattern, Type};
+use crate::traits::{Parse, TokenRead};
+use crate::{Parser, Result};
 
 pub mod parts;
 
@@ -17,6 +17,7 @@ pub mod parts;
 pub struct CatchClause {
     pub class: Option<ExceptionClass>,
     pub pattern: Pattern,
+    pub stacktrace: Option<StackTrace>,
     pub guard: Option<WhenGuard>,
     pub _arrow: SymbolToken,
     pub body: Body,
@@ -29,6 +30,7 @@ impl Parse for CatchClause {
         Ok(CatchClause {
             class: track!(parser.parse())?,
             pattern: track!(parser.parse())?,
+            stacktrace: track!(parser.parse())?,
             guard: track!(parser.parse())?,
             _arrow: track!(parser.expect(&Symbol::RightArrow))?,
             body: track!(parser.parse())?,

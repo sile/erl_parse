@@ -24,9 +24,9 @@ extern crate num;
 #[macro_use]
 extern crate trackable;
 
-pub use error::{Error, ErrorKind};
-pub use parser::Parser;
-pub use token_reader::TokenReader;
+pub use crate::error::{Error, ErrorKind};
+pub use crate::parser::Parser;
+pub use crate::token_reader::TokenReader;
 
 pub mod builtin;
 pub mod cst;
