@@ -317,7 +317,7 @@ impl<T: PositionRange, A> PositionRange for Call<T, A> {
     fn start_position(&self) -> Position {
         self.module
             .as_ref()
-            .map(|x| x.start_position())
+            .map(PositionRange::start_position)
             .unwrap_or_else(|| self.name.start_position())
     }
     fn end_position(&self) -> Position {

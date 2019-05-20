@@ -70,7 +70,7 @@ impl Parse for Expr {
     where
         T: TokenRead,
     {
-        if let Ok(expr) = parser.transaction(|parser| parser.parse()) {
+        if let Ok(expr) = parser.transaction(Parser::parse) {
             return Ok(Expr::Match(expr));
         }
 
@@ -258,7 +258,7 @@ impl TailKind {
         }
 
         let token = track!(parser.parse::<LexicalToken>())?;
-        Ok(match token.as_symbol_token().map(|t| t.value()) {
+        Ok(match token.as_symbol_token().map(SymbolToken::value) {
             Some(Symbol::OpenParen) | Some(Symbol::Colon) => TailKind::FunCall,
             Some(Symbol::Sharp) => {
                 if parser

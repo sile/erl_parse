@@ -41,7 +41,7 @@ impl PositionRange for CatchClause {
     fn start_position(&self) -> Position {
         self.class
             .as_ref()
-            .map(|x| x.start_position())
+            .map(PositionRange::start_position)
             .unwrap_or_else(|| self.pattern.start_position())
     }
     fn end_position(&self) -> Position {
@@ -77,7 +77,7 @@ impl PositionRange for SpecClause {
     fn end_position(&self) -> Position {
         self.constraints
             .as_ref()
-            .map(|t| t.end_position())
+            .map(PositionRange::end_position)
             .unwrap_or_else(|| self.return_type.end_position())
     }
 }

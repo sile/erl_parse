@@ -27,7 +27,7 @@ impl Parse for Literal {
             LexicalToken::Integer(t) => Ok(Literal::Integer(t)),
             LexicalToken::String(head) => {
                 let mut tail = Vec::new();
-                while let Ok(t) = parser.transaction(|parser| parser.parse()) {
+                while let Ok(t) = parser.transaction(Parser::parse) {
                     tail.push(t);
                 }
                 Ok(Literal::String { head, tail })
@@ -54,7 +54,7 @@ impl PositionRange for Literal {
             Literal::Integer(ref x) => x.end_position(),
             Literal::String { ref head, ref tail } => tail
                 .last()
-                .map(|t| t.end_position())
+                .map(PositionRange::end_position)
                 .unwrap_or_else(|| head.end_position()),
         }
     }

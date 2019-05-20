@@ -30,8 +30,8 @@ impl PositionRange for RecordFieldDecl {
     fn end_position(&self) -> Position {
         self.field_type
             .as_ref()
-            .map(|t| t.end_position())
-            .or_else(|| self.field_default.as_ref().map(|t| t.end_position()))
+            .map(PositionRange::end_position)
+            .or_else(|| self.field_default.as_ref().map(PositionRange::end_position))
             .unwrap_or_else(|| self.field_name.end_position())
     }
 }

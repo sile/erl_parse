@@ -37,7 +37,7 @@ pub enum Qualifier {
 }
 impl Parse for Qualifier {
     fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
-        if let Ok(generator) = parser.transaction(|parser| parser.parse()) {
+        if let Ok(generator) = parser.transaction(Parser::parse) {
             Ok(Qualifier::Generator(generator))
         } else {
             Ok(Qualifier::Filter(track!(parser.parse())?))

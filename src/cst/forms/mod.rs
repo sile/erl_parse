@@ -221,7 +221,7 @@ impl Parse for WildAttr {
             for i in 0.. {
                 let v = track!(parser.parse::<LexicalToken>())?
                     .as_symbol_token()
-                    .map(|t| t.value());
+                    .map(SymbolToken::value);
                 if v == Some(Symbol::Dot) {
                     use std::cmp;
                     return Ok(cmp::max(i, 1) - 1);

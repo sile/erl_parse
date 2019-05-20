@@ -33,8 +33,8 @@ impl<T: PositionRange> PositionRange for BitsElem<T> {
     fn end_position(&self) -> Position {
         self.type_specs
             .as_ref()
-            .map(|t| t.end_position())
-            .or_else(|| self.size.as_ref().map(|t| t.end_position()))
+            .map(PositionRange::end_position)
+            .or_else(|| self.size.as_ref().map(PositionRange::end_position))
             .unwrap_or_else(|| self.element.end_position())
     }
 }
@@ -149,7 +149,7 @@ impl<T: PositionRange> PositionRange for ConsCell<T> {
     fn end_position(&self) -> Position {
         self.tail
             .as_ref()
-            .map(|t| t.end_position())
+            .map(PositionRange::end_position)
             .unwrap_or_else(|| self.item.end_position())
     }
 }
@@ -198,7 +198,7 @@ impl<T: PositionRange> PositionRange for ConsCellTail<T> {
                 ref item, ref tail, ..
             } => tail
                 .as_ref()
-                .map(|t| t.end_position())
+                .map(PositionRange::end_position)
                 .unwrap_or_else(|| item.end_position()),
             ConsCellTail::Improper { ref item, .. } => item.end_position(),
         }
@@ -548,7 +548,7 @@ impl<T: PositionRange, D> PositionRange for Sequence<T, D> {
     fn end_position(&self) -> Position {
         self.tail
             .as_ref()
-            .map(|t| t.end_position())
+            .map(PositionRange::end_position)
             .unwrap_or_else(|| self.item.end_position())
     }
 }
@@ -581,7 +581,7 @@ impl<T: PositionRange, D> PositionRange for SequenceTail<T, D> {
     fn end_position(&self) -> Position {
         self.tail
             .as_ref()
-            .map(|t| t.end_position())
+            .map(PositionRange::end_position)
             .unwrap_or_else(|| self.item.end_position())
     }
 }

@@ -180,7 +180,7 @@ impl TailKind {
             return Ok(TailKind::None);
         }
         let token = track!(parser.parse::<LexicalToken>())?;
-        Ok(match token.as_symbol_token().map(|t| t.value()) {
+        Ok(match token.as_symbol_token().map(SymbolToken::value) {
             Some(Symbol::VerticalBar) => TailKind::Union,
             Some(Symbol::DoubleDot) => TailKind::Range,
             _ => {

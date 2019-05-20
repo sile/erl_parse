@@ -27,7 +27,7 @@ impl PositionRange for ListElement {
     fn end_position(&self) -> Position {
         self.non_empty
             .as_ref()
-            .map(|t| t.end_position())
+            .map(PositionRange::end_position)
             .unwrap_or_else(|| self.element_type.end_position())
     }
 }
@@ -144,9 +144,9 @@ pub enum BitsSpec {
 }
 impl Parse for BitsSpec {
     fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
-        if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+        if let Ok(x) = parser.transaction(Parser::parse) {
             Ok(BitsSpec::BytesAndBits(x))
-        } else if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+        } else if let Ok(x) = parser.transaction(Parser::parse) {
             Ok(BitsSpec::Bytes(x))
         } else {
             Ok(BitsSpec::Bits(track!(parser.parse())?))

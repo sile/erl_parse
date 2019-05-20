@@ -31,7 +31,7 @@ impl<T: Parse> Parse for Option<T> {
     where
         U: TokenRead,
     {
-        Ok(parser.transaction(|parser| parser.parse()).ok())
+        Ok(parser.transaction(Parser::parse).ok())
     }
 }
 impl Parse for AtomToken {

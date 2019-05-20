@@ -33,9 +33,9 @@ impl Parse for Fun {
         T: TokenRead,
     {
         // TODO: look ahead
-        if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+        if let Ok(x) = parser.transaction(Parser::parse) {
             Ok(Fun::Any(x))
-        } else if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+        } else if let Ok(x) = parser.transaction(Parser::parse) {
             Ok(Fun::AnyArity(x))
         } else {
             Ok(Fun::Normal(track!(parser.parse())?))

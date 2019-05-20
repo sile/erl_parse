@@ -195,9 +195,9 @@ pub enum Fun {
 impl Parse for Fun {
     fn parse<T: TokenRead>(parser: &mut Parser<T>) -> Result<Self> {
         // TODO: look ahead
-        if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+        if let Ok(x) = parser.transaction(Parser::parse) {
             Ok(Fun::Defined(x))
-        } else if let Ok(x) = parser.transaction(|parser| parser.parse()) {
+        } else if let Ok(x) = parser.transaction(Parser::parse) {
             Ok(Fun::Anonymous(x))
         } else {
             Ok(Fun::Named(track!(parser.parse())?))
