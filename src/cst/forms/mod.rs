@@ -2,12 +2,12 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{SymbolToken, VariableToken, IntegerToken, AtomToken, StringToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parser};
-use cst::Type;
-use cst::clauses::{SpecClause, FunDeclClause};
-use cst::commons::{Tuple, ProperList};
-use cst::commons::parts::{Args, ModulePrefix, NameAndArity, Clauses};
-use traits::{Parse, TokenRead};
+use crate::{Result, Parser};
+use crate::cst::Type;
+use crate::cst::clauses::{SpecClause, FunDeclClause};
+use crate::cst::commons::{Tuple, ProperList};
+use crate::cst::commons::parts::{Args, ModulePrefix, NameAndArity, Clauses};
+use crate::traits::{Parse, TokenRead};
 use self::parts::RecordFieldDecl;
 
 pub mod parts;

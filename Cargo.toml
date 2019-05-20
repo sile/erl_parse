@@ -9,6 +9,7 @@ readme = "README.md"
 keywords = ["erlang", "parser"]
 categories = ["parser-implementations"]
 license = "MIT"
+edition = "2018"
 
 [badges]
 travis-ci = {repository = "sile/erl_parse"}

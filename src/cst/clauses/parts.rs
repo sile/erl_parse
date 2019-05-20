@@ -2,8 +2,8 @@ use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
-use {Result, Parser};
-use traits::{Parse, TokenRead};
+use crate::{Result, Parser};
+use crate::traits::{Parse, TokenRead};
 use super::super::GuardTest;
 use super::super::commons::AtomOrVariable;
 use super::super::commons::parts::{Sequence, Clauses};

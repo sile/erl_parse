@@ -1,8 +1,8 @@
 use erl_tokenize::tokens::AtomToken;
 
-use cst::GuardTest;
-use cst::commons;
-use cst::exprs;
+use crate::cst::GuardTest;
+use crate::cst::commons;
+use crate::cst::exprs;
 
 pub type Tuple = commons::Tuple<GuardTest>;
 pub type Map = commons::Map<GuardTest>;

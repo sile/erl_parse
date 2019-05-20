@@ -2,11 +2,11 @@ use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{SymbolToken, VariableToken, KeywordToken, AtomToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parser};
-use cst::Type;
-use cst::commons;
-use cst::commons::parts::{Args, Sequence};
-use traits::{Parse, ParseTail, TokenRead};
+use crate::{Result, Parser};
+use crate::cst::Type;
+use crate::cst::commons;
+use crate::cst::commons::parts::{Args, Sequence};
+use crate::traits::{Parse, ParseTail, TokenRead};
 use self::parts::{ListElement, BitsSpec};
 
 pub mod parts;

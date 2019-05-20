@@ -2,8 +2,8 @@ use erl_tokenize::LexicalToken;
 use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, KeywordToken,
                            StringToken, SymbolToken, VariableToken};
 
-use {Result, ErrorKind, Parser, Error};
-use traits::TokenRead;
+use crate::{Result, ErrorKind, Parser, Error};
+use crate::traits::TokenRead;
 
 pub trait Parse: Sized {
     fn parse_non_left_recor<T>(parser: &mut Parser<T>) -> Result<Self>

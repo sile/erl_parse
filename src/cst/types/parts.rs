@@ -2,8 +2,8 @@ use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{SymbolToken, VariableToken, IntegerToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parser};
-use traits::{Parse, TokenRead};
+use crate::{Result, Parser};
+use crate::traits::{Parse, TokenRead};
 use super::Type;
 
 /// `Type` `Option<NonEmpty>`

@@ -2,12 +2,12 @@ use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 
-use {Result, Parser};
-use cst::Expr;
-use cst::clauses::{FunClause, NamedFunClause, IfClause, CaseClause};
-use cst::commons::{self, AtomOrVariable, IntegerOrVariable};
-use cst::commons::parts::{ModulePrefix, NameAndArity, Clauses, Sequence};
-use traits::{Parse, ParseTail, TokenRead};
+use crate::{Result, Parser};
+use crate::cst::Expr;
+use crate::cst::clauses::{FunClause, NamedFunClause, IfClause, CaseClause};
+use crate::cst::commons::{self, AtomOrVariable, IntegerOrVariable};
+use crate::cst::commons::parts::{ModulePrefix, NameAndArity, Clauses, Sequence};
+use crate::traits::{Parse, ParseTail, TokenRead};
 use self::parts::{Body, Qualifier, Timeout, TryOf, TryCatch, TryAfter};
 
 pub mod parts;

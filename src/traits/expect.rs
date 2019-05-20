@@ -4,7 +4,7 @@ use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, Keywo
                            StringToken, SymbolToken, VariableToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, ErrorKind};
+use crate::{Result, ErrorKind};
 
 pub trait Expect: Sized {
     type Value: ?Sized + Debug;

@@ -2,12 +2,12 @@ use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{SymbolToken, VariableToken, AtomToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parser};
-use cst::{Pattern, GuardTest, Type};
-use cst::commons::parts::{Args, Sequence, Clauses};
-use cst::exprs::parts::Body;
-use cst::types;
-use traits::{Parse, TokenRead};
+use crate::{Result, Parser};
+use crate::cst::{Pattern, GuardTest, Type};
+use crate::cst::commons::parts::{Args, Sequence, Clauses};
+use crate::cst::exprs::parts::Body;
+use crate::cst::types;
+use crate::traits::{Parse, TokenRead};
 use self::parts::{ExceptionClass, WhenGuard};
 
 pub mod parts;

@@ -1,8 +1,8 @@
 use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, StringToken};
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead};
+use crate::{Result, Parser, ErrorKind};
+use crate::traits::{Parse, TokenRead};
 
 #[derive(Debug, Clone)]
 pub enum Literal {

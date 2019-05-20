@@ -3,8 +3,8 @@ use erl_tokenize::tokens::{AtomToken, VariableToken, SymbolToken};
 use erl_tokenize::values::{Symbol, Keyword};
 use trackable::error::ErrorKindExt;
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead};
+use crate::{Result, Parser, ErrorKind};
+use crate::traits::{Parse, TokenRead};
 use super::Literal;
 use super::commons::parts::{UnaryOp, BinaryOp};
 use super::types;

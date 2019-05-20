@@ -3,8 +3,8 @@ use erl_tokenize::{Position, PositionRange, LexicalToken};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, KeywordToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead, Delimiter};
+use crate::{Result, Parser, ErrorKind};
+use crate::traits::{Parse, TokenRead, Delimiter};
 use super::AtomOrVariable;
 use super::iterators::{SequenceIter, ConsCellIter};
 

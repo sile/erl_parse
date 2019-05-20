@@ -2,8 +2,8 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::AtomToken;
 use erl_tokenize::values::Symbol;
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead};
+use crate::{Result, Parser, ErrorKind};
+use crate::traits::{Parse, TokenRead};
 use super::forms;
 
 #[derive(Debug, Clone)]

@@ -2,8 +2,8 @@ use std;
 use std::marker::PhantomData;
 use erl_tokenize::LexicalToken;
 
-use {Result, Error};
-use traits::{TokenRead, Preprocessor};
+use crate::{Result, Error};
+use crate::traits::{TokenRead, Preprocessor};
 
 #[derive(Debug)]
 pub struct TokenReader<T, E> {

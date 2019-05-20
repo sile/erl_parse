@@ -2,8 +2,8 @@ use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{SymbolToken, VariableToken, AtomToken};
 use erl_tokenize::values::{Symbol, Keyword};
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, TokenRead};
+use crate::{Result, Parser, ErrorKind};
+use crate::traits::{Parse, TokenRead};
 use super::Literal;
 use super::commons::parts::BinaryOp;
 use super::exprs;

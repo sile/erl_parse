@@ -2,8 +2,8 @@ use erl_tokenize::{Position, PositionRange, LexicalToken};
 use erl_tokenize::tokens::{AtomToken, SymbolToken, IntegerToken, VariableToken};
 use erl_tokenize::values::Symbol;
 
-use {Result, Parser, ErrorKind};
-use traits::{Parse, ParseTail, TokenRead};
+use crate::{Result, Parser, ErrorKind};
+use crate::traits::{Parse, ParseTail, TokenRead};
 use super::Pattern;
 use self::parts::{BitsElem, ConsCell, BinaryOp, UnaryOp, ModulePrefix, Args, MapField,
                   RecordField, Sequence};
