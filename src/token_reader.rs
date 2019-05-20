@@ -1,9 +1,9 @@
+use erl_tokenize::LexicalToken;
 use std;
 use std::marker::PhantomData;
-use erl_tokenize::LexicalToken;
 
-use crate::{Result, Error};
-use crate::traits::{TokenRead, Preprocessor};
+use crate::traits::{Preprocessor, TokenRead};
+use crate::{Error, Result};
 
 #[derive(Debug)]
 pub struct TokenReader<T, E> {
@@ -46,8 +46,7 @@ where
 }
 impl<T, E> TokenRead for TokenReader<T, E>
 where
-    T: Iterator<Item = std::result::Result<LexicalToken, E>>
-        + Preprocessor,
+    T: Iterator<Item = std::result::Result<LexicalToken, E>> + Preprocessor,
     Error: From<E>,
 {
     fn try_read_token(&mut self) -> Result<Option<LexicalToken>> {

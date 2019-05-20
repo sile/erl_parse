@@ -1,14 +1,14 @@
-use erl_tokenize::{Position, PositionRange};
 use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
+use erl_tokenize::{Position, PositionRange};
 
-use crate::{Result, Parser};
-use crate::cst::Expr;
-use crate::cst::clauses::{FunClause, NamedFunClause, IfClause, CaseClause};
+use self::parts::{Body, Qualifier, Timeout, TryAfter, TryCatch, TryOf};
+use crate::cst::clauses::{CaseClause, FunClause, IfClause, NamedFunClause};
+use crate::cst::commons::parts::{Clauses, ModulePrefix, NameAndArity, Sequence};
 use crate::cst::commons::{self, AtomOrVariable, IntegerOrVariable};
-use crate::cst::commons::parts::{ModulePrefix, NameAndArity, Clauses, Sequence};
+use crate::cst::Expr;
 use crate::traits::{Parse, ParseTail, TokenRead};
-use self::parts::{Body, Qualifier, Timeout, TryOf, TryCatch, TryAfter};
+use crate::{Parser, Result};
 
 pub mod parts;
 
@@ -186,7 +186,7 @@ impl PositionRange for Case {
 
 /// `DefinedFun | AnonymousFun | NamedFun`
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 pub enum Fun {
     Defined(DefinedFun),
     Anonymous(AnonymousFun),

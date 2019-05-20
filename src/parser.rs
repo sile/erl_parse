@@ -1,7 +1,7 @@
 use erl_tokenize::LexicalToken;
 
-use crate::{Result, Error, ErrorKind};
 use crate::traits::{Expect, Parse, ParseTail, TokenRead};
+use crate::{Error, ErrorKind, Result};
 
 #[derive(Debug)]
 pub struct Parser<T> {

@@ -1,10 +1,10 @@
-use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::{SymbolToken, VariableToken, IntegerToken};
+use erl_tokenize::tokens::{IntegerToken, SymbolToken, VariableToken};
 use erl_tokenize::values::Symbol;
+use erl_tokenize::{Position, PositionRange};
 
-use crate::{Result, Parser};
-use crate::traits::{Parse, TokenRead};
 use super::Type;
+use crate::traits::{Parse, TokenRead};
+use crate::{Parser, Result};
 
 /// `Type` `Option<NonEmpty>`
 #[derive(Debug, Clone)]
@@ -136,7 +136,7 @@ impl PositionRange for BitSize {
 
 /// `ByteAndBitSize` | `ByteSize` | `BitSize`
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 pub enum BitsSpec {
     BytesAndBits(ByteAndBitSize),
     Bytes(ByteSize),

@@ -1,7 +1,7 @@
 use erl_tokenize::LexicalToken;
 
-use crate::{Result, ErrorKind};
 use crate::traits::Preprocessor;
+use crate::{ErrorKind, Result};
 
 pub trait TokenRead: Preprocessor {
     fn try_read_token(&mut self) -> Result<Option<LexicalToken>>;

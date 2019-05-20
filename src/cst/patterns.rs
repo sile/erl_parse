@@ -1,5 +1,5 @@
-use crate::cst::Pattern;
 use crate::cst::commons;
+use crate::cst::Pattern;
 
 pub type Tuple = commons::Tuple<Pattern>;
 pub type Map = commons::Map<Pattern>;

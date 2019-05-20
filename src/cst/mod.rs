@@ -1,5 +1,5 @@
-use crate::{Result, Parser};
 use crate::traits::{Parse, TokenRead};
+use crate::{Parser, Result};
 
 pub use self::expr::Expr;
 pub use self::form::Form;

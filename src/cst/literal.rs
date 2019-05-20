@@ -1,8 +1,8 @@
-use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::{AtomToken, CharToken, FloatToken, IntegerToken, StringToken};
+use erl_tokenize::{LexicalToken, Position, PositionRange};
 
-use crate::{Result, Parser, ErrorKind};
 use crate::traits::{Parse, TokenRead};
+use crate::{ErrorKind, Parser, Result};
 
 #[derive(Debug, Clone)]
 pub enum Literal {
@@ -52,11 +52,10 @@ impl PositionRange for Literal {
             Literal::Char(ref x) => x.end_position(),
             Literal::Float(ref x) => x.end_position(),
             Literal::Integer(ref x) => x.end_position(),
-            Literal::String { ref head, ref tail } => {
-                tail.last().map(|t| t.end_position()).unwrap_or_else(
-                    || head.end_position(),
-                )
-            }
+            Literal::String { ref head, ref tail } => tail
+                .last()
+                .map(|t| t.end_position())
+                .unwrap_or_else(|| head.end_position()),
         }
     }
 }

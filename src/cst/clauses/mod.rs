@@ -1,14 +1,14 @@
-use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::{SymbolToken, VariableToken, AtomToken};
+use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
 use erl_tokenize::values::Symbol;
+use erl_tokenize::{Position, PositionRange};
 
-use crate::{Result, Parser};
-use crate::cst::{Pattern, GuardTest, Type};
-use crate::cst::commons::parts::{Args, Sequence, Clauses};
+use self::parts::{ExceptionClass, WhenGuard};
+use crate::cst::commons::parts::{Args, Clauses, Sequence};
 use crate::cst::exprs::parts::Body;
 use crate::cst::types;
+use crate::cst::{GuardTest, Pattern, Type};
 use crate::traits::{Parse, TokenRead};
-use self::parts::{ExceptionClass, WhenGuard};
+use crate::{Parser, Result};
 
 pub mod parts;
 

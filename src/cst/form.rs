@@ -1,13 +1,13 @@
-use erl_tokenize::{LexicalToken, Position, PositionRange};
 use erl_tokenize::tokens::AtomToken;
 use erl_tokenize::values::Symbol;
+use erl_tokenize::{LexicalToken, Position, PositionRange};
 
-use crate::{Result, Parser, ErrorKind};
-use crate::traits::{Parse, TokenRead};
 use super::forms;
+use crate::traits::{Parse, TokenRead};
+use crate::{ErrorKind, Parser, Result};
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 pub enum Form {
     ModuleAttr(forms::ModuleAttr),
     ExportAttr(forms::ExportAttr),

@@ -1,6 +1,6 @@
 use erl_tokenize::values::Symbol;
 
-use super::parts::{Sequence, SequenceTail, ConsCell, ConsCellTail};
+use super::parts::{ConsCell, ConsCellTail, Sequence, SequenceTail};
 
 #[derive(Debug)]
 pub struct ConsCellIter<'a, T: 'a>(ConsCellIterInner<'a, T>);
@@ -34,7 +34,9 @@ impl<'a, T: 'a> Iterator for ConsCellIterInner<'a, T> {
                 }
                 Some((None, item))
             }
-            ConsCellIterInner::Tail(&ConsCellTail::Proper { ref item, ref tail, .. }) => {
+            ConsCellIterInner::Tail(&ConsCellTail::Proper {
+                ref item, ref tail, ..
+            }) => {
                 if let Some(ref tail) = *tail {
                     *self = ConsCellIterInner::Tail(tail);
                 } else {
@@ -84,7 +86,9 @@ impl<'a, T: 'a, D: 'a> Iterator for SequenceIterInner<'a, T, D> {
                 }
                 Some(item)
             }
-            SequenceIterInner::Tail(&SequenceTail { ref item, ref tail, .. }) => {
+            SequenceIterInner::Tail(&SequenceTail {
+                ref item, ref tail, ..
+            }) => {
                 if let Some(ref tail) = *tail {
                     *self = SequenceIterInner::Tail(tail);
                 } else {

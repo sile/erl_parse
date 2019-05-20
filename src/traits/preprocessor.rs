@@ -23,10 +23,8 @@ impl<'a, T, E> Preprocessor for &'a mut erl_pp::Preprocessor<T, E> {
 }
 impl<T, E> Preprocessor for erl_pp::Preprocessor<T, E> {
     fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>) {
-        self.macros_mut().insert(
-            name.to_string(),
-            MacroDef::Dynamic(replacement),
-        );
+        self.macros_mut()
+            .insert(name.to_string(), MacroDef::Dynamic(replacement));
     }
     fn undef_macro(&mut self, name: &str) {
         self.macros_mut().remove(name);

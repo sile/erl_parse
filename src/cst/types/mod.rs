@@ -1,13 +1,13 @@
+use erl_tokenize::tokens::{AtomToken, KeywordToken, SymbolToken, VariableToken};
+use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{Position, PositionRange};
-use erl_tokenize::tokens::{SymbolToken, VariableToken, KeywordToken, AtomToken};
-use erl_tokenize::values::{Symbol, Keyword};
 
-use crate::{Result, Parser};
-use crate::cst::Type;
+use self::parts::{BitsSpec, ListElement};
 use crate::cst::commons;
 use crate::cst::commons::parts::{Args, Sequence};
+use crate::cst::Type;
 use crate::traits::{Parse, ParseTail, TokenRead};
-use self::parts::{ListElement, BitsSpec};
+use crate::{Parser, Result};
 
 pub mod parts;
 
@@ -21,7 +21,7 @@ pub type BinaryOpCall = commons::BinaryOpCall<Type>;
 
 /// `AnyFun | AnyArityFun | NormalFun`
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 pub enum Fun {
     Any(AnyFun),
     AnyArity(AnyArityFun),

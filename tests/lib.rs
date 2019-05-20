@@ -1,49 +1,45 @@
-extern crate erl_pp;
 extern crate erl_parse;
+extern crate erl_pp;
 extern crate erl_tokenize;
 #[macro_use]
 extern crate trackable;
 
+use erl_parse::cst::{Expr, Form, Pattern, Type};
+use erl_parse::{Parser, TokenReader};
 use erl_pp::Preprocessor;
-use erl_parse::{TokenReader, Parser};
-use erl_parse::cst::{Expr, Pattern, Type, Form};
 use erl_tokenize::{Lexer, PositionRange};
 
 macro_rules! parse_expr {
     ($text:expr) => {
-        let mut parser = Parser::new(
-            TokenReader::new(Preprocessor::new(Lexer::new($text))));
+        let mut parser = Parser::new(TokenReader::new(Preprocessor::new(Lexer::new($text))));
         let value: Expr = track_try_unwrap!(parser.parse(), "text={:?}", $text);
         assert_eq!(value.end_position().offset(), $text.len());
-    }
- }
+    };
+}
 
 macro_rules! parse_pattern {
     ($text:expr) => {
-        let mut parser = Parser::new(
-            TokenReader::new(Preprocessor::new(Lexer::new($text))));
+        let mut parser = Parser::new(TokenReader::new(Preprocessor::new(Lexer::new($text))));
         let value: Pattern = track_try_unwrap!(parser.parse(), "text={:?}", $text);
         assert_eq!(value.end_position().offset(), $text.len());
-    }
- }
+    };
+}
 
 macro_rules! parse_type {
     ($text:expr) => {
-        let mut parser = Parser::new(
-            TokenReader::new(Preprocessor::new(Lexer::new($text))));
+        let mut parser = Parser::new(TokenReader::new(Preprocessor::new(Lexer::new($text))));
         let value: Type = track_try_unwrap!(parser.parse(), "text={:?}", $text);
         assert_eq!(value.end_position().offset(), $text.len());
-    }
- }
+    };
+}
 
 macro_rules! parse_form {
     ($text:expr) => {
-        let mut parser = Parser::new(
-            TokenReader::new(Preprocessor::new(Lexer::new($text))));
+        let mut parser = Parser::new(TokenReader::new(Preprocessor::new(Lexer::new($text))));
         let value: Form = track_try_unwrap!(parser.parse(), "text={:?}", $text);
         assert_eq!(value.end_position().offset(), $text.len());
-    }
- }
+    };
+}
 
 #[test]
 fn parse_expr_works() {
