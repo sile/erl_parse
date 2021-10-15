@@ -5,7 +5,7 @@ pub trait Preprocessor {
     fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>);
     fn undef_macro(&mut self, name: &str);
 }
-impl<'a> Preprocessor for &'a mut Preprocessor {
+impl<'a> Preprocessor for &'a mut dyn Preprocessor {
     fn define_macro(&mut self, name: &str, replacement: Vec<LexicalToken>) {
         (*self).define_macro(name, replacement);
     }

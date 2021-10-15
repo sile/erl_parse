@@ -22,6 +22,6 @@ impl<'a> ModuleParser<'a> {
     }
 }
 
-pub fn parse_module(tokens: &mut TokenRead) -> Result<ModuleDecl> {
+pub fn parse_module(tokens: &mut dyn TokenRead) -> Result<ModuleDecl> {
     Parser::new(tokens).parse()
 }
