@@ -1,7 +1,7 @@
 erl_parse
 =========
 
-[![erl_parse](http://meritbadge.herokuapp.com/erl_parse)](https://crates.io/crates/erl_parse)
+[![erl_parse](https://img.shields.io/crates/v/mlmdquery.svg)](https://crates.io/crates/erl_parse)
 [![Documentation](https://docs.rs/erl_parse/badge.svg)](https://docs.rs/erl_parse)
 [![Build Status](https://travis-ci.org/sile/erl_parse.svg?branch=master)](https://travis-ci.org/sile/erl_parse)
 [![Code Coverage](https://codecov.io/gh/sile/erl_parse/branch/master/graph/badge.svg)](https://codecov.io/gh/sile/erl_parse/branch/master)
