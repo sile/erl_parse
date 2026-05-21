@@ -34,9 +34,7 @@ impl<'a, T: 'a> Iterator for ConsCellIterInner<'a, T> {
                 }
                 Some((None, item))
             }
-            ConsCellIterInner::Tail(ConsCellTail::Proper {
-                item, tail, ..
-            }) => {
+            ConsCellIterInner::Tail(ConsCellTail::Proper { item, tail, .. }) => {
                 if let Some(ref tail) = *tail {
                     *self = ConsCellIterInner::Tail(tail);
                 } else {
@@ -86,9 +84,7 @@ impl<'a, T: 'a, D: 'a> Iterator for SequenceIterInner<'a, T, D> {
                 }
                 Some(item)
             }
-            SequenceIterInner::Tail(SequenceTail {
-                item, tail, ..
-            }) => {
+            SequenceIterInner::Tail(SequenceTail { item, tail, .. }) => {
                 if let Some(ref tail) = *tail {
                     *self = SequenceIterInner::Tail(tail);
                 } else {
