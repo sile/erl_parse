@@ -130,7 +130,7 @@ pub struct ConsCell<T> {
     pub tail: Option<ConsCellTail<T>>,
 }
 impl<T> ConsCell<T> {
-    pub fn iter(&self) -> ConsCellIter<T> {
+    pub fn iter(&self) -> ConsCellIter<'_, T> {
         ConsCellIter::new(self)
     }
 }
@@ -401,10 +401,7 @@ pub struct Args<T> {
     pub _close: SymbolToken,
 }
 impl<T: Parse> Parse for Args<T> {
-    fn parse<U: TokenRead>(parser: &mut Parser<U>) -> Result<Self>
-    where
-        U: TokenRead,
-    {
+    fn parse<U: TokenRead>(parser: &mut Parser<U>) -> Result<Self> {
         Ok(Args {
             _open: track!(parser.expect(&Symbol::OpenParen))?,
             args: track!(parser.parse())?,
@@ -526,7 +523,7 @@ pub struct Sequence<T, D = Comma> {
     pub tail: Option<SequenceTail<T, D>>,
 }
 impl<T, D> Sequence<T, D> {
-    pub fn iter(&self) -> SequenceIter<T, D> {
+    pub fn iter(&self) -> SequenceIter<'_, T, D> {
         SequenceIter::new(self)
     }
 }

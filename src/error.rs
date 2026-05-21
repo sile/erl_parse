@@ -1,4 +1,3 @@
-use erl_pp;
 use erl_tokenize::{self, LexicalToken};
 use trackable::error::TrackableError;
 use trackable::error::{ErrorKind as TrackableErrorKind, ErrorKindExt};
@@ -6,7 +5,10 @@ use trackable::error::{ErrorKind as TrackableErrorKind, ErrorKindExt};
 /// This crate specific error type.
 #[derive(Debug, Clone)]
 pub struct Error(TrackableError<ErrorKind>);
-derive_traits_for_trackable_error_newtype!(Error, ErrorKind);
+#[allow(deprecated)]
+const _: () = {
+    derive_traits_for_trackable_error_newtype!(Error, ErrorKind);
+};
 impl From<erl_tokenize::Error> for Error {
     fn from(f: erl_tokenize::Error) -> Self {
         match *f.kind() {

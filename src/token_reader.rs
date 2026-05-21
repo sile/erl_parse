@@ -1,5 +1,4 @@
 use erl_tokenize::LexicalToken;
-use std;
 use std::marker::PhantomData;
 
 use crate::traits::{Preprocessor, TokenRead};

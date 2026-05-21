@@ -26,7 +26,7 @@ impl<'a, T: 'a> Iterator for ConsCellIterInner<'a, T> {
     type Item = (Option<Symbol>, &'a T);
     fn next(&mut self) -> Option<Self::Item> {
         match *self {
-            ConsCellIterInner::Head(&ConsCell { ref item, ref tail }) => {
+            ConsCellIterInner::Head(ConsCell { item, tail }) => {
                 if let Some(ref tail) = *tail {
                     *self = ConsCellIterInner::Tail(tail);
                 } else {
@@ -34,8 +34,8 @@ impl<'a, T: 'a> Iterator for ConsCellIterInner<'a, T> {
                 }
                 Some((None, item))
             }
-            ConsCellIterInner::Tail(&ConsCellTail::Proper {
-                ref item, ref tail, ..
+            ConsCellIterInner::Tail(ConsCellTail::Proper {
+                item, tail, ..
             }) => {
                 if let Some(ref tail) = *tail {
                     *self = ConsCellIterInner::Tail(tail);
@@ -44,7 +44,7 @@ impl<'a, T: 'a> Iterator for ConsCellIterInner<'a, T> {
                 }
                 Some((Some(Symbol::Comma), item))
             }
-            ConsCellIterInner::Tail(&ConsCellTail::Improper { ref item, .. }) => {
+            ConsCellIterInner::Tail(ConsCellTail::Improper { item, .. }) => {
                 *self = ConsCellIterInner::Eos;
                 Some((Some(Symbol::VerticalBar), item))
             }
@@ -78,7 +78,7 @@ impl<'a, T: 'a, D: 'a> Iterator for SequenceIterInner<'a, T, D> {
     type Item = &'a T;
     fn next(&mut self) -> Option<Self::Item> {
         match *self {
-            SequenceIterInner::Head(&Sequence { ref item, ref tail }) => {
+            SequenceIterInner::Head(Sequence { item, tail }) => {
                 if let Some(ref tail) = *tail {
                     *self = SequenceIterInner::Tail(tail);
                 } else {
@@ -86,8 +86,8 @@ impl<'a, T: 'a, D: 'a> Iterator for SequenceIterInner<'a, T, D> {
                 }
                 Some(item)
             }
-            SequenceIterInner::Tail(&SequenceTail {
-                ref item, ref tail, ..
+            SequenceIterInner::Tail(SequenceTail {
+                item, tail, ..
             }) => {
                 if let Some(ref tail) = *tail {
                     *self = SequenceIterInner::Tail(tail);
