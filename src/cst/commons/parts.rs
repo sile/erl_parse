@@ -3,8 +3,8 @@ use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{LexicalToken, Position, PositionRange};
 use std::marker::PhantomData;
 
-use super::iterators::{ConsCellIter, SequenceIter};
 use super::AtomOrVariable;
+use super::iterators::{ConsCellIter, SequenceIter};
 use crate::traits::{Delimiter, Parse, TokenRead};
 use crate::{ErrorKind, Parser, Result};
 

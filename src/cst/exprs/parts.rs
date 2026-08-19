@@ -2,9 +2,9 @@ use erl_tokenize::tokens::{KeywordToken, SymbolToken};
 use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{Position, PositionRange};
 
+use super::super::Pattern;
 use super::super::clauses::{CaseClause, CatchClause};
 use super::super::commons::parts::{Clauses, Sequence};
-use super::super::Pattern;
 use super::Expr;
 use crate::traits::{Parse, TokenRead};
 use crate::{Parser, Result};

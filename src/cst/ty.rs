@@ -3,9 +3,9 @@ use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{LexicalToken, Position, PositionRange};
 use trackable::error::ErrorKindExt;
 
+use super::Literal;
 use super::commons::parts::{BinaryOp, UnaryOp};
 use super::types;
-use super::Literal;
 use crate::traits::{Parse, TokenRead};
 use crate::{ErrorKind, Parser, Result};
 
@@ -134,17 +134,21 @@ impl HeadKind {
                         HeadKind::Map
                     }
                 }
-                _ => track!(UnaryOp::from_token(t.into())
-                    .map(|_| HeadKind::UnaryOpCall)
-                    .map_err(|e| ErrorKind::UnexpectedToken(e).error()))?,
+                _ => track!(
+                    UnaryOp::from_token(t.into())
+                        .map(|_| HeadKind::UnaryOpCall)
+                        .map_err(|e| ErrorKind::UnexpectedToken(e).error())
+                )?,
             },
             LexicalToken::Keyword(t) => {
                 if t.value() == Keyword::Fun {
                     HeadKind::Fun
                 } else {
-                    track!(UnaryOp::from_token(t.into())
-                        .map(|_| HeadKind::UnaryOpCall)
-                        .map_err(|e| ErrorKind::UnexpectedToken(e).error()))?
+                    track!(
+                        UnaryOp::from_token(t.into())
+                            .map(|_| HeadKind::UnaryOpCall)
+                            .map_err(|e| ErrorKind::UnexpectedToken(e).error())
+                    )?
                 }
             }
             LexicalToken::Variable(_) => {

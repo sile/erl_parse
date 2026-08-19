@@ -3,9 +3,9 @@ use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{Position, PositionRange};
 
 use self::parts::{BitsSpec, ListElement};
+use crate::cst::Type;
 use crate::cst::commons;
 use crate::cst::commons::parts::{Args, Sequence};
-use crate::cst::Type;
 use crate::traits::{Parse, ParseTail, TokenRead};
 use crate::{Parser, Result};
 

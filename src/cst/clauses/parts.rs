@@ -2,9 +2,9 @@ use erl_tokenize::tokens::{KeywordToken, SymbolToken, VariableToken};
 use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{Position, PositionRange};
 
-use super::super::commons::parts::{Clauses, Sequence};
-use super::super::commons::AtomOrVariable;
 use super::super::GuardTest;
+use super::super::commons::AtomOrVariable;
+use super::super::commons::parts::{Clauses, Sequence};
 use crate::traits::{Parse, TokenRead};
 use crate::{Parser, Result};
 

@@ -3,10 +3,10 @@ use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{Position, PositionRange};
 
 use self::parts::{Body, Qualifier, Timeout, TryAfter, TryCatch, TryOf};
+use crate::cst::Expr;
 use crate::cst::clauses::{CaseClause, FunClause, IfClause, NamedFunClause};
 use crate::cst::commons::parts::{Clauses, ModulePrefix, NameAndArity, Sequence};
 use crate::cst::commons::{self, AtomOrVariable, IntegerOrVariable};
-use crate::cst::Expr;
 use crate::traits::{Parse, ParseTail, TokenRead};
 use crate::{Parser, Result};
 

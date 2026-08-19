@@ -9,7 +9,8 @@ readme = "README.md"
 keywords = ["erlang", "parser"]
 categories = ["parser-implementations"]
 license = "MIT"
-edition = "2018"
+edition = "2024"
+rust-version = "1.88"
 
 [dependencies]
 erl_pp = "0.1"

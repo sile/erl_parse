@@ -2,9 +2,9 @@ use erl_tokenize::tokens::{AtomToken, SymbolToken, VariableToken};
 use erl_tokenize::values::{Keyword, Symbol};
 use erl_tokenize::{LexicalToken, Position, PositionRange};
 
+use super::Literal;
 use super::commons::parts::BinaryOp;
 use super::exprs;
-use super::Literal;
 use crate::traits::{Parse, TokenRead};
 use crate::{ErrorKind, Parser, Result};
 

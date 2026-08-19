@@ -1,8 +1,8 @@
+use erl_tokenize::LexicalToken;
 use erl_tokenize::tokens::{
     AtomToken, CharToken, FloatToken, IntegerToken, KeywordToken, StringToken, SymbolToken,
     VariableToken,
 };
-use erl_tokenize::LexicalToken;
 
 use crate::traits::TokenRead;
 use crate::{Error, ErrorKind, Parser, Result};
@@ -40,10 +40,12 @@ impl Parse for AtomToken {
         T: TokenRead,
     {
         let token = track!(parser.parse::<LexicalToken>())?;
-        let token = track!(token
-            .into_atom_token()
-            .map_err(ErrorKind::UnexpectedToken)
-            .map_err(Error::from))?;
+        let token = track!(
+            token
+                .into_atom_token()
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
         Ok(token)
     }
 }
@@ -53,10 +55,12 @@ impl Parse for CharToken {
         T: TokenRead,
     {
         let token = track!(parser.parse::<LexicalToken>())?;
-        let token = track!(token
-            .into_char_token()
-            .map_err(ErrorKind::UnexpectedToken)
-            .map_err(Error::from))?;
+        let token = track!(
+            token
+                .into_char_token()
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
         Ok(token)
     }
 }
@@ -66,10 +70,12 @@ impl Parse for FloatToken {
         T: TokenRead,
     {
         let token = track!(parser.parse::<LexicalToken>())?;
-        let token = track!(token
-            .into_float_token()
-            .map_err(ErrorKind::UnexpectedToken)
-            .map_err(Error::from))?;
+        let token = track!(
+            token
+                .into_float_token()
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
         Ok(token)
     }
 }
@@ -79,10 +85,12 @@ impl Parse for IntegerToken {
         T: TokenRead,
     {
         let token = track!(parser.parse::<LexicalToken>())?;
-        let token = track!(token
-            .into_integer_token()
-            .map_err(ErrorKind::UnexpectedToken)
-            .map_err(Error::from))?;
+        let token = track!(
+            token
+                .into_integer_token()
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
         Ok(token)
     }
 }
@@ -92,10 +100,12 @@ impl Parse for KeywordToken {
         T: TokenRead,
     {
         let token = track!(parser.parse::<LexicalToken>())?;
-        let token = track!(token
-            .into_keyword_token()
-            .map_err(ErrorKind::UnexpectedToken)
-            .map_err(Error::from))?;
+        let token = track!(
+            token
+                .into_keyword_token()
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
         Ok(token)
     }
 }
@@ -105,10 +115,12 @@ impl Parse for StringToken {
         T: TokenRead,
     {
         let token = track!(parser.parse::<LexicalToken>())?;
-        let token = track!(token
-            .into_string_token()
-            .map_err(ErrorKind::UnexpectedToken)
-            .map_err(Error::from))?;
+        let token = track!(
+            token
+                .into_string_token()
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
         Ok(token)
     }
 }
@@ -118,10 +130,12 @@ impl Parse for SymbolToken {
         T: TokenRead,
     {
         let token = track!(parser.parse::<LexicalToken>())?;
-        let token = track!(token
-            .into_symbol_token()
-            .map_err(ErrorKind::UnexpectedToken)
-            .map_err(Error::from))?;
+        let token = track!(
+            token
+                .into_symbol_token()
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
         Ok(token)
     }
 }
@@ -131,10 +145,12 @@ impl Parse for VariableToken {
         T: TokenRead,
     {
         let token = track!(parser.parse::<LexicalToken>())?;
-        let token = track!(token
-            .into_variable_token()
-            .map_err(ErrorKind::UnexpectedToken)
-            .map_err(Error::from))?;
+        let token = track!(
+            token
+                .into_variable_token()
+                .map_err(ErrorKind::UnexpectedToken)
+                .map_err(Error::from)
+        )?;
         Ok(token)
     }
 }
