@@ -4,7 +4,6 @@ erl_parse
 [![erl_parse](https://img.shields.io/crates/v/erl_parse.svg)](https://crates.io/crates/erl_parse)
 [![Documentation](https://docs.rs/erl_parse/badge.svg)](https://docs.rs/erl_parse)
 [![Actions Status](https://github.com/sile/erl_parse/workflows/CI/badge.svg)](https://github.com/sile/erl_parse/actions)
-[![Coverage Status](https://coveralls.io/repos/github/sile/erl_parse/badge.svg?branch=master)](https://coveralls.io/github/sile/erl_parse?branch=master)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Erlang source code parser written in Rust.
