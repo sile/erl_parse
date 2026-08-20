@@ -13,4 +13,4 @@ edition = "2024"
 rust-version = "1.88"
 
 [dependencies]
-
+erl_tokenize = "0.11"
