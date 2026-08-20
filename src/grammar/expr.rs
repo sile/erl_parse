@@ -239,8 +239,9 @@ fn parse_tuple(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
 }
 
 /// Parses list body starting at the opening `[`. Distinguishes proper
-/// lists (`[a, b, c]` and `[]`) from cons form (`[H1, H2, ... | Tail]`)
-/// by whether a `|` appears before the closing `]`.
+/// lists (`[a, b, c]` and `[]`), cons form (`[H1, H2, ... | Tail]`),
+/// and list comprehensions (`[Expr || Q, Q, ...]`) by looking at the
+/// separator that follows the first expression.
 fn parse_list(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
     p.consume_lexical(); // `[`
     if at_symbol(p, Symbol::CloseSquare) {
@@ -248,6 +249,12 @@ fn parse_list(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
         return m.complete(p, SyntaxKind::ListExpr);
     }
     parse_expr_bp(p, 0);
+    if at_symbol(p, Symbol::DoubleVerticalBar) {
+        p.consume_lexical();
+        parse_comprehension_qualifiers(p);
+        expect_symbol(p, Symbol::CloseSquare, "`]` to close list comprehension");
+        return m.complete(p, SyntaxKind::ListComprehension);
+    }
     let mut has_tail = false;
     loop {
         if at_symbol(p, Symbol::Comma) {
@@ -521,8 +528,13 @@ fn consume_atom_or_var(p: &mut Parser, msg: &'static str) {
 fn parse_record_or_map_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `#`
     if at_symbol(p, Symbol::OpenBrace) {
-        parse_map_body(p);
-        return m.complete(p, SyntaxKind::MapExpr);
+        let is_comprehension = parse_map_body(p);
+        let kind = if is_comprehension {
+            SyntaxKind::MapComprehension
+        } else {
+            SyntaxKind::MapExpr
+        };
+        return m.complete(p, kind);
     }
     consume_atom_or_var(p, "record name");
     if at_symbol(p, Symbol::OpenBrace) {
@@ -574,7 +586,8 @@ fn parse_anon_record_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
 /// `#`, dispatching on the token that follows.
 fn complete_record_or_map_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
     if at_symbol(p, Symbol::OpenBrace) {
-        parse_map_body(p);
+        // Update never carries a comprehension body; ignore the flag.
+        let _ = parse_map_body(p);
         return m.complete(p, SyntaxKind::MapUpdateExpr);
     }
     consume_atom_or_var(p, "record name");
@@ -629,24 +642,32 @@ fn complete_anon_record_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
 }
 
 /// Parses `{ [MapField, MapField, ...] }`, consuming both braces.
+/// Returns `true` when the body was a map comprehension
+/// (`Field || Q, Q`) so the caller can complete the outer marker as
+/// [`SyntaxKind::MapComprehension`] rather than [`SyntaxKind::MapExpr`].
 ///
 /// A map field is `Key => Value` or `Key := Value`; the parser reads
 /// both forms as [`SyntaxKind::MapField`] and leaves distinguishing
 /// creation-vs-update semantics to a downstream pass.
-fn parse_map_body(p: &mut Parser) {
+fn parse_map_body(p: &mut Parser) -> bool {
     p.consume_lexical(); // `{`
     if at_symbol(p, Symbol::CloseBrace) {
         p.consume_lexical();
-        return;
+        return false;
     }
-    loop {
-        parse_map_field(p);
-        if !at_symbol(p, Symbol::Comma) {
-            break;
-        }
+    parse_map_field(p);
+    if at_symbol(p, Symbol::DoubleVerticalBar) {
         p.consume_lexical();
+        parse_comprehension_qualifiers(p);
+        expect_symbol(p, Symbol::CloseBrace, "`}` to close map comprehension");
+        return true;
+    }
+    while at_symbol(p, Symbol::Comma) {
+        p.consume_lexical();
+        parse_map_field(p);
     }
     expect_symbol(p, Symbol::CloseBrace, "`}` to close map");
+    false
 }
 
 fn parse_map_field(p: &mut Parser) -> CompletedMarker {
@@ -701,19 +722,28 @@ fn parse_record_field(p: &mut Parser) -> CompletedMarker {
 // ---------------------------------------------------------------------
 
 /// Parses `<< [BitstringElement, ...] >>` as a
-/// [`SyntaxKind::BitstringExpr`] node.
+/// [`SyntaxKind::BitstringExpr`], or `<< Head || Q, Q, ... >>` as a
+/// [`SyntaxKind::BinaryComprehension`].
 fn parse_bitstring(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `<<`
     if at_symbol(p, Symbol::DoubleRightAngle) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::BitstringExpr);
     }
-    loop {
-        parse_bitstring_element(p);
-        if !at_symbol(p, Symbol::Comma) {
-            break;
-        }
+    parse_bitstring_element(p);
+    if at_symbol(p, Symbol::DoubleVerticalBar) {
         p.consume_lexical();
+        parse_comprehension_qualifiers(p);
+        expect_symbol(
+            p,
+            Symbol::DoubleRightAngle,
+            "`>>` to close binary comprehension",
+        );
+        return m.complete(p, SyntaxKind::BinaryComprehension);
+    }
+    while at_symbol(p, Symbol::Comma) {
+        p.consume_lexical();
+        parse_bitstring_element(p);
     }
     expect_symbol(p, Symbol::DoubleRightAngle, "`>>` to close bitstring");
     m.complete(p, SyntaxKind::BitstringExpr)
@@ -770,6 +800,96 @@ fn consume_integer_or_var(p: &mut Parser, msg: &'static str) {
             ));
         }
     }
+}
+
+// ---------------------------------------------------------------------
+// Comprehension qualifiers.
+// ---------------------------------------------------------------------
+
+/// Parses a comma-separated list of comprehension qualifiers. Each
+/// qualifier is a filter expression or one of six generator variants,
+/// optionally chained with `&&` to form a parallel (zip) qualifier.
+fn parse_comprehension_qualifiers(p: &mut Parser) {
+    parse_qualifier(p);
+    while at_symbol(p, Symbol::Comma) {
+        p.consume_lexical();
+        parse_qualifier(p);
+    }
+}
+
+/// Parses one qualifier — which may itself be a zip chain of two or
+/// more qualifiers joined by `&&`. Dispatches by the arrow-like
+/// operator that follows the LHS:
+///
+/// - `Pat <- Expr` → [`SyntaxKind::Generator`]
+/// - `BinPat <= Expr` → [`SyntaxKind::BitstringGenerator`]
+/// - `Pat <:- Expr` → [`SyntaxKind::StrictGenerator`]
+/// - `BinPat <:= Expr` → [`SyntaxKind::StrictBitstringGenerator`]
+/// - `Key := Value <- Expr` → [`SyntaxKind::MapGenerator`]
+/// - `Key := Value <:- Expr` → [`SyntaxKind::StrictMapGenerator`]
+/// - (anything else) → [`SyntaxKind::Filter`]
+fn parse_qualifier(p: &mut Parser) -> CompletedMarker {
+    let m = p.start();
+    parse_expr(p);
+    let kind = if at_symbol(p, Symbol::MapMatch) {
+        // Map generator: `Key := Value <-|<:- Expr`.
+        p.consume_lexical(); // `:=`
+        parse_expr(p);
+        if at_symbol(p, Symbol::LeftArrow) {
+            p.consume_lexical();
+            parse_expr(p);
+            SyntaxKind::MapGenerator
+        } else if at_symbol(p, Symbol::StrictLeftArrow) {
+            p.consume_lexical();
+            parse_expr(p);
+            SyntaxKind::StrictMapGenerator
+        } else {
+            expect_generator_arrow_error(p, "`<-` or `<:-` after `Key := Value`");
+            SyntaxKind::Error
+        }
+    } else if at_symbol(p, Symbol::LeftArrow) {
+        p.consume_lexical();
+        parse_expr(p);
+        SyntaxKind::Generator
+    } else if at_symbol(p, Symbol::DoubleLeftArrow) {
+        p.consume_lexical();
+        parse_expr(p);
+        SyntaxKind::BitstringGenerator
+    } else if at_symbol(p, Symbol::StrictLeftArrow) {
+        p.consume_lexical();
+        parse_expr(p);
+        SyntaxKind::StrictGenerator
+    } else if at_symbol(p, Symbol::StrictDoubleLeftArrow) {
+        p.consume_lexical();
+        parse_expr(p);
+        SyntaxKind::StrictBitstringGenerator
+    } else {
+        SyntaxKind::Filter
+    };
+    let mut result = m.complete(p, kind);
+    // Zip chain: `Q && Q && ...`. Wraps successively so a chain of N
+    // produces a nested ZipQualifier of depth N-1.
+    while at_symbol(p, Symbol::DoubleAmpersand) {
+        let outer = result.precede(p);
+        p.consume_lexical(); // `&&`
+        parse_qualifier(p);
+        result = outer.complete(p, SyntaxKind::ZipQualifier);
+    }
+    result
+}
+
+fn expect_generator_arrow_error(p: &mut Parser, msg: &'static str) {
+    let found = p.peek_lexical(0).map(|(_, t)| t);
+    p.push_error(ParseError::new(
+        if found.is_some() {
+            ParseErrorKind::UnexpectedToken
+        } else {
+            ParseErrorKind::UnexpectedEof
+        },
+        TokenRange::empty_at(p.cursor_position()),
+        Expected::Category(msg),
+        found,
+    ));
 }
 
 #[cfg(test)]
@@ -1223,6 +1343,91 @@ mod tests {
         let mut p = drive("<<X/binary:8>>");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::BitstringExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    // -----------------------------------------------------------------
+    // Comprehensions and qualifiers.
+    // -----------------------------------------------------------------
+
+    fn tree_contains_kind(p: &Parser, kind: SyntaxKind) -> bool {
+        let syntax = p.syntax_tree().syntax();
+        (0..syntax.len())
+            .any(|i| syntax.entry(NodeId::new(i)).expect("entry exists").kind() == kind)
+    }
+
+    #[test]
+    fn parses_list_comprehension_with_generator_and_filter() {
+        let mut p = drive("[X * 2 || X <- L, X > 0]");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
+        assert!(tree_contains_kind(&p, SyntaxKind::Generator));
+        assert!(tree_contains_kind(&p, SyntaxKind::Filter));
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_binary_comprehension_with_bitstring_generator() {
+        let mut p = drive("<<B || <<B:8>> <= Bin>>");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::BinaryComprehension);
+        assert!(tree_contains_kind(&p, SyntaxKind::BitstringGenerator));
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_map_comprehension_with_map_generator() {
+        let mut p = drive("#{K => V + 1 || K := V <- M}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::MapComprehension);
+        assert!(tree_contains_kind(&p, SyntaxKind::MapGenerator));
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_strict_generator_variants() {
+        let mut p = drive("[X || X <:- L]");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
+        assert!(tree_contains_kind(&p, SyntaxKind::StrictGenerator));
+        assert!(p.syntax_tree().errors().is_empty());
+
+        let mut p = drive("<<B || <<B:8>> <:= Bin>>");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::BinaryComprehension);
+        assert!(tree_contains_kind(&p, SyntaxKind::StrictBitstringGenerator));
+        assert!(p.syntax_tree().errors().is_empty());
+
+        let mut p = drive("#{K => V || K := V <:- M}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::MapComprehension);
+        assert!(tree_contains_kind(&p, SyntaxKind::StrictMapGenerator));
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_zip_qualifier_with_ampersand_chain() {
+        let mut p = drive("[{X, Y} || X <- L1 && Y <- L2]");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
+        assert!(tree_contains_kind(&p, SyntaxKind::ZipQualifier));
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_comprehension_with_multiple_qualifiers_separated_by_comma() {
+        let mut p = drive("[X + Y || X <- L1, Y <- L2, X /= Y]");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
+        // Two Generator nodes plus one Filter node.
+        let syntax = p.syntax_tree().syntax();
+        let gen_count = (0..syntax.len())
+            .filter(|i| {
+                syntax.entry(NodeId::new(*i)).expect("entry exists").kind() == SyntaxKind::Generator
+            })
+            .count();
+        assert_eq!(gen_count, 2);
+        assert!(tree_contains_kind(&p, SyntaxKind::Filter));
         assert!(p.syntax_tree().errors().is_empty());
     }
 }

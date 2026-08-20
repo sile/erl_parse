@@ -131,6 +131,9 @@ pub enum SyntaxKind {
     /// Two or more generators joined by `&&`, forming a parallel
     /// (multi-valued) generator group.
     ZipQualifier,
+    /// A boolean-expression qualifier that acts as a filter in a
+    /// comprehension.
+    Filter,
 
     // Structural grouping used inside blocks, funs, and clauses.
     Body,
