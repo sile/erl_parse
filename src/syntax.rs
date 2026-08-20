@@ -135,7 +135,7 @@ impl SyntaxEntry {
 /// - Entries are appended at top-level unit boundaries. Interior entries
 ///   are not inserted mid-form, and entries are never reordered or removed
 ///   across top-level unit boundaries.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SyntaxIndex {
     entries: Vec<SyntaxEntry>,
 }
@@ -185,15 +185,8 @@ impl SyntaxIndex {
 
     /// Appends an entry to the end of the array and returns its [`NodeId`].
     ///
-    /// The caller is responsible for preserving the invariants listed at the
-    /// top of the module.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Invoked by the parser core added later; currently only unit tests call it"
-        )
-    )]
+    /// The caller is responsible for preserving the invariants listed at
+    /// the top of this type's documentation.
     pub(crate) fn push(&mut self, entry: SyntaxEntry) -> NodeId {
         let id = NodeId::new(self.entries.len());
         self.entries.push(entry);
