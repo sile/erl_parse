@@ -13,4 +13,5 @@ edition = "2024"
 rust-version = "1.88"
 
 [dependencies]
-
+# Provides the `Token` type used as the input element of the parser.
+erl_tokenize = "0.11"
