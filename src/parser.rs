@@ -722,7 +722,7 @@ mod tests {
         push_all(&mut p, "foo .");
         let node = p.next_top_node().expect("unit completed");
         let tree = p.syntax_tree();
-        let entry = tree.syntax().entry(node).unwrap();
+        let entry = tree.syntax().entry(node).expect("entry exists");
         assert_eq!(entry.range().start(), TokenIndex::new(0));
         assert_eq!(entry.range().end(), tree.tokens().end_index());
     }
@@ -736,7 +736,7 @@ mod tests {
         push_all(&mut p, "foo . ");
         let node = p.next_top_node().expect("unit completed");
         let tree = p.syntax_tree();
-        let entry = tree.syntax().entry(node).unwrap();
+        let entry = tree.syntax().entry(node).expect("entry exists");
         assert!(entry.range().end() < tree.tokens().end_index());
     }
 
@@ -791,7 +791,7 @@ mod tests {
         outer.complete(&mut p, SyntaxKind::Error);
         p.finalize_pending_units();
         let node = p.next_top_node().expect("outer unit");
-        let entry = p.syntax_tree().syntax().entry(node).unwrap();
+        let entry = p.syntax_tree().syntax().entry(node).expect("entry exists");
         assert_eq!(entry.range().start(), TokenIndex::new(0));
     }
 
@@ -816,11 +816,11 @@ mod tests {
         let root = p.next_top_node().expect("root");
         assert_eq!(root, NodeId::new(0));
         let index = p.syntax_tree().syntax();
-        let outer_entry = index.entry(root).unwrap();
+        let outer_entry = index.entry(root).expect("outer entry exists");
         // The outer wraps the inner, so its subtree spans two entries.
         assert_eq!(outer_entry.subtree_end().get() - root.get(), 2);
         let inner_id = NodeId::new(1);
-        let inner_entry = index.entry(inner_id).unwrap();
+        let inner_entry = index.entry(inner_id).expect("inner entry exists");
         // Both share the same range (the inner + wrapper occupy the same
         // consumed tokens; the wrapper does not add new consumption).
         assert_eq!(outer_entry.range(), inner_entry.range());

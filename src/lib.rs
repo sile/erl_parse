@@ -34,6 +34,7 @@
 mod cursor;
 mod error;
 mod event;
+mod grammar;
 mod node;
 mod parser;
 mod syntax;
