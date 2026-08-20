@@ -290,6 +290,50 @@ pub enum SyntaxKind {
     /// type, wrapping one or more
     /// [`TypeConstraint`][Self::TypeConstraint] nodes.
     TypeGuard,
+
+    // ---------------------------------------------------------------------
+    // Form / module grammar.
+    //
+    // Emitted at module top level as `.`-terminated forms plus their
+    // internal grouping. The parser does not interpret an attribute's
+    // name spelling (the parser stays on the Sans I/O side of the
+    // token boundary): every attribute form — including `-module`,
+    // `-export`, `-spec`, `-type`, `-opaque`, `-nominal`, `-record`,
+    // `-callback`, and unpreprocessed directives like `-define` —
+    // maps to [`Attribute`][Self::Attribute]
+    // with an [`AttributeName`][Self::AttributeName] child and, when a
+    // parenthesized payload is present, an
+    // [`AttributePayload`][Self::AttributePayload] child. Callers pull
+    // the attribute name from the token buffer and, when needed, feed
+    // the payload's `TokenRange` back through the term / expression /
+    // pattern / guard / type auxiliary entry points on
+    // [`crate::Parser`].
+    // ---------------------------------------------------------------------
+    /// A top-level attribute form, `-Name.` or `-Name(Payload).`. The
+    /// terminating `.` is folded into the node's `TokenRange` by the
+    /// module-mode top-level driver.
+    Attribute,
+    /// The name part of an [`Attribute`][Self::Attribute]: a single
+    /// `atom` token whose spelling is not interpreted by the parser.
+    AttributeName,
+    /// The payload part of an [`Attribute`][Self::Attribute]: the
+    /// span between the outer `(` and its matching `)` (delimiters
+    /// excluded). Zero-width when the form is bare `-Name.` with no
+    /// parenthesized payload.
+    AttributePayload,
+    /// A top-level function declaration: one or more
+    /// [`FunctionClause`][Self::FunctionClause]s separated by `;` and
+    /// terminated by `.`. Same-name grouping across forms and clause
+    /// name / arity consistency are semantic concerns; the parser
+    /// does not enforce them.
+    FunctionDecl,
+    /// A single clause of a [`FunctionDecl`][Self::FunctionDecl] of
+    /// the form `Name(Args) [when Guard] -> Body`. The clause name is
+    /// an `atom` token immediately followed by an
+    /// [`ArgumentList`][Self::ArgumentList]; the optional guard is a
+    /// [`GuardSequence`][Self::GuardSequence] and the body is a
+    /// [`Body`][Self::Body].
+    FunctionClause,
 }
 
 /// Index into the entry array that identifies a boundary (values in

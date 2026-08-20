@@ -33,28 +33,78 @@ use crate::token_range::{TokenIndex, TokenRange};
 
 /// Selects the top-level construct the parser recognizes.
 ///
-/// This is fixed at construction time. The concrete grammar for each mode
-/// is filled in by later changes; the stub grammar currently used here
-/// treats a `.` token as the top-level boundary in every mode.
+/// This is fixed at construction time. Every mode drives a
+/// `.`-terminated top-level loop internally: the parser emits one
+/// top-level unit per boundary `.`, and no mode wraps the full
+/// sequence in a single grand-root node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParseMode {
-    /// A `.erl` module: a sequence of forms terminated by `.`.
+    /// A `.erl` module: a sequence of attribute / function-declaration
+    /// forms terminated by `.`.
     Module,
-    /// A `file:consult/1`-style file: a sequence of terms terminated by `.`.
+    /// A `file:consult/1`-style file: a sequence of terms terminated
+    /// by `.`.
     TermList,
-    /// A single expression (an `erl_eval`-style input).
+    /// A single expression (an `erl_eval`-style input) terminated by
+    /// `.`.
     Expression,
+}
+
+/// Which kind of module-mode form the parser has currently opened,
+/// as reported by [`InProgressState::form_kind`].
+///
+/// Only exposes the shape the grammar has committed to (attribute
+/// wrapper vs. function declaration wrapper). The attribute-name
+/// spelling is not included because the parser does not interpret
+/// attribute names (per the Sans I/O boundary in this crate) — the
+/// caller reads the spelling from the token buffer using the
+/// [`InProgressState::attribute_name`] range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FormKind {
+    /// The parser is inside an `-Name.` or `-Name(Payload).` form.
+    Attribute,
+    /// The parser is inside a `Name(Args) [when Guard] -> Body;
+    /// ... .` function declaration.
+    FunctionDecl,
 }
 
 /// In-progress grammar state that a caller can query mid-unit.
 ///
-/// This is a skeleton type; fields are filled in as grammar coverage grows.
-/// Callers use it to obtain information such as the current form kind, the
-/// attribute name, or the current function name / arity while a top-level
-/// unit is being parsed, but this crate keeps only the shell.
+/// Every field describes state that is only meaningful while a
+/// specific position inside a top-level unit is being parsed. All
+/// fields reset to their default (`None` / `Idle` equivalent) between
+/// top-level units, so a `None` reading means "no form / attribute /
+/// function / clause open here", not "unavailable".
+///
+/// `TokenIndex` / `TokenRange` values act as keys into a caller-side
+/// table over [`crate::TokenBuffer`]; source positions
+/// (`erl_tokenize::Position`) are never exposed.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct InProgressState {
-    _priv: (),
+    /// The kind of form the parser has currently opened at module
+    /// top level. `None` between forms (the module-mode driver is
+    /// looking for the start of the next form) and in every mode
+    /// that has no form concept (expression, term-list).
+    pub form_kind: Option<FormKind>,
+    /// While an attribute form is being parsed, the range of the
+    /// `atom` token that names the attribute. `None` outside
+    /// attribute forms.
+    pub attribute_name: Option<TokenRange>,
+    /// While a function declaration is being parsed, the range of
+    /// the `atom` token that names the function (the name of the
+    /// clause the driver is currently inside). `None` outside
+    /// function declarations.
+    pub function_name: Option<TokenRange>,
+    /// While a function declaration's clause head is being parsed,
+    /// the arity read from that clause's argument list. Set once the
+    /// argument list closes; cleared at the end of the enclosing
+    /// form. `None` before the head closes and outside function
+    /// declarations.
+    pub function_arity: Option<usize>,
+    /// The 1-based index of the clause currently being parsed inside
+    /// a function declaration (`1` for the first clause, incremented
+    /// past each `;`). `None` outside function declarations.
+    pub current_clause: Option<usize>,
 }
 
 /// Which grammar sub-language the parser is currently accepting.
@@ -98,10 +148,16 @@ pub struct Parser {
     at: usize,
     /// Nesting depth counter maintained by grammar loops.
     depth: usize,
-    /// Whether the stub grammar is currently inside a top-level unit.
+    /// Whether the grammar has opened a top-level unit's outer
+    /// `Start` event but not yet emitted its matching `Finish`. Real
+    /// grammars in this crate finalize their unit within the same
+    /// `advance_grammar` call that started it, so this flag stays
+    /// `false` externally; the field is preserved as a backstop for
+    /// future error-recovery grammars that may leave a partial unit
+    /// open across driver calls.
     unit_in_progress: bool,
     /// If `unit_in_progress` is true, the event index of the current
-    /// unit's outer `Start`.
+    /// unit's outer `Start`. Same lifecycle as `unit_in_progress`.
     unit_start_event: Option<u32>,
     /// Where in `events` the last finalized unit ended (start of the next
     /// unit's events).
@@ -109,7 +165,10 @@ pub struct Parser {
     /// Completed `NodeId`s produced by finalize but not yet handed out via
     /// `next_top_node`.
     pending_pull: std::collections::VecDeque<NodeId>,
-    /// Skeleton in-progress state.
+    /// Form / attribute / function / clause progression, exposed to
+    /// callers as a snapshot via [`Parser::state`] and mutated by
+    /// grammar code through [`Parser::in_progress_mut`]. Reset to
+    /// default at every top-level unit boundary.
     in_progress: InProgressState,
     /// Which grammar sub-language is currently accepted (see
     /// [`ParseContext`]).
@@ -167,6 +226,14 @@ impl Parser {
     }
 
     /// Returns a snapshot of the in-progress grammar state.
+    ///
+    /// The parser's top-level driver consumes a whole `.`-terminated
+    /// unit within one `push_token` call and resets [`InProgressState`]
+    /// afterwards, so a caller polling between pushes will see the
+    /// default value at every observation point. The fields become
+    /// meaningful when a future recovery grammar leaves a partial
+    /// unit open across driver calls, or when a caller layers its
+    /// own grammar callbacks on top of the parser.
     pub fn state(&self) -> InProgressState {
         self.in_progress
     }
@@ -252,13 +319,20 @@ impl Parser {
     /// [`SyntaxKind::Error`] so it survives in the returned tree.
     pub fn finish(mut self) -> SyntaxTree {
         self.advance_grammar();
-        // Expression mode: if lexical tokens remain past the cursor
-        // (the buffer ended without a terminating `.`), treat the
-        // remaining input as the final expression unit.
-        if self.mode == ParseMode::Expression && self.peek_lexical(0).is_some() {
+        // If lexical tokens remain past the cursor (the buffer ended
+        // without a terminating `.`), treat the remaining input as
+        // one final unit for the mode. Errors surfaced by the mode's
+        // grammar (missing `.`, missing closing delimiter, etc.)
+        // flow into the tree's error list as usual.
+        if self.peek_lexical(0).is_some() {
             self.unit_events_cursor = self.events.len();
-            let _completed = parse_expr(&mut self);
+            let _completed = match self.mode {
+                ParseMode::Expression => parse_expr(&mut self),
+                ParseMode::Module => crate::grammar::module::parse_top_form(&mut self),
+                ParseMode::TermList => crate::grammar::term_list::parse_top_term(&mut self),
+            };
             self.finalize_pending_units();
+            self.in_progress = InProgressState::default();
         }
         if self.unit_in_progress {
             let end = self.tree.tokens().end_index();
@@ -335,6 +409,16 @@ impl Parser {
         self.context
     }
 
+    /// Grants grammar code mutable access to the in-progress state
+    /// so it can record form / attribute / function / clause
+    /// progression. Callers must clear the fields they set at the
+    /// end of the corresponding scope; the parser itself resets the
+    /// whole struct to its default at each top-level unit boundary
+    /// as a backstop.
+    pub(crate) fn in_progress_mut(&mut self) -> &mut InProgressState {
+        &mut self.in_progress
+    }
+
     /// Sets the current grammar sub-language and returns the previous
     /// value so callers can restore it. Grammar entry points for
     /// pattern / term / expression positions use this to switch the
@@ -343,8 +427,8 @@ impl Parser {
         std::mem::replace(&mut self.context, context)
     }
 
-    /// Resets stub-grammar state so a grammar module's tests can drive
-    /// the cursor manually from position 0. Never called in production
+    /// Resets driver state so a grammar module's tests can drive the
+    /// cursor manually from position 0. Never called in production
     /// paths.
     #[cfg(test)]
     pub(crate) fn reset_for_test(&mut self) {
@@ -353,6 +437,17 @@ impl Parser {
         self.unit_start_event = None;
         self.unit_events_cursor = self.events.len();
         self.pending_pull.clear();
+    }
+
+    /// Appends a token to the internal buffer WITHOUT running the
+    /// top-level driver. Test-only helper used by grammar modules'
+    /// unit tests when they want to load a token buffer and then
+    /// drive a specific grammar production manually — production
+    /// callers use [`Self::push_token`], which triggers grammar
+    /// dispatch as tokens arrive.
+    #[cfg(test)]
+    pub(crate) fn push_token_without_grammar_for_test(&mut self, token: Token) -> TokenIndex {
+        self.tree.tokens_mut().push(token)
     }
 
     /// Drains completed top-level units into the syntax index, exposed
@@ -469,25 +564,36 @@ impl Parser {
 
     fn advance_grammar(&mut self) {
         match self.mode {
-            ParseMode::Expression => self.advance_expression_grammar(),
-            ParseMode::Module | ParseMode::TermList => self.advance_stub_grammar(),
+            ParseMode::Expression => {
+                self.advance_dot_driven_grammar(parse_expr, "`.` to close top-level expression")
+            }
+            ParseMode::Module => self.advance_dot_driven_grammar(
+                crate::grammar::module::parse_top_form,
+                "`.` to close top-level form",
+            ),
+            ParseMode::TermList => self.advance_dot_driven_grammar(
+                crate::grammar::term_list::parse_top_term,
+                "`.` to close top-level term",
+            ),
         }
     }
 
-    /// Expression-mode top-level driver: whenever a lexical `.` appears
-    /// in the pending buffer, parse the tokens up to (and including) it
-    /// as a single expression and emit a top-level unit. Tokens still
-    /// unterminated by a `.` at push time stay in the buffer for the
-    /// next call.
-    fn advance_expression_grammar(&mut self) {
+    /// Shared driver for the three `.`-terminated top-level modes:
+    /// whenever a lexical `.` appears in the pending buffer, invoke
+    /// `parse_one` to consume the tokens up to (but not including)
+    /// the boundary dot as a single top-level unit, then consume the
+    /// boundary dot itself. Tokens that `parse_one` leaves before the
+    /// dot are flagged as unexpected-token errors — using
+    /// `unexpected_msg` — and consumed so the cursor never stalls.
+    /// Between top-level units the in-progress state is reset to its
+    /// default so a stale field cannot leak across form boundaries.
+    fn advance_dot_driven_grammar<F>(&mut self, parse_one: F, unexpected_msg: &'static str)
+    where
+        F: Fn(&mut Parser) -> CompletedMarker,
+    {
         while self.has_lexical_dot_after_cursor() {
             self.unit_events_cursor = self.events.len();
-            let _completed = parse_expr(self);
-            // parse_expr may have stopped before the terminating `.`
-            // (for example on an unexpected token). Consume any leftover
-            // lexical tokens up to and including the boundary dot; each
-            // extra token is flagged as an unexpected-token error so
-            // the diagnostic survives without stalling the cursor.
+            let _completed = parse_one(self);
             while let Some((_, token)) = self.peek_lexical(0) {
                 if is_dot(token) {
                     self.consume_lexical();
@@ -496,56 +602,13 @@ impl Parser {
                 self.push_error(ParseError::new(
                     ParseErrorKind::UnexpectedToken,
                     TokenRange::empty_at(TokenIndex::new(self.at)),
-                    Expected::Category("`.` to close top-level expression"),
+                    Expected::Category(unexpected_msg),
                     Some(token),
                 ));
                 self.consume_lexical();
             }
             self.finalize_pending_units();
-        }
-    }
-
-    /// Stub grammar: consume lexical tokens until a `.` is seen; then
-    /// complete the current top-level unit as a `SyntaxKind::Error`
-    /// node. Kept for module / term-list modes until a later change
-    /// wires the corresponding real grammar in.
-    fn advance_stub_grammar(&mut self) {
-        loop {
-            if !self.unit_in_progress {
-                if self.peek_lexical(0).is_none() {
-                    return;
-                }
-                let event_index = self.events.len() as u32;
-                let start_at = TokenIndex::new(self.at);
-                self.events.push(Event::Start {
-                    kind: None,
-                    forward_parent: None,
-                    start_at,
-                });
-                self.unit_in_progress = true;
-                self.unit_start_event = Some(event_index);
-                let _ = start_at;
-            }
-
-            loop {
-                let Some((_idx, token)) = self.peek_lexical(0) else {
-                    return;
-                };
-                self.consume_lexical()
-                    .expect("peek_lexical returned Some so a lexical token exists");
-                if is_dot(token) {
-                    let event_index = self
-                        .unit_start_event
-                        .take()
-                        .expect("unit_in_progress implies unit_start_event is set");
-                    let end_at = TokenIndex::new(self.at);
-                    self.set_marker_kind(event_index, SyntaxKind::Error);
-                    self.events.push(Event::Finish { end_at });
-                    self.unit_in_progress = false;
-                    self.finalize_pending_units();
-                    break;
-                }
-            }
+            self.in_progress = InProgressState::default();
         }
     }
 
@@ -852,13 +915,13 @@ mod tests {
     #[test]
     fn pull_returns_none_before_boundary_and_node_id_after() {
         let mut p = Parser::new(ParseMode::Module);
-        push_all(&mut p, "foo");
+        push_all(&mut p, "-foo");
         assert!(p.next_top_node().is_none(), "no dot yet");
         push_all(&mut p, " .");
         let node = p.next_top_node().expect("unit completed at dot");
         assert_eq!(node, NodeId::new(0));
-        assert_eq!(p.syntax_tree().syntax().len(), 1);
         assert!(p.next_top_node().is_none(), "one unit only");
+        assert!(p.syntax_tree().errors().is_empty());
     }
 
     #[test]
@@ -870,26 +933,31 @@ mod tests {
     #[test]
     fn finish_returns_syntax_tree_with_completed_units() {
         let mut p = Parser::new(ParseMode::Module);
-        push_all(&mut p, "foo. bar.");
+        push_all(&mut p, "-foo. -bar.");
+        let first = p.next_top_node().expect("first form");
+        let second = p.next_top_node().expect("second form");
+        assert_ne!(first, second);
         let tree = p.finish();
-        assert_eq!(tree.syntax().len(), 2);
         assert!(tree.errors().is_empty());
     }
 
     #[test]
     fn finish_flushes_incomplete_unit_as_error() {
+        // Missing terminating `.` after the attribute — no unit
+        // completes during push, but `finish` force-parses the
+        // trailing input as one final unit that carries the grammar's
+        // error diagnostics.
         let mut p = Parser::new(ParseMode::Module);
-        push_all(&mut p, "foo bar");
+        push_all(&mut p, "-foo(");
         assert!(p.next_top_node().is_none());
         let tree = p.finish();
-        assert_eq!(tree.syntax().len(), 1);
-        assert_eq!(tree.errors().len(), 1);
-        assert_eq!(tree.errors()[0].kind(), ParseErrorKind::UnexpectedEof);
+        assert!(!tree.syntax().is_empty());
+        assert!(!tree.errors().is_empty());
     }
 
     #[test]
     fn determinism_across_two_parsers() {
-        let source = "foo. bar.";
+        let source = "-foo. -bar.";
         let mut a = Parser::new(ParseMode::Module);
         let mut b = Parser::new(ParseMode::Module);
         push_all(&mut a, source);
@@ -912,14 +980,20 @@ mod tests {
     fn hidden_tokens_between_lexical_tokens_are_folded_into_node_range() {
         let mut p = Parser::new(ParseMode::Module);
         // Interior whitespace between `foo` and `.` is folded into the
-        // consumed span by advance_lexical, so the unit's range extends
-        // through the closing dot.
-        push_all(&mut p, "foo .");
+        // last consumed lexical token's span by advance_lexical, so
+        // the unit's range extends past the space. The terminating
+        // `.` is consumed by the top-level driver outside the unit's
+        // marker, so the range stops just before the dot.
+        push_all(&mut p, "-foo .");
         let node = p.next_top_node().expect("unit completed");
         let tree = p.syntax_tree();
         let entry = tree.syntax().entry(node).expect("entry exists");
         assert_eq!(entry.range().start(), TokenIndex::new(0));
-        assert_eq!(entry.range().end(), tree.tokens().end_index());
+        assert_eq!(
+            entry.range().end().get(),
+            tree.tokens().end_index().get() - 1,
+            "range covers the space but stops before the boundary dot"
+        );
     }
 
     #[test]
@@ -928,7 +1002,7 @@ mod tests {
         // Whitespace pushed after the closing dot cannot be folded into a
         // unit that already completed; it stays in the buffer past the
         // unit's end.
-        push_all(&mut p, "foo . ");
+        push_all(&mut p, "-foo . ");
         let node = p.next_top_node().expect("unit completed");
         let tree = p.syntax_tree();
         let entry = tree.syntax().entry(node).expect("entry exists");

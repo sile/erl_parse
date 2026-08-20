@@ -534,12 +534,12 @@ mod tests {
     }
 
     fn drive_type(source: &str) -> Parser {
-        // Module mode's stub grammar keeps the accumulated tokens
-        // without eagerly running the real grammar, so drive_type can
-        // reset state and invoke `parse_type` directly.
+        // Push tokens without triggering the module-mode top-level
+        // driver so `drive_type` can reset state and invoke
+        // `parse_type` directly on the accumulated buffer.
         let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
-            p.push_token(t);
+            p.push_token_without_grammar_for_test(t);
         }
         p.reset_for_test();
         let outer = p.start();
@@ -720,7 +720,7 @@ mod tests {
         let source = "when X :: integer(), Y :: atom()";
         let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
-            p.push_token(t);
+            p.push_token_without_grammar_for_test(t);
         }
         p.reset_for_test();
         let outer = p.start();
