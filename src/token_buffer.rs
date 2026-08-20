@@ -72,14 +72,7 @@ impl TokenBuffer {
     /// Appends a token to the end of the buffer.
     ///
     /// Callable only from within this crate; the parser core drives this
-    /// mutator, and unit tests exercise it directly.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Invoked by the parser core added later; currently only unit tests call it"
-        )
-    )]
+    /// mutator.
     pub(crate) fn push(&mut self, token: Token) {
         self.tokens.push(token);
     }

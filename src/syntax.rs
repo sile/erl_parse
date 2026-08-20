@@ -185,15 +185,8 @@ impl SyntaxIndex {
 
     /// Appends an entry to the end of the array and returns its [`NodeId`].
     ///
-    /// The caller is responsible for preserving the invariants listed at the
-    /// top of the module.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Invoked by the parser core added later; currently only unit tests call it"
-        )
-    )]
+    /// The caller is responsible for preserving the invariants listed at
+    /// the top of this type's documentation.
     pub(crate) fn push(&mut self, entry: SyntaxEntry) -> NodeId {
         let id = NodeId::new(self.entries.len());
         self.entries.push(entry);
