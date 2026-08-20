@@ -7,9 +7,7 @@
 
 use erl_tokenize::{Keyword, Symbol, Token, TokenKind};
 
-use crate::error::{Expected, ParseError, ParseErrorKind};
 use crate::parser::Parser;
-use crate::token_range::TokenRange;
 
 /// Returns `true` when the next lexical token is the given [`Symbol`].
 pub(crate) fn at_symbol(p: &Parser, sym: Symbol) -> bool {
@@ -37,60 +35,52 @@ pub(crate) fn is_keyword(token: Token, kw: Keyword) -> bool {
     matches!(token.kind(), TokenKind::Keyword(k) if k == kw)
 }
 
-/// Consumes the next lexical token if it is [`Symbol`] `sym`. Otherwise
-/// pushes an [`UnexpectedToken`][ParseErrorKind::UnexpectedToken] (or
-/// [`UnexpectedEof`][ParseErrorKind::UnexpectedEof] when the buffer is
-/// exhausted) with the supplied `msg` and does not advance.
+/// Consumes the next lexical token if it is [`Symbol`] `sym`.
+/// Otherwise emits a [`ParseErrorKind::MissingToken`] diagnostic
+/// (zero-width `TokenRange` at the cursor) via
+/// [`crate::grammar::recovery::push_missing_token`] and does not
+/// advance — the parser refuses to synthesize a fake `Token`, so
+/// the caller either recovers or fails locally.
 pub(crate) fn expect_symbol(p: &mut Parser, sym: Symbol, msg: &'static str) {
     if at_symbol(p, sym) {
         p.consume_lexical();
         return;
     }
-    push_expectation_error(p, msg);
+    crate::grammar::recovery::push_missing_token(p, msg);
 }
 
-/// Consumes the next lexical token if it is [`Keyword`] `kw`. Otherwise
-/// pushes a diagnostic as for [`expect_symbol`].
+/// Consumes the next lexical token if it is [`Keyword`] `kw`.
+/// Otherwise behaves as for [`expect_symbol`]: emits a
+/// [`ParseErrorKind::MissingToken`] diagnostic and does not
+/// advance.
 pub(crate) fn expect_keyword(p: &mut Parser, kw: Keyword, msg: &'static str) {
     if at_keyword(p, kw) {
         p.consume_lexical();
         return;
     }
-    push_expectation_error(p, msg);
+    crate::grammar::recovery::push_missing_token(p, msg);
 }
 
-fn push_expectation_error(p: &mut Parser, msg: &'static str) {
-    let found = p.peek_lexical(0).map(|(_, t)| t);
-    p.push_error(ParseError::new(
-        if found.is_some() {
-            ParseErrorKind::UnexpectedToken
-        } else {
-            ParseErrorKind::UnexpectedEof
-        },
-        TokenRange::empty_at(p.cursor_position()),
-        Expected::Category(msg),
-        found,
-    ));
-}
-
-/// Consumes the next lexical token if it is an atom or a variable; on
-/// mismatch pushes a diagnostic and does not advance.
+/// Consumes the next lexical token if it is an atom or a variable;
+/// on mismatch emits a [`ParseErrorKind::MissingToken`] diagnostic
+/// (zero-width [`TokenRange`] at the cursor) and does not advance.
 pub(crate) fn consume_atom_or_var(p: &mut Parser, msg: &'static str) {
     match p.peek_lexical(0).map(|(_, t)| t.kind()) {
         Some(TokenKind::Atom | TokenKind::Variable) => {
             p.consume_lexical();
         }
-        _ => push_expectation_error(p, msg),
+        _ => crate::grammar::recovery::push_missing_token(p, msg),
     }
 }
 
-/// Consumes the next lexical token if it is an integer or a variable;
-/// on mismatch pushes a diagnostic and does not advance.
+/// Consumes the next lexical token if it is an integer or a
+/// variable; on mismatch emits a [`ParseErrorKind::MissingToken`]
+/// diagnostic and does not advance.
 pub(crate) fn consume_integer_or_var(p: &mut Parser, msg: &'static str) {
     match p.peek_lexical(0).map(|(_, t)| t.kind()) {
         Some(TokenKind::Integer | TokenKind::Variable) => {
             p.consume_lexical();
         }
-        _ => push_expectation_error(p, msg),
+        _ => crate::grammar::recovery::push_missing_token(p, msg),
     }
 }

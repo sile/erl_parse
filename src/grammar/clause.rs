@@ -136,15 +136,55 @@ fn is_class_qualified_try_clause_head(p: &Parser) -> bool {
 }
 
 /// Parses one or more of `production` separated by `;`.
+///
+/// Between iterations, if the cursor is not on `;` or on one of the
+/// clause-block terminator keywords (`end` / `after` / `catch` /
+/// `else`) and is not at the outer `.` boundary, recovery kicks in
+/// under [`crate::parser::RecoveryContext::Clause`] via
+/// [`crate::grammar::recovery::skip_until_sync`]: the skipped span
+/// becomes a [`SyntaxKind::Error`] node with a matching
+/// [`crate::error::ParseErrorKind::SkippedToken`] diagnostic and
+/// the loop resumes from the sync token. This keeps a garbled
+/// clause head from swallowing the rest of the block.
 pub(crate) fn parse_semicolon_separated<F>(p: &mut Parser, mut production: F)
 where
     F: FnMut(&mut Parser) -> CompletedMarker,
 {
     production(p);
-    while at_symbol(p, Symbol::Semicolon) {
+    loop {
+        if !at_symbol(p, Symbol::Semicolon) && !at_clause_boundary(p) {
+            let _ = crate::grammar::recovery::skip_until_sync(
+                p,
+                crate::parser::RecoveryContext::Clause,
+                is_clause_boundary,
+                "`;` or block terminator",
+            );
+        }
+        if !at_symbol(p, Symbol::Semicolon) {
+            break;
+        }
         p.consume_lexical();
         production(p);
     }
+}
+
+fn at_clause_boundary(p: &Parser) -> bool {
+    p.peek_lexical(0)
+        .map(|(_, t)| is_clause_boundary(t))
+        .unwrap_or(true)
+}
+
+fn is_clause_boundary(token: erl_tokenize::Token) -> bool {
+    use erl_tokenize::{Keyword, Symbol, TokenKind};
+    matches!(
+        token.kind(),
+        TokenKind::Symbol(Symbol::Semicolon)
+            | TokenKind::Symbol(Symbol::Dot)
+            | TokenKind::Keyword(Keyword::End)
+            | TokenKind::Keyword(Keyword::After)
+            | TokenKind::Keyword(Keyword::Catch)
+            | TokenKind::Keyword(Keyword::Else)
+    )
 }
 
 /// Parses `( [Expr, Expr, ...] )` as a [`SyntaxKind::ArgumentList`]

@@ -33,12 +33,5 @@ pub(crate) enum Event {
     Finish { end_at: TokenIndex },
     /// Placeholder left behind by an abandoned marker; skipped during
     /// finalize.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Emitted only via Marker::abandon, driven by grammar code added later; currently only tests exercise it"
-        )
-    )]
     Tombstone,
 }

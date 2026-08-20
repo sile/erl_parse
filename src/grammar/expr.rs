@@ -46,7 +46,25 @@ pub(crate) fn parse_expr(p: &mut Parser) -> CompletedMarker {
 /// `min_bp` is the minimum left binding power that an infix / suffix
 /// operator must exceed to be consumed by this call; a lower-priority
 /// operator ends the loop and hands control back to the caller.
+///
+/// Entry increments the parser's nesting-depth counter; when the
+/// counter has already reached [`Parser::MAX_NESTING_DEPTH`] the
+/// call short-circuits with a zero-width [`SyntaxKind::Error`] node
+/// and a [`ParseErrorKind::NestingDepthExceeded`] diagnostic instead
+/// of recursing (a pathologically nested input surfaces as a
+/// structured error rather than a stack overflow).
 fn parse_expr_bp(p: &mut Parser, min_bp: u16) -> CompletedMarker {
+    if !p.enter_depth() {
+        let m = p.start();
+        p.push_nesting_depth_exceeded();
+        return m.complete(p, SyntaxKind::Error);
+    }
+    let result = parse_expr_bp_inner(p, min_bp);
+    p.leave_depth();
+    result
+}
+
+fn parse_expr_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
     let mut lhs = parse_expr_max(p);
     let mut last_nonassoc_bp: Option<u16> = None;
 
@@ -212,16 +230,14 @@ pub(crate) fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
         TokenKind::Keyword(Keyword::Fun) => parse_fun(p, m),
         _ => {
             let _ = idx;
-            p.push_error(ParseError::new(
-                ParseErrorKind::UnexpectedToken,
-                TokenRange::empty_at(p.cursor_position()),
-                Expected::Category("expression"),
-                Some(token),
-            ));
-            // Consume one lexical token to guarantee forward progress on
-            // unrecognized input.
-            let _ = p.consume_lexical();
-            m.complete(p, SyntaxKind::Error)
+            let _ = token;
+            // Abandon the outer marker we started at the atomic
+            // position and hand the recovery site the fresh Start so
+            // the emitted Error node covers exactly the one skipped
+            // token and its `TokenRange` matches the
+            // `SkippedToken` diagnostic's `range()`.
+            m.abandon(p);
+            crate::grammar::recovery::skip_one_token(p, "expression")
         }
     }
 }
@@ -298,9 +314,28 @@ fn parse_list(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
 /// Parses `Expr, Expr, ...` up to but not including `close`. Stops on
 /// end-of-input as well; the caller is responsible for the closing
 /// delimiter.
+///
+/// When [`parse_expr_bp`] returns and the cursor is not on `,` or
+/// `close`, the recovery helper
+/// [`crate::grammar::recovery::skip_until_sync`] is invoked under
+/// [`RecoveryContext::Container`] to skip to the next `,` or `close`
+/// so a malformed element does not swallow the rest of the
+/// container. The [`SyntaxKind::Error`] node the recovery emits
+/// keeps the skipped span visible in the syntax index.
 pub(crate) fn parse_comma_separated_exprs(p: &mut Parser, close: Symbol) {
     loop {
         parse_expr_bp(p, 0);
+        if !at_symbol(p, Symbol::Comma) && !at_symbol(p, close) {
+            let _ = crate::grammar::recovery::skip_until_sync(
+                p,
+                crate::parser::RecoveryContext::Container,
+                |t| {
+                    crate::grammar::util::is_symbol(t, Symbol::Comma)
+                        || crate::grammar::util::is_symbol(t, close)
+                },
+                "`,` or closing delimiter",
+            );
+        }
         if !at_symbol(p, Symbol::Comma) {
             break;
         }
