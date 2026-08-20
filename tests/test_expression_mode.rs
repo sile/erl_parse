@@ -144,6 +144,32 @@ fn parse_term_range_accepts_literal_tuple() {
 }
 
 #[test]
+fn push_token_returns_index_of_added_token() {
+    // Include a comment so hidden tokens participate in the index
+    // stream on the same footing as lexical tokens.
+    let source = "foo % note\n bar";
+    let mut parser = Parser::new(ParseMode::Module);
+    let scanned = scan_all(source);
+    let mut returned = Vec::new();
+    for t in &scanned {
+        returned.push(parser.push_token(*t));
+    }
+    let tree = parser.finish();
+    for (i, (index, expected)) in returned.iter().zip(scanned.iter()).enumerate() {
+        assert_eq!(
+            *index,
+            TokenIndex::new(i),
+            "push_token {i} returned unexpected index"
+        );
+        let got = tree
+            .tokens()
+            .get(*index)
+            .expect("returned index recovers the pushed token");
+        assert_eq!(got, *expected, "get({index:?}) mismatch");
+    }
+}
+
+#[test]
 fn aux_entry_point_rejects_when_unit_in_progress() {
     // Module mode's stub grammar keeps a unit open while unterminated
     // input is buffered, which lets us construct the "in-progress"

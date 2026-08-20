@@ -67,12 +67,16 @@ impl TokenBuffer {
         }
     }
 
-    /// Appends a token to the end of the buffer.
+    /// Appends a token to the end of the buffer and returns the
+    /// [`TokenIndex`] at which the token now lives. The returned index
+    /// can be passed to [`Self::get`] to recover the same token.
     ///
     /// Callable only from within this crate; the parser core drives this
     /// mutator.
-    pub(crate) fn push(&mut self, token: Token) {
+    pub(crate) fn push(&mut self, token: Token) -> TokenIndex {
+        let index = TokenIndex::new(self.tokens.len());
         self.tokens.push(token);
+        index
     }
 }
 
@@ -132,6 +136,26 @@ mod tests {
         for (i, expected) in scanned.iter().enumerate() {
             let got = buffer.get(TokenIndex::new(i)).expect("in range");
             assert_eq!(got, *expected, "index {} mismatch", i);
+        }
+    }
+
+    #[test]
+    fn push_returns_index_of_added_token() {
+        let source = "foo % comment\n bar baz";
+        let scanned = scan_all(source);
+        let mut buffer = TokenBuffer::new();
+        for (i, token) in scanned.iter().enumerate() {
+            let index = buffer.push(*token);
+            assert_eq!(
+                index,
+                TokenIndex::new(i),
+                "push {i} returned unexpected index"
+            );
+            let got = buffer.get(index).expect("just-inserted token is in range");
+            assert_eq!(
+                got, *token,
+                "get({index:?}) did not return the pushed token"
+            );
         }
     }
 

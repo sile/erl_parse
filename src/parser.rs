@@ -130,10 +130,22 @@ impl Parser {
         self.mode
     }
 
-    /// Appends a token to the internal buffer.
-    pub fn push_token(&mut self, token: Token) {
-        self.tree.tokens_mut().push(token);
+    /// Appends a token to the internal buffer and returns the
+    /// [`TokenIndex`] at which the token was placed.
+    ///
+    /// The returned index is a real (in-range) index — passing it to
+    /// [`TokenBuffer::get`][crate::TokenBuffer::get] recovers the same
+    /// token. Hidden tokens are indexed alongside lexical tokens, so a
+    /// caller pushing every token they receive from `erl_tokenize` gets
+    /// a strictly-increasing sequence starting at `TokenIndex::new(0)`.
+    ///
+    /// The return value can be discarded when the caller does not need
+    /// to associate the token with any external metadata; the method is
+    /// intentionally not marked `#[must_use]`.
+    pub fn push_token(&mut self, token: Token) -> TokenIndex {
+        let index = self.tree.tokens_mut().push(token);
         self.advance_grammar();
+        index
     }
 
     /// Returns the next completed top-level unit's [`NodeId`], or `None`
