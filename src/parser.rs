@@ -188,10 +188,10 @@ impl Parser {
     /// index alongside any units produced by the mode's top-level
     /// grammar.
     ///
-    /// Fails with [`ProtocolError::AuxEntryPointWithUnitInProgress`]
-    /// when a top-level unit is still open — callers must drain
-    /// completed units via `next_top_node` (or start from a fresh
-    /// parser) before invoking an auxiliary entry point.
+    /// Fails with [`ProtocolError`] when a top-level unit is still
+    /// open — callers must drain completed units via `next_top_node`
+    /// (or start from a fresh parser) before invoking an auxiliary
+    /// entry point.
     ///
     /// The cursor is saved before the sub-parse and restored after so
     /// the mode's top-level grammar continues from where it left off.
@@ -228,7 +228,7 @@ impl Parser {
         F: FnOnce(&mut Parser) -> crate::parser::CompletedMarker,
     {
         if self.unit_in_progress {
-            return Err(ProtocolError::AuxEntryPointWithUnitInProgress);
+            return Err(ProtocolError);
         }
         let saved_at = self.at;
         self.at = range.start().get();

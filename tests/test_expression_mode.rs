@@ -183,5 +183,5 @@ fn aux_entry_point_rejects_when_unit_in_progress() {
     let err = parser
         .parse_expression_range(range)
         .expect_err("aux entry point should reject in-progress unit");
-    assert_eq!(err, ProtocolError::AuxEntryPointWithUnitInProgress);
+    assert_eq!(err, ProtocolError);
 }
