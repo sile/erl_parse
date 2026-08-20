@@ -29,7 +29,7 @@ use crate::grammar::clause::{
     parse_argument_list, parse_arrow_body, parse_body, parse_case_clause, parse_clause_guard_opt,
     parse_if_clause, parse_semicolon_separated, parse_try_clause,
 };
-use crate::grammar::operator::{self, Assoc, CALL_LBP, REMOTE_LBP};
+use crate::grammar::operator::{self, Assoc, CALL_LBP, RECORD_MAP_LBP, REMOTE_LBP};
 use crate::grammar::util::{
     at_keyword, at_symbol, expect_keyword, expect_symbol, is_keyword, is_symbol,
 };
@@ -102,6 +102,31 @@ fn parse_expr_bp(p: &mut Parser, min_bp: u16) -> CompletedMarker {
             continue;
         }
 
+        // Record / map suffix `#`. `Nonassoc 700 '#'` in the yrl.
+        //
+        // - `Expr#{...}` → MapUpdateExpr
+        // - `Expr#Name{...}` → RecordUpdateExpr
+        // - `Expr#Name.Field` → RecordFieldAccessExpr
+        if is_symbol(token, Symbol::Sharp) && RECORD_MAP_LBP > min_bp {
+            let m = lhs.precede(p);
+            p.consume_lexical(); // `#`
+            lhs = complete_record_or_map_suffix(p, m);
+            last_nonassoc_bp = None;
+            continue;
+        }
+
+        // Anonymous native-record suffix `#_`:
+        //
+        // - `Expr#_{...}` → RecordUpdateExpr (anonymous)
+        // - `Expr#_.Field` → RecordFieldAccessExpr (anonymous)
+        if is_symbol(token, Symbol::WildcardRecord) && RECORD_MAP_LBP > min_bp {
+            let m = lhs.precede(p);
+            p.consume_lexical(); // `#_`
+            lhs = complete_anon_record_suffix(p, m);
+            last_nonassoc_bp = None;
+            continue;
+        }
+
         break;
     }
 
@@ -160,6 +185,9 @@ fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
         TokenKind::Symbol(Symbol::OpenParen) => parse_paren(p, m),
         TokenKind::Symbol(Symbol::OpenBrace) => parse_tuple(p, m),
         TokenKind::Symbol(Symbol::OpenSquare) => parse_list(p, m),
+        TokenKind::Symbol(Symbol::Sharp) => parse_record_or_map_prefix(p, m),
+        TokenKind::Symbol(Symbol::WildcardRecord) => parse_anon_record_prefix(p, m),
+        TokenKind::Symbol(Symbol::DoubleLeftAngle) => parse_bitstring(p, m),
         TokenKind::Keyword(Keyword::Begin) => parse_begin(p, m),
         TokenKind::Keyword(Keyword::Case) => parse_case(p, m),
         TokenKind::Keyword(Keyword::If) => parse_if(p, m),
@@ -478,6 +506,248 @@ fn consume_atom_or_var(p: &mut Parser, msg: &'static str) {
                 found,
             ));
         }
+    }
+}
+
+// ---------------------------------------------------------------------
+// Map / record prefix forms.
+// ---------------------------------------------------------------------
+
+/// Handles the `#`-prefixed literal forms:
+///
+/// - `#{...}` → [`SyntaxKind::MapExpr`]
+/// - `#Name{...}` → [`SyntaxKind::RecordExpr`]
+/// - `#Name.Field` → [`SyntaxKind::RecordIndexExpr`]
+fn parse_record_or_map_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `#`
+    if at_symbol(p, Symbol::OpenBrace) {
+        parse_map_body(p);
+        return m.complete(p, SyntaxKind::MapExpr);
+    }
+    consume_atom_or_var(p, "record name");
+    if at_symbol(p, Symbol::OpenBrace) {
+        parse_record_body(p);
+        return m.complete(p, SyntaxKind::RecordExpr);
+    }
+    if at_symbol(p, Symbol::Dot) {
+        p.consume_lexical();
+        consume_atom_or_var(p, "record field name");
+        return m.complete(p, SyntaxKind::RecordIndexExpr);
+    }
+    let found = p.peek_lexical(0).map(|(_, t)| t);
+    p.push_error(ParseError::new(
+        if found.is_some() {
+            ParseErrorKind::UnexpectedToken
+        } else {
+            ParseErrorKind::UnexpectedEof
+        },
+        TokenRange::empty_at(p.cursor_position()),
+        Expected::Category("`{` or `.` after record name"),
+        found,
+    ));
+    m.complete(p, SyntaxKind::Error)
+}
+
+/// Handles the `#_`-prefixed native-record literal `#_{...}`
+/// (EEP 79 anonymous form). Completes as [`SyntaxKind::RecordExpr`].
+fn parse_anon_record_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `#_`
+    if at_symbol(p, Symbol::OpenBrace) {
+        parse_record_body(p);
+        return m.complete(p, SyntaxKind::RecordExpr);
+    }
+    let found = p.peek_lexical(0).map(|(_, t)| t);
+    p.push_error(ParseError::new(
+        if found.is_some() {
+            ParseErrorKind::UnexpectedToken
+        } else {
+            ParseErrorKind::UnexpectedEof
+        },
+        TokenRange::empty_at(p.cursor_position()),
+        Expected::Category("`{` after `#_`"),
+        found,
+    ));
+    m.complete(p, SyntaxKind::Error)
+}
+
+/// Completes an already-started marker whose parent already consumed
+/// `#`, dispatching on the token that follows.
+fn complete_record_or_map_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
+    if at_symbol(p, Symbol::OpenBrace) {
+        parse_map_body(p);
+        return m.complete(p, SyntaxKind::MapUpdateExpr);
+    }
+    consume_atom_or_var(p, "record name");
+    if at_symbol(p, Symbol::OpenBrace) {
+        parse_record_body(p);
+        return m.complete(p, SyntaxKind::RecordUpdateExpr);
+    }
+    if at_symbol(p, Symbol::Dot) {
+        p.consume_lexical();
+        consume_atom_or_var(p, "record field name");
+        return m.complete(p, SyntaxKind::RecordFieldAccessExpr);
+    }
+    let found = p.peek_lexical(0).map(|(_, t)| t);
+    p.push_error(ParseError::new(
+        if found.is_some() {
+            ParseErrorKind::UnexpectedToken
+        } else {
+            ParseErrorKind::UnexpectedEof
+        },
+        TokenRange::empty_at(p.cursor_position()),
+        Expected::Category("`{` or `.` after `#`-suffix record name"),
+        found,
+    ));
+    m.complete(p, SyntaxKind::Error)
+}
+
+/// Completes an already-started marker whose parent already consumed
+/// `#_` (anonymous native-record suffix), dispatching on the token
+/// that follows.
+fn complete_anon_record_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
+    if at_symbol(p, Symbol::OpenBrace) {
+        parse_record_body(p);
+        return m.complete(p, SyntaxKind::RecordUpdateExpr);
+    }
+    if at_symbol(p, Symbol::Dot) {
+        p.consume_lexical();
+        consume_atom_or_var(p, "record field name");
+        return m.complete(p, SyntaxKind::RecordFieldAccessExpr);
+    }
+    let found = p.peek_lexical(0).map(|(_, t)| t);
+    p.push_error(ParseError::new(
+        if found.is_some() {
+            ParseErrorKind::UnexpectedToken
+        } else {
+            ParseErrorKind::UnexpectedEof
+        },
+        TokenRange::empty_at(p.cursor_position()),
+        Expected::Category("`{` or `.` after `#_`"),
+        found,
+    ));
+    m.complete(p, SyntaxKind::Error)
+}
+
+/// Parses `{ [MapField, MapField, ...] }`, consuming both braces.
+///
+/// A map field is `Key => Value` or `Key := Value`; the parser reads
+/// both forms as [`SyntaxKind::MapField`] and leaves distinguishing
+/// creation-vs-update semantics to a downstream pass.
+fn parse_map_body(p: &mut Parser) {
+    p.consume_lexical(); // `{`
+    if at_symbol(p, Symbol::CloseBrace) {
+        p.consume_lexical();
+        return;
+    }
+    loop {
+        parse_map_field(p);
+        if !at_symbol(p, Symbol::Comma) {
+            break;
+        }
+        p.consume_lexical();
+    }
+    expect_symbol(p, Symbol::CloseBrace, "`}` to close map");
+}
+
+fn parse_map_field(p: &mut Parser) -> CompletedMarker {
+    let m = p.start();
+    parse_expr(p);
+    if at_symbol(p, Symbol::DoubleRightArrow) || at_symbol(p, Symbol::MapMatch) {
+        p.consume_lexical();
+        parse_expr(p);
+    } else {
+        let found = p.peek_lexical(0).map(|(_, t)| t);
+        p.push_error(ParseError::new(
+            if found.is_some() {
+                ParseErrorKind::UnexpectedToken
+            } else {
+                ParseErrorKind::UnexpectedEof
+            },
+            TokenRange::empty_at(p.cursor_position()),
+            Expected::Category("`=>` or `:=` in map field"),
+            found,
+        ));
+    }
+    m.complete(p, SyntaxKind::MapField)
+}
+
+/// Parses `{ [RecordField, RecordField, ...] }`, consuming both braces.
+fn parse_record_body(p: &mut Parser) {
+    p.consume_lexical(); // `{`
+    if at_symbol(p, Symbol::CloseBrace) {
+        p.consume_lexical();
+        return;
+    }
+    loop {
+        parse_record_field(p);
+        if !at_symbol(p, Symbol::Comma) {
+            break;
+        }
+        p.consume_lexical();
+    }
+    expect_symbol(p, Symbol::CloseBrace, "`}` to close record");
+}
+
+fn parse_record_field(p: &mut Parser) -> CompletedMarker {
+    let m = p.start();
+    consume_atom_or_var(p, "record field name");
+    expect_symbol(p, Symbol::Match, "`=` in record field");
+    parse_expr(p);
+    m.complete(p, SyntaxKind::RecordField)
+}
+
+// ---------------------------------------------------------------------
+// Bitstrings.
+// ---------------------------------------------------------------------
+
+/// Parses `<< [BitstringElement, ...] >>` as a
+/// [`SyntaxKind::BitstringExpr`] node.
+fn parse_bitstring(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `<<`
+    if at_symbol(p, Symbol::DoubleRightAngle) {
+        p.consume_lexical();
+        return m.complete(p, SyntaxKind::BitstringExpr);
+    }
+    loop {
+        parse_bitstring_element(p);
+        if !at_symbol(p, Symbol::Comma) {
+            break;
+        }
+        p.consume_lexical();
+    }
+    expect_symbol(p, Symbol::DoubleRightAngle, "`>>` to close bitstring");
+    m.complete(p, SyntaxKind::BitstringExpr)
+}
+
+/// A single bitstring segment: `Value [: Size] [/ TypeSpec]`.
+fn parse_bitstring_element(p: &mut Parser) -> CompletedMarker {
+    let m = p.start();
+    parse_expr_max(p);
+    if at_symbol(p, Symbol::Colon) {
+        p.consume_lexical();
+        parse_expr_max(p);
+    }
+    if at_symbol(p, Symbol::Slash) {
+        p.consume_lexical();
+        parse_bit_type_list(p);
+    }
+    m.complete(p, SyntaxKind::BitstringElement)
+}
+
+/// `Type - Type - ...` where each `Type` is `atom [: integer_or_var]`.
+fn parse_bit_type_list(p: &mut Parser) {
+    parse_bit_type(p);
+    while at_symbol(p, Symbol::Hyphen) {
+        p.consume_lexical();
+        parse_bit_type(p);
+    }
+}
+
+fn parse_bit_type(p: &mut Parser) {
+    consume_atom_or_var(p, "bit type name");
+    if at_symbol(p, Symbol::Colon) {
+        p.consume_lexical();
+        consume_integer_or_var(p, "bit type unit size");
     }
 }
 
@@ -844,6 +1114,115 @@ mod tests {
         let mut p = drive("fun () -> ok end");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::AnonymousFun);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    // -----------------------------------------------------------------
+    // Map / record / bitstring containers.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn parses_empty_and_populated_map_literals() {
+        let mut p = drive("#{}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::MapExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+
+        let mut p = drive("#{a => 1, b := 2}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::MapExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_map_update_on_expression() {
+        let mut p = drive("M#{k => v}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::MapUpdateExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_record_literal_and_index_and_update_and_access() {
+        // #Name{...}
+        let mut p = drive("#user{name = \"a\"}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+
+        // #Name.Field
+        let mut p = drive("#user.name");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordIndexExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+
+        // Expr#Name{...}
+        let mut p = drive("U#user{name = \"a\"}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordUpdateExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+
+        // Expr#Name.Field
+        let mut p = drive("U#user.name");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(
+            first_child_kind(&p, root),
+            SyntaxKind::RecordFieldAccessExpr
+        );
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_anonymous_native_record_and_update_and_access() {
+        // #_{...}
+        let mut p = drive("#_{name = \"a\"}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+
+        // Expr#_{...}
+        let mut p = drive("U#_{name = \"a\"}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordUpdateExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+
+        // Expr#_.Field
+        let mut p = drive("U#_.name");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(
+            first_child_kind(&p, root),
+            SyntaxKind::RecordFieldAccessExpr
+        );
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_empty_and_populated_bitstring() {
+        let mut p = drive("<<>>");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::BitstringExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+
+        let mut p = drive("<<1, 2, 3>>");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::BitstringExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_bitstring_element_with_size_and_type() {
+        let mut p = drive("<<X:8/integer-unsigned-big>>");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::BitstringExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_bitstring_element_with_unit_size() {
+        // `x/integer:8` — bit type with a unit size after `:`
+        let mut p = drive("<<X/binary:8>>");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::BitstringExpr);
         assert!(p.syntax_tree().errors().is_empty());
     }
 }
