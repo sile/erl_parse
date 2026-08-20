@@ -171,7 +171,7 @@ impl Parser {
         not(test),
         expect(
             dead_code,
-            reason = "Grammar code added later drives this API; only tests currently exercise it"
+            reason = "Grammar modules use this to build nodes; only in-module tests currently drive it directly"
         )
     )]
     pub(crate) fn start(&mut self) -> Marker {
@@ -203,6 +203,50 @@ impl Parser {
     /// is beyond the tokens that have been pushed so far.
     pub(crate) fn peek_lexical(&self, offset: usize) -> Option<(TokenIndex, Token)> {
         TokenCursor::new(self.tree.tokens(), self.at).peek_lexical(offset)
+    }
+
+    /// Returns the cursor's current position as a [`TokenIndex`], for use
+    /// in [`ParseError`] ranges.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Grammar modules use this to anchor errors; only in-module tests currently drive it directly"
+        )
+    )]
+    pub(crate) fn cursor_position(&self) -> TokenIndex {
+        TokenIndex::new(self.at)
+    }
+
+    /// Appends a [`ParseError`] to the accumulated errors.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Grammar modules use this to record parse errors; only in-module tests currently drive it directly"
+        )
+    )]
+    pub(crate) fn push_error(&mut self, error: ParseError) {
+        self.tree.errors_mut().push(error);
+    }
+
+    /// Resets stub-grammar state so a grammar module's tests can drive
+    /// the cursor manually from position 0. Never called in production
+    /// paths.
+    #[cfg(test)]
+    pub(crate) fn reset_for_test(&mut self) {
+        self.at = 0;
+        self.unit_in_progress = false;
+        self.unit_start_event = None;
+        self.unit_events_cursor = self.events.len();
+        self.pending_pull.clear();
+    }
+
+    /// Drains completed top-level units into the syntax index, exposed
+    /// for grammar-module tests that construct units manually.
+    #[cfg(test)]
+    pub(crate) fn finalize_pending_units_for_test(&mut self) {
+        self.finalize_pending_units();
     }
 
     /// Returns `true` when the cursor has reached the end of the currently
