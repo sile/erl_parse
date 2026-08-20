@@ -31,9 +31,10 @@ use crate::grammar::clause::{
 };
 use crate::grammar::operator::{self, Assoc, CALL_LBP, RECORD_MAP_LBP, REMOTE_LBP};
 use crate::grammar::util::{
-    at_keyword, at_symbol, expect_keyword, expect_symbol, is_keyword, is_symbol,
+    at_keyword, at_symbol, consume_atom_or_var, consume_integer_or_var, expect_keyword,
+    expect_symbol, is_keyword, is_symbol,
 };
-use crate::parser::{CompletedMarker, Marker, Parser};
+use crate::parser::{CompletedMarker, Marker, ParseContext, Parser};
 use crate::syntax::SyntaxKind;
 use crate::token_range::TokenRange;
 
@@ -75,6 +76,17 @@ fn parse_expr_bp(p: &mut Parser, min_bp: u16) -> CompletedMarker {
                 ));
             }
             let kind = binary_op_kind(token);
+            // Context-sensitive restrictions on which infix operators
+            // may appear in pattern / term position.
+            match kind {
+                SyntaxKind::SendExpr | SyntaxKind::MaybeMatchExpr => {
+                    reject_in_restricted(p, "send / maybe-match not allowed here");
+                }
+                SyntaxKind::MatchExpr if p.context() == ParseContext::Term => {
+                    push_context_error(p, "match `=` not allowed in term position");
+                }
+                _ => {}
+            }
             let m = lhs.precede(p);
             p.consume_lexical();
             parse_expr_bp(p, bp.rbp);
@@ -85,6 +97,7 @@ fn parse_expr_bp(p: &mut Parser, min_bp: u16) -> CompletedMarker {
 
         // Call suffix `(...)`. `Left 750 '('` in the yrl.
         if is_symbol(token, Symbol::OpenParen) && CALL_LBP > min_bp {
+            reject_in_restricted(p, "call not allowed here");
             let m = lhs.precede(p);
             parse_argument_list(p);
             lhs = m.complete(p, SyntaxKind::CallExpr);
@@ -94,6 +107,7 @@ fn parse_expr_bp(p: &mut Parser, min_bp: u16) -> CompletedMarker {
 
         // Remote qualifier `Mod : Fun`. `Nonassoc 800 ':'` in the yrl.
         if is_symbol(token, Symbol::Colon) && REMOTE_LBP > min_bp {
+            reject_in_restricted(p, "remote qualifier `:` not allowed here");
             let m = lhs.precede(p);
             p.consume_lexical();
             parse_expr_max(p);
@@ -138,7 +152,7 @@ fn parse_expr_bp(p: &mut Parser, min_bp: u16) -> CompletedMarker {
 /// `expr_max` in OTP 29's yrl and is used wherever the grammar wants a
 /// self-delimited expression form (for example on either side of the
 /// remote qualifier `:`).
-fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
+pub(crate) fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     let Some((idx, token)) = p.peek_lexical(0) else {
         p.push_error(ParseError::new(
@@ -152,9 +166,13 @@ fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
 
     // Prefix / unary operator (including `catch` at precedence 0).
     if let Some(rbp) = operator::prefix_binding_power(token) {
+        let is_catch = is_keyword(token, erl_tokenize::Keyword::Catch);
+        if is_catch {
+            reject_in_restricted(p, "`catch` prefix not allowed here");
+        }
         p.consume_lexical();
         parse_expr_bp(p, rbp);
-        let kind = if is_keyword(token, erl_tokenize::Keyword::Catch) {
+        let kind = if is_catch {
             SyntaxKind::CatchExpr
         } else {
             SyntaxKind::UnaryOpExpr
@@ -164,7 +182,12 @@ fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
 
     match token.kind() {
         TokenKind::Atom => atomic(p, m, SyntaxKind::AtomExpr),
-        TokenKind::Variable => atomic(p, m, SyntaxKind::VarExpr),
+        TokenKind::Variable => {
+            if p.context() == ParseContext::Term {
+                push_context_error(p, "variable not allowed in term position");
+            }
+            atomic(p, m, SyntaxKind::VarExpr)
+        }
         TokenKind::Integer => atomic(p, m, SyntaxKind::IntegerExpr),
         TokenKind::Float => atomic(p, m, SyntaxKind::FloatExpr),
         TokenKind::Char => atomic(p, m, SyntaxKind::CharExpr),
@@ -250,6 +273,7 @@ fn parse_list(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
     }
     parse_expr_bp(p, 0);
     if at_symbol(p, Symbol::DoubleVerticalBar) {
+        reject_in_restricted(p, "list comprehension not allowed here");
         p.consume_lexical();
         parse_comprehension_qualifiers(p);
         expect_symbol(p, Symbol::CloseSquare, "`]` to close list comprehension");
@@ -319,33 +343,44 @@ fn binary_op_kind(token: erl_tokenize::Token) -> SyntaxKind {
 
 /// `begin Exprs end`.
 fn parse_begin(p: &mut Parser, m: Marker) -> CompletedMarker {
+    reject_in_restricted(p, "`begin` block not allowed here");
+    let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `begin`
     parse_body(p);
     expect_keyword(p, Keyword::End, "`end` to close `begin`");
+    p.set_context(prev);
     m.complete(p, SyntaxKind::BeginExpr)
 }
 
 /// `case Expr of Clause; Clause; ... end`.
 fn parse_case(p: &mut Parser, m: Marker) -> CompletedMarker {
+    reject_in_restricted(p, "`case` block not allowed here");
+    let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `case`
     parse_expr(p);
     expect_keyword(p, Keyword::Of, "`of` in `case` expression");
     parse_semicolon_separated(p, parse_case_clause);
     expect_keyword(p, Keyword::End, "`end` to close `case`");
+    p.set_context(prev);
     m.complete(p, SyntaxKind::CaseExpr)
 }
 
 /// `if Guard -> Body ; Guard -> Body ; ... end`.
 fn parse_if(p: &mut Parser, m: Marker) -> CompletedMarker {
+    reject_in_restricted(p, "`if` block not allowed here");
+    let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `if`
     parse_semicolon_separated(p, parse_if_clause);
     expect_keyword(p, Keyword::End, "`end` to close `if`");
+    p.set_context(prev);
     m.complete(p, SyntaxKind::IfExpr)
 }
 
 /// `receive Clauses [after Expr -> Body] end` or `receive after Expr ->
 /// Body end` when no message clauses are given.
 fn parse_receive(p: &mut Parser, m: Marker) -> CompletedMarker {
+    reject_in_restricted(p, "`receive` block not allowed here");
+    let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `receive`
     if !at_keyword(p, Keyword::After) && !at_keyword(p, Keyword::End) {
         parse_semicolon_separated(p, parse_case_clause);
@@ -356,6 +391,7 @@ fn parse_receive(p: &mut Parser, m: Marker) -> CompletedMarker {
         parse_arrow_body(p);
     }
     expect_keyword(p, Keyword::End, "`end` to close `receive`");
+    p.set_context(prev);
     m.complete(p, SyntaxKind::ReceiveExpr)
 }
 
@@ -366,6 +402,8 @@ fn parse_receive(p: &mut Parser, m: Marker) -> CompletedMarker {
 /// accepts either or both without enforcing that either is present;
 /// error-recovery contracts tighten this in a later change.
 fn parse_try(p: &mut Parser, m: Marker) -> CompletedMarker {
+    reject_in_restricted(p, "`try` block not allowed here");
+    let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `try`
     parse_body(p);
     if at_keyword(p, Keyword::Of) {
@@ -381,6 +419,7 @@ fn parse_try(p: &mut Parser, m: Marker) -> CompletedMarker {
         parse_body(p);
     }
     expect_keyword(p, Keyword::End, "`end` to close `try`");
+    p.set_context(prev);
     m.complete(p, SyntaxKind::TryExpr)
 }
 
@@ -388,6 +427,8 @@ fn parse_try(p: &mut Parser, m: Marker) -> CompletedMarker {
 /// the shared infix table (see [`crate::grammar::operator`]) and
 /// materialises as [`SyntaxKind::MaybeMatchExpr`].
 fn parse_maybe(p: &mut Parser, m: Marker) -> CompletedMarker {
+    reject_in_restricted(p, "`maybe` block not allowed here");
+    let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `maybe`
     parse_body(p);
     if at_keyword(p, Keyword::Else) {
@@ -395,6 +436,7 @@ fn parse_maybe(p: &mut Parser, m: Marker) -> CompletedMarker {
         parse_semicolon_separated(p, parse_case_clause);
     }
     expect_keyword(p, Keyword::End, "`end` to close `maybe`");
+    p.set_context(prev);
     m.complete(p, SyntaxKind::MaybeExpr)
 }
 
@@ -413,6 +455,14 @@ fn parse_maybe(p: &mut Parser, m: Marker) -> CompletedMarker {
 /// - `fun Name (` → named fun (`Name` is a variable in valid Erlang;
 ///   atom accepted at the syntax layer for the same reason).
 fn parse_fun(p: &mut Parser, m: Marker) -> CompletedMarker {
+    reject_in_restricted(p, "`fun` expression / reference not allowed here");
+    let prev = p.set_context(ParseContext::Expression);
+    let result = parse_fun_inner(p, m);
+    p.set_context(prev);
+    result
+}
+
+fn parse_fun_inner(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `fun`
 
     if at_symbol(p, Symbol::OpenParen) {
@@ -477,43 +527,31 @@ fn parse_named_fun(p: &mut Parser, m: Marker) -> CompletedMarker {
 
 /// Anonymous fun clause: `(Args) [when Guard] -> Body`. Wraps as a
 /// [`SyntaxKind::Clause`] node (same shape as case/receive clauses).
+/// The argument list is parsed under [`ParseContext::Pattern`] so
+/// expression-only constructs there are rejected.
 fn parse_fun_clause(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
+    let prev = p.set_context(ParseContext::Pattern);
     parse_argument_list(p);
+    p.set_context(prev);
     parse_clause_guard_opt(p);
     parse_arrow_body(p);
     m.complete(p, SyntaxKind::Clause)
 }
 
-/// Named fun clause: `Name (Args) [when Guard] -> Body`.
+/// Named fun clause: `Name (Args) [when Guard] -> Body`. The argument
+/// list is parsed under [`ParseContext::Pattern`]; the name is a
+/// variable per the yrl (an atom is also accepted at the syntax layer
+/// and left for a semantic pass to reject).
 fn parse_named_fun_clause(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     consume_atom_or_var(p, "named-fun name (variable or atom)");
+    let prev = p.set_context(ParseContext::Pattern);
     parse_argument_list(p);
+    p.set_context(prev);
     parse_clause_guard_opt(p);
     parse_arrow_body(p);
     m.complete(p, SyntaxKind::Clause)
-}
-
-fn consume_atom_or_var(p: &mut Parser, msg: &'static str) {
-    match p.peek_lexical(0).map(|(_, t)| t.kind()) {
-        Some(TokenKind::Atom | TokenKind::Variable) => {
-            p.consume_lexical();
-        }
-        _ => {
-            let found = p.peek_lexical(0).map(|(_, t)| t);
-            p.push_error(ParseError::new(
-                if found.is_some() {
-                    ParseErrorKind::UnexpectedToken
-                } else {
-                    ParseErrorKind::UnexpectedEof
-                },
-                TokenRange::empty_at(p.cursor_position()),
-                Expected::Category(msg),
-                found,
-            ));
-        }
-    }
 }
 
 // ---------------------------------------------------------------------
@@ -657,6 +695,7 @@ fn parse_map_body(p: &mut Parser) -> bool {
     }
     parse_map_field(p);
     if at_symbol(p, Symbol::DoubleVerticalBar) {
+        reject_in_restricted(p, "map comprehension not allowed here");
         p.consume_lexical();
         parse_comprehension_qualifiers(p);
         expect_symbol(p, Symbol::CloseBrace, "`}` to close map comprehension");
@@ -732,6 +771,7 @@ fn parse_bitstring(p: &mut Parser, m: Marker) -> CompletedMarker {
     }
     parse_bitstring_element(p);
     if at_symbol(p, Symbol::DoubleVerticalBar) {
+        reject_in_restricted(p, "binary comprehension not allowed here");
         p.consume_lexical();
         parse_comprehension_qualifiers(p);
         expect_symbol(
@@ -778,27 +818,6 @@ fn parse_bit_type(p: &mut Parser) {
     if at_symbol(p, Symbol::Colon) {
         p.consume_lexical();
         consume_integer_or_var(p, "bit type unit size");
-    }
-}
-
-fn consume_integer_or_var(p: &mut Parser, msg: &'static str) {
-    match p.peek_lexical(0).map(|(_, t)| t.kind()) {
-        Some(TokenKind::Integer | TokenKind::Variable) => {
-            p.consume_lexical();
-        }
-        _ => {
-            let found = p.peek_lexical(0).map(|(_, t)| t);
-            p.push_error(ParseError::new(
-                if found.is_some() {
-                    ParseErrorKind::UnexpectedToken
-                } else {
-                    ParseErrorKind::UnexpectedEof
-                },
-                TokenRange::empty_at(p.cursor_position()),
-                Expected::Category(msg),
-                found,
-            ));
-        }
     }
 }
 
@@ -886,6 +905,31 @@ fn expect_generator_arrow_error(p: &mut Parser, msg: &'static str) {
         } else {
             ParseErrorKind::UnexpectedEof
         },
+        TokenRange::empty_at(p.cursor_position()),
+        Expected::Category(msg),
+        found,
+    ));
+}
+
+// ---------------------------------------------------------------------
+// Context-sensitive rejection helpers.
+// ---------------------------------------------------------------------
+
+/// Pushes a [`ParseError`] when the active [`ParseContext`] is not
+/// [`ParseContext::Expression`], flagging a construct that pattern /
+/// term positions do not accept. The cursor is NOT rewound; the
+/// grammar continues to consume so that downstream navigation still
+/// sees a structural node.
+fn reject_in_restricted(p: &mut Parser, msg: &'static str) {
+    if p.context() != ParseContext::Expression {
+        push_context_error(p, msg);
+    }
+}
+
+fn push_context_error(p: &mut Parser, msg: &'static str) {
+    let found = p.peek_lexical(0).map(|(_, t)| t);
+    p.push_error(ParseError::new(
+        ParseErrorKind::UnexpectedToken,
         TokenRange::empty_at(p.cursor_position()),
         Expected::Category(msg),
         found,
@@ -1158,7 +1202,9 @@ mod tests {
 
     #[test]
     fn parses_maybe_with_maybe_match_and_else() {
-        let mut p = drive("maybe {ok, X} ?= foo() else error:E -> E end");
+        // `else` clauses are `cr_clauses` (case clauses), so the pattern
+        // is a plain pattern, not a `Class:Reason` try-catch head.
+        let mut p = drive("maybe {ok, X} ?= foo() else Other -> Other end");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MaybeExpr);
         assert!(p.syntax_tree().errors().is_empty());

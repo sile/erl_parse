@@ -52,6 +52,29 @@ pub struct InProgressState {
     _priv: (),
 }
 
+/// Which grammar sub-language the parser is currently accepting.
+///
+/// Set by [`Parser::set_context`] before calling grammar entry points
+/// that layer position-specific restrictions on top of the shared
+/// expression grammar. Grammar code queries this via
+/// [`Parser::context`] and pushes a [`ParseError`] (without stalling
+/// the cursor) when a construct is not allowed in the active context.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum ParseContext {
+    /// General expression position — every production is permitted.
+    #[default]
+    Expression,
+    /// Left-hand-side pattern position — calls, blocks, funs,
+    /// comprehensions, remote qualifiers, sends, and maybe-matches
+    /// are rejected while the rest of the expression grammar is
+    /// accepted structurally.
+    Pattern,
+    /// `file:consult/1`-style term position — the strictest subset:
+    /// no variables, no matches, and none of the constructs already
+    /// rejected in [`Pattern`][Self::Pattern].
+    Term,
+}
+
 /// Sans I/O parser core.
 #[derive(Debug)]
 pub struct Parser {
@@ -75,6 +98,9 @@ pub struct Parser {
     pending_pull: std::collections::VecDeque<NodeId>,
     /// Skeleton in-progress state.
     in_progress: InProgressState,
+    /// Which grammar sub-language is currently accepted (see
+    /// [`ParseContext`]).
+    context: ParseContext,
 }
 
 impl Parser {
@@ -91,6 +117,7 @@ impl Parser {
             unit_events_cursor: 0,
             pending_pull: std::collections::VecDeque::new(),
             in_progress: InProgressState::default(),
+            context: ParseContext::Expression,
         }
     }
 
@@ -228,6 +255,33 @@ impl Parser {
     )]
     pub(crate) fn push_error(&mut self, error: ParseError) {
         self.tree.errors_mut().push(error);
+    }
+
+    /// Returns the current grammar sub-language ([`ParseContext`]).
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Grammar modules read the context to enforce position-specific restrictions; only in-module tests currently drive it directly"
+        )
+    )]
+    pub(crate) fn context(&self) -> ParseContext {
+        self.context
+    }
+
+    /// Sets the current grammar sub-language and returns the previous
+    /// value so callers can restore it. Grammar entry points for
+    /// pattern / term / expression positions use this to switch the
+    /// active restriction set for the span they own.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Grammar entry points switch context per call; only in-module tests currently drive it directly"
+        )
+    )]
+    pub(crate) fn set_context(&mut self, context: ParseContext) -> ParseContext {
+        std::mem::replace(&mut self.context, context)
     }
 
     /// Resets stub-grammar state so a grammar module's tests can drive

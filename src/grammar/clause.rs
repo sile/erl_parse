@@ -25,8 +25,11 @@
 
 use erl_tokenize::{Keyword, Symbol};
 
-use crate::grammar::expr::{parse_comma_separated_exprs, parse_expr};
-use crate::grammar::util::{at_keyword, at_symbol, expect_symbol};
+use erl_tokenize::TokenKind;
+
+use crate::grammar::expr::{parse_comma_separated_exprs, parse_expr, parse_expr_max};
+use crate::grammar::pattern::parse_pattern;
+use crate::grammar::util::{at_keyword, at_symbol, consume_atom_or_var, expect_symbol};
 use crate::parser::{CompletedMarker, Parser};
 use crate::syntax::SyntaxKind;
 
@@ -77,9 +80,7 @@ pub(crate) fn parse_clause_guard_opt(p: &mut Parser) {
 /// -> Body`. Wraps the result as a [`SyntaxKind::Clause`] node.
 pub(crate) fn parse_case_clause(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
-    // Pattern position — see the module doc: currently reuses
-    // `parse_expr` and defers the pattern-restriction pass.
-    parse_expr(p);
+    parse_pattern(p);
     parse_clause_guard_opt(p);
     parse_arrow_body(p);
     m.complete(p, SyntaxKind::Clause)
@@ -105,23 +106,44 @@ pub(crate) fn parse_if_clause(p: &mut Parser) -> CompletedMarker {
 /// `try_clause` productions.
 pub(crate) fn parse_try_clause(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
-    parse_expr(p);
-    if at_symbol(p, Symbol::Colon) {
-        // `Class : Reason [: Stack]`.
-        p.consume_lexical();
-        parse_expr(p);
+    // Distinguish the class-qualified form `Class : Reason [: Stack]`
+    // from a plain pattern by peeking: the yrl rule requires an atom
+    // or variable followed immediately by `:` before it commits to
+    // the class-qualified production.
+    if is_class_qualified_try_clause_head(p) {
+        // Class : Reason [: Stack]. Class is an atom or variable per
+        // the yrl. Reason is a pat_expr — parsed via `parse_expr_max`
+        // under Pattern context so it does not consume the following
+        // `:` as a remote qualifier. Stack, when present, is a plain
+        // variable.
+        consume_atom_or_var(p, "class name in catch clause");
+        p.consume_lexical(); // `:`
+        let prev = p.set_context(crate::parser::ParseContext::Pattern);
+        parse_expr_max(p);
+        p.set_context(prev);
         if at_symbol(p, Symbol::Colon) {
             p.consume_lexical();
-            parse_expr(p);
+            consume_atom_or_var(p, "stack-trace variable");
         }
         parse_clause_guard_opt(p);
         parse_arrow_body(p);
         m.complete(p, SyntaxKind::CatchClause)
     } else {
+        parse_pattern(p);
         parse_clause_guard_opt(p);
         parse_arrow_body(p);
         m.complete(p, SyntaxKind::Clause)
     }
+}
+
+fn is_class_qualified_try_clause_head(p: &Parser) -> bool {
+    matches!(
+        p.peek_lexical(0).map(|(_, t)| t.kind()),
+        Some(TokenKind::Atom | TokenKind::Variable)
+    ) && matches!(
+        p.peek_lexical(1).map(|(_, t)| t.kind()),
+        Some(TokenKind::Symbol(Symbol::Colon))
+    )
 }
 
 /// Parses one or more of `production` separated by `;`.

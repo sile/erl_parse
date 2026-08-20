@@ -80,3 +80,25 @@ fn push_expectation_error(p: &mut Parser, msg: &'static str) {
         found,
     ));
 }
+
+/// Consumes the next lexical token if it is an atom or a variable; on
+/// mismatch pushes a diagnostic and does not advance.
+pub(crate) fn consume_atom_or_var(p: &mut Parser, msg: &'static str) {
+    match p.peek_lexical(0).map(|(_, t)| t.kind()) {
+        Some(TokenKind::Atom | TokenKind::Variable) => {
+            p.consume_lexical();
+        }
+        _ => push_expectation_error(p, msg),
+    }
+}
+
+/// Consumes the next lexical token if it is an integer or a variable;
+/// on mismatch pushes a diagnostic and does not advance.
+pub(crate) fn consume_integer_or_var(p: &mut Parser, msg: &'static str) {
+    match p.peek_lexical(0).map(|(_, t)| t.kind()) {
+        Some(TokenKind::Integer | TokenKind::Variable) => {
+            p.consume_lexical();
+        }
+        _ => push_expectation_error(p, msg),
+    }
+}
