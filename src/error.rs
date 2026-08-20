@@ -71,19 +71,29 @@ pub enum ParseErrorKind {
 /// wrong" and "the Erlang source has a syntax error" take different
 /// code paths.
 ///
-/// The variants are added as new misuse conditions are surfaced.
-/// The type is not marked `#[non_exhaustive]`; adding a variant is
-/// treated as a normal breaking change.
+/// The type is a zero-sized unit struct because every method that
+/// returns it has exactly one failure mode: an auxiliary entry
+/// point (`parse_expression_range` / `parse_pattern_range` /
+/// `parse_guard_range` / `parse_term_range` / `parse_type_range`)
+/// was called while a top-level unit was still in progress.
+/// Distinguishing this in the error type would duplicate what the
+/// caller already knows from the call site; the fix in every case is
+/// to complete the current unit (via `next_top_node` / `finish`) or
+/// start from a fresh parser before invoking an auxiliary entry
+/// point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ProtocolError {
-    /// An auxiliary entry point (`parse_expression_range` /
-    /// `parse_pattern_range` / `parse_guard_range` /
-    /// `parse_term_range`) was called while a top-level unit was
-    /// still in progress. Callers must complete the current unit
-    /// (via `next_top_node` / `finish`) or start fresh before
-    /// invoking an auxiliary entry point.
-    AuxEntryPointWithUnitInProgress,
+pub struct ProtocolError;
+
+impl std::fmt::Display for ProtocolError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            "parser protocol violation; \
+             an auxiliary entry point was called while a top-level unit was still in progress",
+        )
+    }
 }
+
+impl std::error::Error for ProtocolError {}
 
 /// What the grammar was expecting when a `ParseError` fired.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

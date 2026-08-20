@@ -211,6 +211,85 @@ pub enum SyntaxKind {
     /// A single `Value [: Size] [/ TypeSpec]` element inside a
     /// [`BitstringExpr`][Self::BitstringExpr].
     BitstringElement,
+
+    // ---------------------------------------------------------------------
+    // Type-position grammar.
+    //
+    // Nodes emitted when the parser is running under
+    // [`crate::parser::ParseContext::Type`]. Compound-type variants use
+    // dedicated `*Type` kinds because the child structure differs from
+    // the like-named expression variants (for example a record type
+    // field is `Field :: Type` while a record expression field is
+    // `Field = Expr`). Atomic types (atom / variable / integer /
+    // float / char / string / parenthesized) reuse the expression
+    // variants directly since the shape is identical.
+    // ---------------------------------------------------------------------
+
+    // Compound types.
+    /// A tuple type, written `{Type, Type, ...}`.
+    TupleType,
+    /// A proper-list type, written `[Type]` or `[]`.
+    ListType,
+    /// A non-empty list type, written `[Type, ...]`.
+    NonemptyListType,
+    /// A map type, written `#{K => V, K := V, ...}`.
+    MapType,
+    /// A record type, written `#Name{Field :: Type, ...}` (including
+    /// the EEP 79 native-record forms `#Module:Name{...}` and
+    /// `#_{...}`).
+    RecordType,
+    /// A bitstring type, written `<<>>` / `<<_:Size>>` /
+    /// `<<_:_*Unit>>` / `<<_:Size, _:_*Unit>>`.
+    BitstringType,
+    /// A function type, written `fun((Args) -> Return)` or
+    /// `fun((...) -> Return)`.
+    FunctionType,
+    /// A parameterized type call, `Name(Args)` or `Mod:Name(Args)`.
+    TypeCall,
+    /// A `Module:Function` qualifier used as the head of a
+    /// [`TypeCall`][Self::TypeCall].
+    RemoteType,
+
+    // Type-position operators (Erlang type grammar's `T | T` / `T ..
+    // T` / `T :: T`, plus prefix / infix arithmetic that participates
+    // in integer type expressions).
+    /// A union type, written `T1 | T2 | ...`.
+    UnionType,
+    /// An integer range type, written `Lo .. Hi`.
+    RangeType,
+    /// An annotated type, written `Var :: Type`.
+    AnnotatedType,
+    /// A binary operator application inside an integer type
+    /// expression (arithmetic / bitwise / shift on integer types).
+    BinaryOpType,
+    /// A prefix operator application inside an integer type
+    /// expression.
+    UnaryOpType,
+
+    // Structural grouping inside type nodes.
+    /// A `(Type, Type, ...)` argument list used by
+    /// [`TypeCall`][Self::TypeCall] and [`FunctionType`][Self::FunctionType].
+    TypeArgumentList,
+    /// A single `Key :: Type => Value :: Type` or `Key :: Type :=
+    /// Value :: Type` entry inside a [`MapType`][Self::MapType].
+    MapTypeField,
+    /// A single `Field :: Type` entry inside a
+    /// [`RecordType`][Self::RecordType].
+    RecordTypeField,
+    /// A single bitstring type segment inside a
+    /// [`BitstringType`][Self::BitstringType].
+    BitstringTypeSegment,
+    /// The parameter tuple of a [`FunctionType`][Self::FunctionType].
+    FunctionTypeParams,
+    /// The return-type node of a [`FunctionType`][Self::FunctionType].
+    FunctionTypeReturn,
+    /// A single constraint (`Var :: Type`) inside a `when` guard on a
+    /// function type or spec.
+    TypeConstraint,
+    /// A `when Constraint, Constraint, ...` clause on a function
+    /// type, wrapping one or more
+    /// [`TypeConstraint`][Self::TypeConstraint] nodes.
+    TypeGuard,
 }
 
 /// Index into the entry array that identifies a boundary (values in
