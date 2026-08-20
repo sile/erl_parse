@@ -20,8 +20,12 @@
 use erl_tokenize::Token;
 
 use crate::cursor::{CursorCheckpoint, TokenCursor};
-use crate::error::{Expected, ParseError, ParseErrorKind};
+use crate::error::{Expected, ParseError, ParseErrorKind, ProtocolError};
 use crate::event::Event;
+use crate::grammar::expr::parse_expr;
+use crate::grammar::guard::parse_guard;
+use crate::grammar::pattern::parse_pattern;
+use crate::grammar::term::parse_term;
 use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 use crate::syntax_tree::SyntaxTree;
 use crate::token_range::{TokenIndex, TokenRange};
@@ -52,6 +56,29 @@ pub struct InProgressState {
     _priv: (),
 }
 
+/// Which grammar sub-language the parser is currently accepting.
+///
+/// Set by [`Parser::set_context`] before calling grammar entry points
+/// that layer position-specific restrictions on top of the shared
+/// expression grammar. Grammar code queries this via
+/// [`Parser::context`] and pushes a [`ParseError`] (without stalling
+/// the cursor) when a construct is not allowed in the active context.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum ParseContext {
+    /// General expression position — every production is permitted.
+    #[default]
+    Expression,
+    /// Left-hand-side pattern position — calls, blocks, funs,
+    /// comprehensions, remote qualifiers, sends, and maybe-matches
+    /// are rejected while the rest of the expression grammar is
+    /// accepted structurally.
+    Pattern,
+    /// `file:consult/1`-style term position — the strictest subset:
+    /// no variables, no matches, and none of the constructs already
+    /// rejected in [`Pattern`][Self::Pattern].
+    Term,
+}
+
 /// Sans I/O parser core.
 #[derive(Debug)]
 pub struct Parser {
@@ -75,6 +102,9 @@ pub struct Parser {
     pending_pull: std::collections::VecDeque<NodeId>,
     /// Skeleton in-progress state.
     in_progress: InProgressState,
+    /// Which grammar sub-language is currently accepted (see
+    /// [`ParseContext`]).
+    context: ParseContext,
 }
 
 impl Parser {
@@ -91,6 +121,7 @@ impl Parser {
             unit_events_cursor: 0,
             pending_pull: std::collections::VecDeque::new(),
             in_progress: InProgressState::default(),
+            context: ParseContext::Expression,
         }
     }
 
@@ -130,6 +161,61 @@ impl Parser {
         self.depth
     }
 
+    /// Re-parses the tokens in `range` (which must already be inside the
+    /// internal buffer) as a single expression. Returns the [`NodeId`]
+    /// of the resulting top-level unit, which is appended to the syntax
+    /// index alongside any units produced by the mode's top-level
+    /// grammar.
+    ///
+    /// Fails with [`ProtocolError::AuxEntryPointWithUnitInProgress`]
+    /// when a top-level unit is still open — callers must drain
+    /// completed units via `next_top_node` (or start from a fresh
+    /// parser) before invoking an auxiliary entry point.
+    ///
+    /// The cursor is saved before the sub-parse and restored after so
+    /// the mode's top-level grammar continues from where it left off.
+    pub fn parse_expression_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
+        self.aux_parse(range, parse_expr)
+    }
+
+    /// Same shape as [`parse_expression_range`][Self::parse_expression_range]
+    /// but parses the range as a single pattern.
+    pub fn parse_pattern_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
+        self.aux_parse(range, parse_pattern)
+    }
+
+    /// Same shape as [`parse_expression_range`][Self::parse_expression_range]
+    /// but parses the range as a single guard sequence.
+    pub fn parse_guard_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
+        self.aux_parse(range, parse_guard)
+    }
+
+    /// Same shape as [`parse_expression_range`][Self::parse_expression_range]
+    /// but parses the range as a single Erlang term.
+    pub fn parse_term_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
+        self.aux_parse(range, parse_term)
+    }
+
+    fn aux_parse<F>(&mut self, range: TokenRange, body: F) -> Result<NodeId, ProtocolError>
+    where
+        F: FnOnce(&mut Parser) -> crate::parser::CompletedMarker,
+    {
+        if self.unit_in_progress {
+            return Err(ProtocolError::AuxEntryPointWithUnitInProgress);
+        }
+        let saved_at = self.at;
+        self.at = range.start().get();
+        // Sub-parse events belong to a fresh unit.
+        self.unit_events_cursor = self.events.len();
+        let _completed = body(self);
+        self.finalize_pending_units();
+        self.at = saved_at;
+        Ok(self
+            .pending_pull
+            .pop_back()
+            .expect("finalize_pending_units appends exactly one unit"))
+    }
+
     /// Asserts end of input, consumes the parser, and returns the finished
     /// [`SyntaxTree`].
     ///
@@ -139,6 +225,14 @@ impl Parser {
     /// [`SyntaxKind::Error`] so it survives in the returned tree.
     pub fn finish(mut self) -> SyntaxTree {
         self.advance_grammar();
+        // Expression mode: if lexical tokens remain past the cursor
+        // (the buffer ended without a terminating `.`), treat the
+        // remaining input as the final expression unit.
+        if self.mode == ParseMode::Expression && self.peek_lexical(0).is_some() {
+            self.unit_events_cursor = self.events.len();
+            let _completed = parse_expr(&mut self);
+            self.finalize_pending_units();
+        }
         if self.unit_in_progress {
             let end = self.tree.tokens().end_index();
             self.tree.errors_mut().push(ParseError::new(
@@ -167,13 +261,6 @@ impl Parser {
 
     /// Starts a new tentative node at the current cursor position and
     /// returns a [`Marker`] handle.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Grammar code added later drives this API; only tests currently exercise it"
-        )
-    )]
     pub(crate) fn start(&mut self) -> Marker {
         let event_index = self.events.len() as u32;
         let start_at = TokenIndex::new(self.at);
@@ -203,6 +290,49 @@ impl Parser {
     /// is beyond the tokens that have been pushed so far.
     pub(crate) fn peek_lexical(&self, offset: usize) -> Option<(TokenIndex, Token)> {
         TokenCursor::new(self.tree.tokens(), self.at).peek_lexical(offset)
+    }
+
+    /// Returns the cursor's current position as a [`TokenIndex`], for use
+    /// in [`ParseError`] ranges.
+    pub(crate) fn cursor_position(&self) -> TokenIndex {
+        TokenIndex::new(self.at)
+    }
+
+    /// Appends a [`ParseError`] to the accumulated errors.
+    pub(crate) fn push_error(&mut self, error: ParseError) {
+        self.tree.errors_mut().push(error);
+    }
+
+    /// Returns the current grammar sub-language ([`ParseContext`]).
+    pub(crate) fn context(&self) -> ParseContext {
+        self.context
+    }
+
+    /// Sets the current grammar sub-language and returns the previous
+    /// value so callers can restore it. Grammar entry points for
+    /// pattern / term / expression positions use this to switch the
+    /// active restriction set for the span they own.
+    pub(crate) fn set_context(&mut self, context: ParseContext) -> ParseContext {
+        std::mem::replace(&mut self.context, context)
+    }
+
+    /// Resets stub-grammar state so a grammar module's tests can drive
+    /// the cursor manually from position 0. Never called in production
+    /// paths.
+    #[cfg(test)]
+    pub(crate) fn reset_for_test(&mut self) {
+        self.at = 0;
+        self.unit_in_progress = false;
+        self.unit_start_event = None;
+        self.unit_events_cursor = self.events.len();
+        self.pending_pull.clear();
+    }
+
+    /// Drains completed top-level units into the syntax index, exposed
+    /// for grammar-module tests that construct units manually.
+    #[cfg(test)]
+    pub(crate) fn finalize_pending_units_for_test(&mut self) {
+        self.finalize_pending_units();
     }
 
     /// Returns `true` when the cursor has reached the end of the currently
@@ -311,10 +441,48 @@ impl Parser {
     // ---------------------------------------------------------------------
 
     fn advance_grammar(&mut self) {
-        // Stub grammar: consume lexical tokens until a `.` is seen; then
-        // complete the current top-level unit as a `SyntaxKind::Error`
-        // node. Applies uniformly to all three modes; mode-specific
-        // grammars will replace this in a subsequent change.
+        match self.mode {
+            ParseMode::Expression => self.advance_expression_grammar(),
+            ParseMode::Module | ParseMode::TermList => self.advance_stub_grammar(),
+        }
+    }
+
+    /// Expression-mode top-level driver: whenever a lexical `.` appears
+    /// in the pending buffer, parse the tokens up to (and including) it
+    /// as a single expression and emit a top-level unit. Tokens still
+    /// unterminated by a `.` at push time stay in the buffer for the
+    /// next call.
+    fn advance_expression_grammar(&mut self) {
+        while self.has_lexical_dot_after_cursor() {
+            self.unit_events_cursor = self.events.len();
+            let _completed = parse_expr(self);
+            // parse_expr may have stopped before the terminating `.`
+            // (for example on an unexpected token). Consume any leftover
+            // lexical tokens up to and including the boundary dot; each
+            // extra token is flagged as an unexpected-token error so
+            // the diagnostic survives without stalling the cursor.
+            while let Some((_, token)) = self.peek_lexical(0) {
+                if is_dot(token) {
+                    self.consume_lexical();
+                    break;
+                }
+                self.push_error(ParseError::new(
+                    ParseErrorKind::UnexpectedToken,
+                    TokenRange::empty_at(TokenIndex::new(self.at)),
+                    Expected::Category("`.` to close top-level expression"),
+                    Some(token),
+                ));
+                self.consume_lexical();
+            }
+            self.finalize_pending_units();
+        }
+    }
+
+    /// Stub grammar: consume lexical tokens until a `.` is seen; then
+    /// complete the current top-level unit as a `SyntaxKind::Error`
+    /// node. Kept for module / term-list modes until a later change
+    /// wires the corresponding real grammar in.
+    fn advance_stub_grammar(&mut self) {
         loop {
             if !self.unit_in_progress {
                 if self.peek_lexical(0).is_none() {
@@ -354,6 +522,20 @@ impl Parser {
         }
     }
 
+    /// Scans the pending buffer for a lexical `.` at or after the
+    /// current cursor position, without moving the cursor.
+    fn has_lexical_dot_after_cursor(&self) -> bool {
+        let tokens = self.tree.tokens();
+        let mut i = self.at;
+        while let Some(t) = tokens.get(TokenIndex::new(i)) {
+            if t.kind().is_lexical() && is_dot(t) {
+                return true;
+            }
+            i += 1;
+        }
+        false
+    }
+
     fn finalize_pending_units(&mut self) {
         let events_start = self.unit_events_cursor;
         let events_end = self.events.len();
@@ -389,13 +571,6 @@ impl Marker {
     /// Completes this marker with the given [`SyntaxKind`], sealing the
     /// current node in the event log and returning a [`CompletedMarker`]
     /// that can still be preceded by a wrapping parent.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Grammar code added later drives this API; only tests currently exercise it"
-        )
-    )]
     pub(crate) fn complete(mut self, parser: &mut Parser, kind: SyntaxKind) -> CompletedMarker {
         parser.set_marker_kind(self.event_index, kind);
         let end_at = TokenIndex::new(parser.at);
@@ -445,13 +620,6 @@ impl CompletedMarker {
     /// node once the returned [`Marker`] is completed. Used for
     /// Pratt-style promotion: after parsing a left-hand expression, the
     /// operator can retroactively make the left-hand node its child.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Grammar code added later drives this API; only tests currently exercise it"
-        )
-    )]
     pub(crate) fn precede(self, parser: &mut Parser) -> Marker {
         let new_event_index = parser.events.len() as u32;
         parser.set_forward_parent(self.event_index, new_event_index);
@@ -722,7 +890,7 @@ mod tests {
         push_all(&mut p, "foo .");
         let node = p.next_top_node().expect("unit completed");
         let tree = p.syntax_tree();
-        let entry = tree.syntax().entry(node).unwrap();
+        let entry = tree.syntax().entry(node).expect("entry exists");
         assert_eq!(entry.range().start(), TokenIndex::new(0));
         assert_eq!(entry.range().end(), tree.tokens().end_index());
     }
@@ -736,7 +904,7 @@ mod tests {
         push_all(&mut p, "foo . ");
         let node = p.next_top_node().expect("unit completed");
         let tree = p.syntax_tree();
-        let entry = tree.syntax().entry(node).unwrap();
+        let entry = tree.syntax().entry(node).expect("entry exists");
         assert!(entry.range().end() < tree.tokens().end_index());
     }
 
@@ -791,7 +959,7 @@ mod tests {
         outer.complete(&mut p, SyntaxKind::Error);
         p.finalize_pending_units();
         let node = p.next_top_node().expect("outer unit");
-        let entry = p.syntax_tree().syntax().entry(node).unwrap();
+        let entry = p.syntax_tree().syntax().entry(node).expect("entry exists");
         assert_eq!(entry.range().start(), TokenIndex::new(0));
     }
 
@@ -816,11 +984,11 @@ mod tests {
         let root = p.next_top_node().expect("root");
         assert_eq!(root, NodeId::new(0));
         let index = p.syntax_tree().syntax();
-        let outer_entry = index.entry(root).unwrap();
+        let outer_entry = index.entry(root).expect("outer entry exists");
         // The outer wraps the inner, so its subtree spans two entries.
         assert_eq!(outer_entry.subtree_end().get() - root.get(), 2);
         let inner_id = NodeId::new(1);
-        let inner_entry = index.entry(inner_id).unwrap();
+        let inner_entry = index.entry(inner_id).expect("inner entry exists");
         // Both share the same range (the inner + wrapper occupy the same
         // consumed tokens; the wrapper does not add new consumption).
         assert_eq!(outer_entry.range(), inner_entry.range());

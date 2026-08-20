@@ -34,6 +34,7 @@
 mod cursor;
 mod error;
 mod event;
+mod grammar;
 mod node;
 mod parser;
 mod syntax;
@@ -41,7 +42,7 @@ mod syntax_tree;
 mod token_buffer;
 mod token_range;
 
-pub use crate::error::{Expected, ParseError, ParseErrorKind};
+pub use crate::error::{Expected, ParseError, ParseErrorKind, ProtocolError};
 pub use crate::node::{Cursor, NodeView};
 pub use crate::parser::{InProgressState, ParseMode, Parser};
 pub use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};

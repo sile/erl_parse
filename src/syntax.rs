@@ -28,6 +28,124 @@ pub enum SyntaxKind {
     /// consumers of the syntax index can navigate through the recovered
     /// range structurally.
     Error,
+
+    // ---------------------------------------------------------------------
+    // Expression / pattern / guard / term nodes.
+    //
+    // Structural node kinds intended for grammar output. Single-token
+    // pieces (operators, punctuation, keywords) do not get their own
+    // syntax entries; consumers read them directly through the token
+    // buffer via the surrounding node's `TokenRange`. Pattern, guard, and
+    // term positions reuse the expression kinds where the shape is
+    // identical; parser-side allowlists enforce the position-specific
+    // restrictions.
+    //
+    // Naming and structural inventory tracks OTP 29's
+    // `lib/stdlib/src/erl_parse.yrl`; the productions this crate accepts
+    // may lag or lead a specific OTP release as the language evolves.
+    // ---------------------------------------------------------------------
+
+    // Atomic expressions (single lexical token, occasionally with
+    // adjacent-string concatenation).
+    AtomExpr,
+    VarExpr,
+    IntegerExpr,
+    FloatExpr,
+    CharExpr,
+    /// One or more adjacent string tokens concatenated at the syntactic
+    /// level; the node's range spans every lexical string token in the
+    /// run plus interior hidden tokens.
+    StringExpr,
+    SigilStringExpr,
+
+    // Containers.
+    TupleExpr,
+    ListExpr,
+    /// A list whose tail is not `[]`, written `[H1, H2, ... | Tail]`.
+    ConsExpr,
+    ParenExpr,
+    BitstringExpr,
+    MapExpr,
+    /// A map update on an arbitrary expression, written `Expr#{...}`.
+    MapUpdateExpr,
+    RecordExpr,
+    /// A record update, written `Expr#Name{...}`.
+    RecordUpdateExpr,
+    /// A record field access, written `Expr#Name.Field`.
+    RecordFieldAccessExpr,
+    /// A record field index, written `#Name.Field`.
+    RecordIndexExpr,
+
+    // Operations.
+    /// A binary operator application (arithmetic, comparison, list,
+    /// bitwise, boolean, etc.). The operator token is embedded in the
+    /// node's range but is not a separate syntax entry.
+    BinaryOpExpr,
+    UnaryOpExpr,
+    MatchExpr,
+    SendExpr,
+    /// A `maybe`-block match expression `X ?= Y`.
+    MaybeMatchExpr,
+
+    // Calls and remote references.
+    CallExpr,
+    /// A `Module:Function` reference used as a call target or a fun
+    /// reference qualifier; interpreted by the parent node.
+    RemoteExpr,
+
+    // Blocks.
+    BeginExpr,
+    CatchExpr,
+    CaseExpr,
+    IfExpr,
+    ReceiveExpr,
+    TryExpr,
+    MaybeExpr,
+
+    // Fun expressions and references.
+    /// `fun (Args) [when Guard] -> Body end`.
+    AnonymousFun,
+    /// `fun Name(Args) [when Guard] -> Body end`.
+    NamedFun,
+    /// `fun Name/Arity`.
+    LocalFunRef,
+    /// `fun Module:Name/Arity` (arms may be dynamic expressions).
+    RemoteFunRef,
+
+    // Comprehensions and qualifiers.
+    ListComprehension,
+    MapComprehension,
+    BinaryComprehension,
+    /// `Pat <- Expr`.
+    Generator,
+    /// `BinPat <= Expr`.
+    BitstringGenerator,
+    /// `Key := Value <- Expr`.
+    MapGenerator,
+    /// `Pat <:- Expr`.
+    StrictGenerator,
+    /// `BinPat <:= Expr`.
+    StrictBitstringGenerator,
+    /// `Key := Value <:- Expr`.
+    StrictMapGenerator,
+    /// Two or more generators joined by `&&`, forming a parallel
+    /// (multi-valued) generator group.
+    ZipQualifier,
+    /// A boolean-expression qualifier that acts as a filter in a
+    /// comprehension.
+    Filter,
+
+    // Structural grouping used inside blocks, funs, and clauses.
+    Body,
+    Clause,
+    IfClause,
+    CatchClause,
+    Guard,
+    GuardSequence,
+    ArgumentList,
+    RecordField,
+    MapField,
+    BitstringElement,
 }
 
 /// Index into the entry array that identifies a boundary (values in
