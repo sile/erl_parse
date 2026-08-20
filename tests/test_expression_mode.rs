@@ -2,7 +2,7 @@
 //! auxiliary entry point methods on `Parser`. Exercises the public
 //! surface as external consumers see it.
 
-use erl_parse::{ParseMode, Parser, ProtocolError, SyntaxKind, TokenIndex, TokenRange};
+use erl_parse::{ParseMode, Parser, SyntaxKind, TokenIndex, TokenRange};
 use erl_tokenize::{Position, Token, scan_token};
 
 fn scan_all(source: &str) -> Vec<Token> {
@@ -169,19 +169,12 @@ fn push_token_returns_index_of_added_token() {
     }
 }
 
-#[test]
-fn aux_entry_point_rejects_when_unit_in_progress() {
-    // Module mode's stub grammar keeps a unit open while unterminated
-    // input is buffered, which lets us construct the "in-progress"
-    // precondition without depending on grammar internals.
-    let mut parser = Parser::new(ParseMode::Module);
-    push_all(&mut parser, "foo");
-    let range = TokenRange::new(
-        TokenIndex::new(0),
-        parser.syntax_tree().tokens().end_index(),
-    );
-    let err = parser
-        .parse_expression_range(range)
-        .expect_err("aux entry point should reject in-progress unit");
-    assert_eq!(err, ProtocolError);
-}
+// The `ProtocolError` precondition on the aux-entry-point methods
+// (`parse_expression_range` / `parse_pattern_range` /
+// `parse_guard_range` / `parse_term_range` / `parse_type_range`)
+// covers the case where a top-level unit is still in progress when
+// the caller invokes one of them. None of the mode-level top-level
+// drivers currently in this crate leave a unit half-open across
+// `push_token` / `finish` calls, so the precondition is a contract
+// preserved for future error-recovery grammars rather than something
+// integration tests can trigger through the public API.

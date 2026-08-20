@@ -46,7 +46,7 @@ mod token_range;
 
 pub use crate::error::{Expected, ParseError, ParseErrorKind, ProtocolError};
 pub use crate::node::{Cursor, NodeView};
-pub use crate::parser::{InProgressState, ParseMode, Parser};
+pub use crate::parser::{FormKind, InProgressState, ParseMode, Parser};
 pub use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 pub use crate::syntax_tree::SyntaxTree;
 pub use crate::token_buffer::TokenBuffer;
