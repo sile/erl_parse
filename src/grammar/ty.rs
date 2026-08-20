@@ -67,7 +67,24 @@ fn parse_top_type(p: &mut Parser) -> CompletedMarker {
     parse_type_bp(p, 0)
 }
 
+/// Same depth-guard shape as `parse_expr_bp`: bounded recursion via
+/// [`Parser::enter_depth`] / [`Parser::leave_depth`], with a
+/// short-circuit at [`Parser::MAX_NESTING_DEPTH`] that emits a
+/// zero-width [`SyntaxKind::Error`] node and a
+/// [`ParseErrorKind::NestingDepthExceeded`] diagnostic instead of
+/// recursing further.
 fn parse_type_bp(p: &mut Parser, min_bp: u16) -> CompletedMarker {
+    if !p.enter_depth() {
+        let m = p.start();
+        p.push_nesting_depth_exceeded();
+        return m.complete(p, SyntaxKind::Error);
+    }
+    let result = parse_type_bp_inner(p, min_bp);
+    p.leave_depth();
+    result
+}
+
+fn parse_type_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
     let mut lhs = parse_type_max(p);
     let mut last_nonassoc_bp: Option<u16> = None;
 
@@ -183,14 +200,12 @@ fn parse_type_max(p: &mut Parser) -> CompletedMarker {
         TokenKind::Symbol(Symbol::DoubleLeftAngle) => parse_bitstring_type(p, m),
         TokenKind::Keyword(Keyword::Fun) => parse_fun_type(p, m),
         _ => {
-            p.push_error(ParseError::new(
-                ParseErrorKind::UnexpectedToken,
-                TokenRange::empty_at(p.cursor_position()),
-                Expected::Category("type expression"),
-                Some(token),
-            ));
-            let _ = p.consume_lexical();
-            m.complete(p, SyntaxKind::Error)
+            let _ = token;
+            // Abandon the outer marker so the recovery site's Error
+            // node covers only the one skipped token, giving
+            // `ParseError::range() == Error node's TokenRange`.
+            m.abandon(p);
+            crate::grammar::recovery::skip_one_token(p, "type expression")
         }
     }
 }
@@ -241,7 +256,7 @@ fn parse_tuple_type(p: &mut Parser, m: Marker) -> CompletedMarker {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::TupleType);
     }
-    parse_top_types_comma(p);
+    parse_top_types_comma(p, Symbol::CloseBrace);
     expect_symbol(p, Symbol::CloseBrace, "`}` to close tuple type");
     m.complete(p, SyntaxKind::TupleType)
 }
@@ -422,7 +437,7 @@ fn parse_fun_type_signature(p: &mut Parser) {
     if at_symbol(p, Symbol::TripleDot) {
         p.consume_lexical();
     } else if !at_symbol(p, Symbol::CloseParen) {
-        parse_top_types_comma(p);
+        parse_top_types_comma(p, Symbol::CloseParen);
     }
     expect_symbol(
         p,
@@ -447,16 +462,36 @@ fn parse_type_argument_list(p: &mut Parser) -> CompletedMarker {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::TypeArgumentList);
     }
-    parse_top_types_comma(p);
+    parse_top_types_comma(p, Symbol::CloseParen);
     expect_symbol(p, Symbol::CloseParen, "`)` to close type argument list");
     m.complete(p, SyntaxKind::TypeArgumentList)
 }
 
 /// `TopType, TopType, ...` — one or more comma-separated
-/// [`parse_top_type`]s.
-fn parse_top_types_comma(p: &mut Parser) {
+/// [`parse_top_type`]s. Recovers under
+/// [`crate::parser::RecoveryContext::Type`] when a type production
+/// leaves the cursor at a token that is neither `,` nor the caller-
+/// supplied `close` delimiter — the skipped span becomes a
+/// [`SyntaxKind::Error`] node with a matching
+/// [`crate::error::ParseErrorKind::SkippedToken`] diagnostic so the
+/// list can continue.
+fn parse_top_types_comma(p: &mut Parser, close: Symbol) {
     parse_top_type(p);
-    while at_symbol(p, Symbol::Comma) {
+    loop {
+        if !at_symbol(p, Symbol::Comma) && !at_symbol(p, close) {
+            let _ = crate::grammar::recovery::skip_until_sync(
+                p,
+                crate::parser::RecoveryContext::Type,
+                |t| {
+                    crate::grammar::util::is_symbol(t, Symbol::Comma)
+                        || crate::grammar::util::is_symbol(t, close)
+                },
+                "`,` or closing delimiter in type list",
+            );
+        }
+        if !at_symbol(p, Symbol::Comma) {
+            break;
+        }
         p.consume_lexical();
         parse_top_type(p);
     }

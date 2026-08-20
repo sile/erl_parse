@@ -55,15 +55,33 @@ impl ParseError {
 
 /// Category of a `ParseError`.
 ///
-/// Additional variants for recovery kinds are added by later changes; this
-/// enum is not marked `#[non_exhaustive]` so adding a variant is a normal
-/// breaking change.
+/// The enum is not marked `#[non_exhaustive]`; adding a variant is treated
+/// as a normal breaking change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParseErrorKind {
     /// A token was found where a different token was expected.
     UnexpectedToken,
     /// End of input was reached where more tokens were expected.
     UnexpectedEof,
+    /// One or more tokens were skipped by error recovery. The
+    /// [`ParseError::range`] covers the skipped span and matches the
+    /// [`crate::SyntaxKind::Error`] node emitted for the same span so
+    /// consumers can navigate from a diagnostic to the structural
+    /// hole (and vice versa).
+    SkippedToken,
+    /// A required token was missing at the current cursor position.
+    /// The [`ParseError::range`] is zero-width (`start == end`) at
+    /// the boundary where the token would have appeared. The parser
+    /// does not synthesize a fake token — no
+    /// [`crate::SyntaxKind::Error`] node is emitted for a missing
+    /// token.
+    MissingToken,
+    /// The grammar's nesting depth exceeded
+    /// [`crate::Parser::MAX_NESTING_DEPTH`] at this position. The
+    /// parser stops recursing (instead of panicking or overflowing
+    /// the stack), unwinds to a bounded depth, and continues
+    /// recovery.
+    NestingDepthExceeded,
 }
 
 /// Misuse of the parser's programmatic API by the caller. Kept
@@ -94,6 +112,23 @@ impl std::fmt::Display for ProtocolError {
 }
 
 impl std::error::Error for ProtocolError {}
+
+/// Appends `error` to `errors` unless the immediately preceding
+/// element already carries the same `kind` and starts at the same
+/// [`TokenRange::start`]. This is a lightweight deduplication that
+/// keeps a recovery loop from re-emitting the same diagnostic when
+/// it tries several alternatives against the same cursor position;
+/// it deliberately does not scan the whole vector so appending
+/// stays O(1).
+pub(crate) fn push_unique_at_cursor(errors: &mut Vec<ParseError>, error: ParseError) {
+    if let Some(last) = errors.last()
+        && last.kind() == error.kind()
+        && last.range().start() == error.range().start()
+    {
+        return;
+    }
+    errors.push(error);
+}
 
 /// What the grammar was expecting when a `ParseError` fired.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

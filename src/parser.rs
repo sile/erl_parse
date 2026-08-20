@@ -107,6 +107,33 @@ pub struct InProgressState {
     pub current_clause: Option<usize>,
 }
 
+/// Identifies the grammar site that ran the most recent recovery
+/// attempt, in combination with the cursor position at that moment.
+/// [`Parser`] stores the pair to reject a second recovery invocation
+/// at the same site until the cursor has actually moved past it, so
+/// a stuck grammar can never loop on the same recovery.
+///
+/// Variants correspond to the classes of grammar sites that call
+/// into the recovery helpers; adding a new site adds a variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum RecoveryContext {
+    /// Recovery at a module-mode form boundary (`.`-terminated
+    /// attribute / function declaration).
+    Form,
+    /// Recovery inside a `.`-terminated term at term-list top level.
+    Term,
+    /// Recovery inside a general expression position.
+    Expression,
+    /// Recovery inside a type-position production.
+    Type,
+    /// Recovery inside a container literal (tuple / list / map /
+    /// record / bitstring / argument list).
+    Container,
+    /// Recovery inside a clause (case / receive / try-catch / fun /
+    /// maybe-else / function-decl clause).
+    Clause,
+}
+
 /// Which grammar sub-language the parser is currently accepting.
 ///
 /// Set by [`Parser::set_context`] before calling grammar entry points
@@ -146,8 +173,21 @@ pub struct Parser {
     events: Vec<Event>,
     /// Full-token index the grammar has consumed up to.
     at: usize,
-    /// Nesting depth counter maintained by grammar loops.
+    /// Nesting depth counter maintained by grammar loops via
+    /// [`Parser::enter_depth`] / [`Parser::leave_depth`]. Capped at
+    /// [`Parser::MAX_NESTING_DEPTH`]: recursive grammar sites that
+    /// try to descend past the cap short-circuit with a
+    /// [`ParseErrorKind::NestingDepthExceeded`] diagnostic instead
+    /// of overflowing the stack.
     depth: usize,
+    /// The `(context, cursor position)` of the most recent recovery
+    /// attempt. Recovery helpers refuse to re-enter for the same
+    /// pair without making cursor progress, so a stuck grammar can
+    /// never loop on the same recovery. The marker naturally
+    /// expires as soon as `at` moves past the recorded position.
+    /// Kept independent of [`Checkpoint`], which is scoped to failed
+    /// alternatives and must not affect the recovery marker.
+    last_recovery: Option<(RecoveryContext, usize)>,
     /// Whether the grammar has opened a top-level unit's outer
     /// `Start` event but not yet emitted its matching `Finish`. Real
     /// grammars in this crate finalize their unit within the same
@@ -176,7 +216,30 @@ pub struct Parser {
 }
 
 impl Parser {
+    /// Public upper bound on the grammar's nesting depth.
+    ///
+    /// Grammar sites that recurse (block expressions, container
+    /// literals, function calls, type constructors, and so on)
+    /// increment an internal counter as they descend. When a
+    /// caller tries to descend past `MAX_NESTING_DEPTH`, the site
+    /// returns without recursing and records a
+    /// [`ParseErrorKind::NestingDepthExceeded`] diagnostic so a
+    /// pathologically nested input surfaces as a structured error
+    /// rather than a stack overflow.
+    ///
+    /// The exact value is an implementation detail chosen well above
+    /// what hand-written Erlang source realistically nests; treat it
+    /// as an upper bound the parser is guaranteed not to exceed
+    /// rather than as a limit callers should design around.
+    pub const MAX_NESTING_DEPTH: usize = 256;
+
     /// Creates a new parser for the given mode.
+    ///
+    /// Grammar nesting is bounded by [`Self::MAX_NESTING_DEPTH`]:
+    /// hitting the cap emits a
+    /// [`ParseErrorKind::NestingDepthExceeded`] diagnostic and
+    /// unwinds to a bounded depth instead of panicking or
+    /// overflowing the stack.
     pub fn new(mode: ParseMode) -> Self {
         Self {
             mode,
@@ -184,6 +247,7 @@ impl Parser {
             events: Vec::new(),
             at: 0,
             depth: 0,
+            last_recovery: None,
             unit_in_progress: false,
             unit_start_event: None,
             unit_events_cursor: 0,
@@ -315,8 +379,11 @@ impl Parser {
     ///
     /// If a top-level unit is still in progress an
     /// [`UnexpectedEof`][ParseErrorKind::UnexpectedEof] is appended to
-    /// the error list and the unit is force-closed as
-    /// [`SyntaxKind::Error`] so it survives in the returned tree.
+    /// the error list — its [`ParseError::range`] matches the
+    /// force-closed [`SyntaxKind::Error`] node's `TokenRange` (from
+    /// the unterminated unit's start to the buffer's end) — and the
+    /// unit is force-closed as [`SyntaxKind::Error`] so it survives
+    /// in the returned tree.
     pub fn finish(mut self) -> SyntaxTree {
         self.advance_grammar();
         // If lexical tokens remain past the cursor (the buffer ended
@@ -336,18 +403,31 @@ impl Parser {
         }
         if self.unit_in_progress {
             let end = self.tree.tokens().end_index();
-            self.tree.errors_mut().push(ParseError::new(
-                ParseErrorKind::UnexpectedEof,
-                TokenRange::empty_at(end),
-                Expected::Unspecified,
-                None,
-            ));
-            // Force-complete the current unit as an Error node so callers
-            // can still see it structurally.
+            // The force-closed Error node covers the unterminated unit
+            // from its outer Start's `start_at` to the buffer's end.
+            // Anchor the diagnostic to the same range so
+            // `ParseError::range() == Error node's TokenRange` holds
+            // for this force-close path as well.
             let event_index = self
                 .unit_start_event
                 .take()
                 .expect("unit_in_progress implies unit_start_event is set");
+            let node_start = match self.events[event_index as usize] {
+                Event::Start { start_at, .. } => start_at,
+                _ => unreachable!("unit_start_event must point at a Start event"),
+            };
+            let node_range = TokenRange::new(node_start, end);
+            crate::error::push_unique_at_cursor(
+                self.tree.errors_mut(),
+                ParseError::new(
+                    ParseErrorKind::UnexpectedEof,
+                    node_range,
+                    Expected::Unspecified,
+                    None,
+                ),
+            );
+            // Force-complete the current unit as an Error node so callers
+            // can still see it structurally.
             self.events.push(Event::Finish { end_at: end });
             self.set_marker_kind(event_index, SyntaxKind::Error);
             self.unit_in_progress = false;
@@ -399,9 +479,72 @@ impl Parser {
         TokenIndex::new(self.at)
     }
 
-    /// Appends a [`ParseError`] to the accumulated errors.
+    /// Appends a [`ParseError`] to the accumulated errors,
+    /// deduplicating against the immediately preceding element:
+    /// consecutive attempts to append an error of the same
+    /// [`ParseErrorKind`] anchored at the same
+    /// [`TokenRange::start`] are collapsed to a single entry so a
+    /// recovery loop that tries several alternatives at the same
+    /// cursor position does not surface the same diagnostic twice.
     pub(crate) fn push_error(&mut self, error: ParseError) {
-        self.tree.errors_mut().push(error);
+        crate::error::push_unique_at_cursor(self.tree.errors_mut(), error);
+    }
+
+    /// Enters a nested grammar site and increments the depth
+    /// counter. Returns `true` when the site may recurse; returns
+    /// `false` when the site would exceed
+    /// [`Self::MAX_NESTING_DEPTH`], in which case the caller must
+    /// stop recursing (and typically emits a
+    /// [`ParseErrorKind::NestingDepthExceeded`] via
+    /// [`Self::push_nesting_depth_exceeded`] and abandons the
+    /// deeper markers). Successful entries must be matched by
+    /// [`Self::leave_depth`].
+    pub(crate) fn enter_depth(&mut self) -> bool {
+        if self.depth >= Self::MAX_NESTING_DEPTH {
+            return false;
+        }
+        self.depth += 1;
+        true
+    }
+
+    /// Decrements the depth counter previously incremented by a
+    /// successful [`Self::enter_depth`]. No-op when the counter is
+    /// already zero (a caller that respects the `enter_depth` return
+    /// value will not underflow).
+    pub(crate) fn leave_depth(&mut self) {
+        if self.depth > 0 {
+            self.depth -= 1;
+        }
+    }
+
+    /// Pushes a zero-width [`ParseErrorKind::NestingDepthExceeded`]
+    /// diagnostic at the current cursor position, deduplicated by
+    /// [`Self::push_error`].
+    pub(crate) fn push_nesting_depth_exceeded(&mut self) {
+        let at = self.cursor_position();
+        self.push_error(ParseError::new(
+            ParseErrorKind::NestingDepthExceeded,
+            TokenRange::empty_at(at),
+            Expected::Unspecified,
+            None,
+        ));
+    }
+
+    /// Records that a recovery attempt at `context` is about to run
+    /// against the current cursor position and returns whether the
+    /// caller may proceed. Returns `true` on the first attempt at a
+    /// `(context, cursor position)` pair and `false` when the same
+    /// pair has already been recorded without the cursor moving,
+    /// letting a recovery site refuse to re-enter itself in a loop.
+    /// The marker naturally expires as soon as the cursor advances
+    /// past the recorded position.
+    pub(crate) fn begin_recovery_attempt(&mut self, context: RecoveryContext) -> bool {
+        let now = (context, self.at);
+        if self.last_recovery == Some(now) {
+            return false;
+        }
+        self.last_recovery = Some(now);
+        true
     }
 
     /// Returns the current grammar sub-language ([`ParseContext`]).
@@ -547,13 +690,6 @@ impl Parser {
         }
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Reachable only via Marker::abandon, which grammar code drives later; currently only tests exercise it"
-        )
-    )]
     fn convert_to_tombstone(&mut self, event_index: u32) {
         self.events[event_index as usize] = Event::Tombstone;
     }
@@ -564,15 +700,19 @@ impl Parser {
 
     fn advance_grammar(&mut self) {
         match self.mode {
-            ParseMode::Expression => {
-                self.advance_dot_driven_grammar(parse_expr, "`.` to close top-level expression")
-            }
+            ParseMode::Expression => self.advance_dot_driven_grammar(
+                parse_expr,
+                RecoveryContext::Expression,
+                "`.` to close top-level expression",
+            ),
             ParseMode::Module => self.advance_dot_driven_grammar(
                 crate::grammar::module::parse_top_form,
+                RecoveryContext::Form,
                 "`.` to close top-level form",
             ),
             ParseMode::TermList => self.advance_dot_driven_grammar(
                 crate::grammar::term_list::parse_top_term,
+                RecoveryContext::Term,
                 "`.` to close top-level term",
             ),
         }
@@ -582,29 +722,35 @@ impl Parser {
     /// whenever a lexical `.` appears in the pending buffer, invoke
     /// `parse_one` to consume the tokens up to (but not including)
     /// the boundary dot as a single top-level unit, then consume the
-    /// boundary dot itself. Tokens that `parse_one` leaves before the
-    /// dot are flagged as unexpected-token errors — using
-    /// `unexpected_msg` — and consumed so the cursor never stalls.
-    /// Between top-level units the in-progress state is reset to its
-    /// default so a stale field cannot leak across form boundaries.
-    fn advance_dot_driven_grammar<F>(&mut self, parse_one: F, unexpected_msg: &'static str)
-    where
+    /// boundary dot itself. Tokens that `parse_one` leaves before
+    /// the boundary dot are swept up by the recovery helper
+    /// [`crate::grammar::recovery::skip_until_sync`] into a single
+    /// [`SyntaxKind::Error`] node with a matching
+    /// [`ParseErrorKind::SkippedToken`] diagnostic; the boundary
+    /// dot itself is consumed after that so the cursor never
+    /// stalls. Between top-level units the in-progress state is
+    /// reset to its default so a stale field cannot leak across
+    /// unit boundaries.
+    fn advance_dot_driven_grammar<F>(
+        &mut self,
+        parse_one: F,
+        context: RecoveryContext,
+        unexpected_msg: &'static str,
+    ) where
         F: Fn(&mut Parser) -> CompletedMarker,
     {
         while self.has_lexical_dot_after_cursor() {
             self.unit_events_cursor = self.events.len();
             let _completed = parse_one(self);
-            while let Some((_, token)) = self.peek_lexical(0) {
-                if is_dot(token) {
-                    self.consume_lexical();
-                    break;
-                }
-                self.push_error(ParseError::new(
-                    ParseErrorKind::UnexpectedToken,
-                    TokenRange::empty_at(TokenIndex::new(self.at)),
-                    Expected::Category(unexpected_msg),
-                    Some(token),
-                ));
+            // Recovery: wrap any leftover tokens before the boundary
+            // dot into a single Error node with a matching
+            // SkippedToken diagnostic.
+            let _ =
+                crate::grammar::recovery::skip_until_sync(self, context, is_dot, unexpected_msg);
+            // Consume the boundary dot itself.
+            if let Some((_, token)) = self.peek_lexical(0)
+                && is_dot(token)
+            {
                 self.consume_lexical();
             }
             self.finalize_pending_units();
@@ -673,13 +819,6 @@ impl Marker {
 
     /// Abandons this marker, converting the reserved `Start` event into a
     /// tombstone so it is skipped during finalize.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Grammar code added later drives this API; only tests currently exercise it"
-        )
-    )]
     pub(crate) fn abandon(mut self, parser: &mut Parser) {
         parser.convert_to_tombstone(self.event_index);
         self.finished = true;

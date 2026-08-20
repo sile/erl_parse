@@ -28,6 +28,7 @@ pub(crate) mod guard;
 pub(crate) mod module;
 pub(crate) mod operator;
 pub(crate) mod pattern;
+pub(crate) mod recovery;
 pub(crate) mod term;
 pub(crate) mod term_list;
 pub(crate) mod ty;
