@@ -14,14 +14,6 @@
 //!
 //! Grammar shape follows OTP 29's `lib/stdlib/src/erl_parse.yrl`.
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "Exercised by the in-module tests today; wired into the parser and public aux entry points by follow-up commits"
-    )
-)]
-
 use erl_tokenize::{Keyword, Symbol, TokenKind};
 
 use crate::error::{Expected, ParseError, ParseErrorKind};
@@ -961,7 +953,10 @@ mod tests {
     /// Used only by the expression-grammar unit tests until the real
     /// expression-mode wiring is in place.
     fn drive(source: &str) -> Parser {
-        let mut p = Parser::new(ParseMode::Expression);
+        // Use Module mode so the accumulating stub-grammar doesn't
+        // eagerly invoke the real grammar on push; the drive() body
+        // then resets state and drives the grammar under test directly.
+        let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
             p.push_token(t);
         }

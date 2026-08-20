@@ -66,6 +66,25 @@ pub enum ParseErrorKind {
     UnexpectedEof,
 }
 
+/// Misuse of the parser's programmatic API by the caller. Kept
+/// separate from [`ParseError`] so that "the code called the parser
+/// wrong" and "the Erlang source has a syntax error" take different
+/// code paths.
+///
+/// The variants are added as new misuse conditions are surfaced.
+/// The type is not marked `#[non_exhaustive]`; adding a variant is
+/// treated as a normal breaking change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProtocolError {
+    /// An auxiliary entry point (`parse_expression_range` /
+    /// `parse_pattern_range` / `parse_guard_range` /
+    /// `parse_term_range`) was called while a top-level unit was
+    /// still in progress. Callers must complete the current unit
+    /// (via `next_top_node` / `finish`) or start fresh before
+    /// invoking an auxiliary entry point.
+    AuxEntryPointWithUnitInProgress,
+}
+
 /// What the grammar was expecting when a `ParseError` fired.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Expected {

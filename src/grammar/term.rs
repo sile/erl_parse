@@ -20,13 +20,6 @@ use crate::grammar::expr::parse_expr;
 use crate::parser::{CompletedMarker, ParseContext, Parser};
 
 /// Parses a single term at the current cursor position.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "Used by grammar callers that plug terms into the term-list mode and attribute payload parsers; only in-crate tests currently drive it directly"
-    )
-)]
 pub(crate) fn parse_term(p: &mut Parser) -> CompletedMarker {
     let prev = p.set_context(ParseContext::Term);
     let completed = parse_expr(p);
@@ -52,7 +45,7 @@ mod tests {
     }
 
     fn drive_term(source: &str) -> Parser {
-        let mut p = Parser::new(ParseMode::Expression);
+        let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
             p.push_token(t);
         }

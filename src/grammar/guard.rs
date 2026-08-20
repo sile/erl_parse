@@ -19,13 +19,6 @@ use crate::parser::{CompletedMarker, Parser};
 /// Parses a guard sequence: `Guard1 ; Guard2 ; ...` where each guard is
 /// a comma-separated list of expressions. Wraps as a
 /// [`crate::SyntaxKind::GuardSequence`] node.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "Used by grammar callers that plug guards into clauses; only in-crate tests currently drive it directly"
-    )
-)]
 pub(crate) fn parse_guard(p: &mut Parser) -> CompletedMarker {
     parse_guard_sequence(p)
 }
@@ -48,7 +41,7 @@ mod tests {
     }
 
     fn drive_guard(source: &str) -> Parser {
-        let mut p = Parser::new(ParseMode::Expression);
+        let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
             p.push_token(t);
         }

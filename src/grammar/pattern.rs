@@ -18,13 +18,6 @@ use crate::parser::{CompletedMarker, ParseContext, Parser};
 /// [`ParseContext::Pattern`] active for the span; restrictions are
 /// enforced through structured [`ParseError`][crate::ParseError]s
 /// appended to the parser's error list.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "Used by grammar callers that plug patterns into clauses; only in-crate tests currently drive it directly"
-    )
-)]
 pub(crate) fn parse_pattern(p: &mut Parser) -> CompletedMarker {
     let prev = p.set_context(ParseContext::Pattern);
     let completed = parse_expr(p);
@@ -50,7 +43,7 @@ mod tests {
     }
 
     fn drive_pattern(source: &str) -> Parser {
-        let mut p = Parser::new(ParseMode::Expression);
+        let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
             p.push_token(t);
         }

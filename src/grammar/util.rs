@@ -5,14 +5,6 @@
 //! `push_error` primitives with the "peek for a specific token /
 //! consume-or-error" pattern that grammar productions repeat.
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "Exercised through the grammar modules that build on top; only in-crate tests currently drive some of these directly"
-    )
-)]
-
 use erl_tokenize::{Keyword, Symbol, Token, TokenKind};
 
 use crate::error::{Expected, ParseError, ParseErrorKind};

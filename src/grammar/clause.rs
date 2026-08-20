@@ -9,23 +9,12 @@
 //! form / module grammar can reuse it without duplicating clause / body
 //! / guard parsing.
 //!
-//! Pattern positions inside clause heads currently reuse
-//! [`crate::grammar::expr::parse_expr`]; a follow-up commit lays the
-//! pattern-restriction pass on top so illegal expression forms (calls,
-//! blocks, and other general expressions) are rejected in pattern
-//! position while sharing the same node shape.
+//! Pattern positions inside clause heads route through
+//! [`crate::grammar::pattern::parse_pattern`] so illegal expression
+//! forms (calls, blocks, and other general expressions) are rejected
+//! in pattern position while sharing the same node shape.
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "Exercised by the block-expression parser and, in later commits, by function-declaration grammar; only in-crate tests currently drive some of these directly"
-    )
-)]
-
-use erl_tokenize::{Keyword, Symbol};
-
-use erl_tokenize::TokenKind;
+use erl_tokenize::{Keyword, Symbol, TokenKind};
 
 use crate::grammar::expr::{parse_comma_separated_exprs, parse_expr, parse_expr_max};
 use crate::grammar::pattern::parse_pattern;
