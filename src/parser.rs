@@ -26,6 +26,7 @@ use crate::grammar::expr::parse_expr;
 use crate::grammar::guard::parse_guard;
 use crate::grammar::pattern::parse_pattern;
 use crate::grammar::term::parse_term;
+use crate::grammar::ty::parse_type;
 use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 use crate::syntax_tree::SyntaxTree;
 use crate::token_range::{TokenIndex, TokenRange};
@@ -77,6 +78,14 @@ pub(crate) enum ParseContext {
     /// no variables, no matches, and none of the constructs already
     /// rejected in [`Pattern`][Self::Pattern].
     Term,
+    /// Type-annotation position — accepts the Erlang type grammar
+    /// (`T | T`, `T .. T`, `T :: T`, `fun((T) -> T)`, `#Name{Field ::
+    /// T, ...}`, etc.) and rejects general expression constructs
+    /// (calls except type calls, blocks, funs, comprehensions, sends,
+    /// maybe-matches, `catch` prefix). The type parser layered on top
+    /// of the shared expression parser sets this context before
+    /// running.
+    Type,
 }
 
 /// Sans I/O parser core.
@@ -206,6 +215,12 @@ impl Parser {
     /// but parses the range as a single Erlang term.
     pub fn parse_term_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
         self.aux_parse(range, parse_term)
+    }
+
+    /// Same shape as [`parse_expression_range`][Self::parse_expression_range]
+    /// but parses the range as a single Erlang type expression.
+    pub fn parse_type_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
+        self.aux_parse(range, parse_type)
     }
 
     fn aux_parse<F>(&mut self, range: TokenRange, body: F) -> Result<NodeId, ProtocolError>
