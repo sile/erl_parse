@@ -6,8 +6,6 @@
 //! parser core that produces this model is added on top of this crate; only
 //! the shared types live here.
 //!
-//! Public items are re-exported at the crate root:
-//!
 //! - [`TokenIndex`] and [`TokenRange`] describe positions and half-open
 //!   spans over the logical token buffer.
 //! - [`TokenBuffer`] is the append-only container that stores the pushed
