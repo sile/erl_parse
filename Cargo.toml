@@ -13,3 +13,6 @@ rust-version = "1.88"
 
 [dependencies]
 erl_tokenize = "0.11"
+
+[dev-dependencies]
+noprop = "0.2"

@@ -1007,9 +1007,23 @@ fn finalize_unit(events: &[Event], index: &mut SyntaxIndex) -> Option<NodeId> {
     if local.is_empty() {
         return None;
     }
-    let root_id = NodeId::new(index.len());
+    // The `local` buffer was built with `subtree_end` values counted
+    // from 0 (the local frame's start), but the destination
+    // `index` may already hold entries from prior top-level units.
+    // Shift every `subtree_end` by the current `index` length so
+    // the invariant `self_index + 1 <= subtree_end <= entries.len()`
+    // holds against the shared global array — otherwise a
+    // second-and-later unit's entries end up with `subtree_end`
+    // pointing back into the previous unit.
+    let offset = index.len();
+    let root_id = NodeId::new(offset);
     for entry in local {
-        index.push(entry);
+        let shifted = SyntaxEntry::new(
+            entry.kind(),
+            entry.range(),
+            EntryIndex::new(entry.subtree_end().get() + offset),
+        );
+        index.push(shifted);
     }
     Some(root_id)
 }
