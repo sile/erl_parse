@@ -1,16 +1,16 @@
 //! Sans I/O parser core.
 //!
-//! The parser owns a growing `TokenBuffer`, an event log that grammar
-//! functions extend as they run, an append-only `SyntaxIndex` produced by
-//! finalizing completed top-level units, and an `ErrorSink` for accumulated
-//! `ParseError`s. It exposes a small feed/pull API:
+//! The parser owns a [`SyntaxTree`] (which bundles the growing
+//! `TokenBuffer`, the append-only `SyntaxIndex`, and the accumulated
+//! `ParseError`s) plus an internal event log that grammar functions
+//! extend as they run. It exposes a small feed/pull API:
 //!
 //! - [`Parser::push_token`] appends one input token.
 //! - [`Parser::next_top_node`] pulls the next completed top-level unit.
 //! - [`Parser::state`] queries in-progress grammar state.
-//! - [`Parser::syntax_index`] and [`Parser::errors`] borrow the accumulated
-//!   syntax index and error sink for reading.
-//! - [`Parser::finish`] asserts end of input.
+//! - [`Parser::syntax_tree`] borrows the accumulated tree for reading.
+//! - [`Parser::finish`] consumes the parser and hands back the finished
+//!   [`SyntaxTree`].
 //!
 //! Grammar functions (added in subsequent changes) consume tokens through
 //! an internal cursor and emit start/finish events via [`Marker`] and
@@ -20,10 +20,10 @@
 use erl_tokenize::Token;
 
 use crate::cursor::{CursorCheckpoint, TokenCursor};
-use crate::error::{ErrorSink, Expected, ParseError, ParseErrorKind, ProtocolError};
+use crate::error::{Expected, ParseError, ParseErrorKind};
 use crate::event::Event;
 use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
-use crate::token_buffer::TokenBuffer;
+use crate::syntax_tree::SyntaxTree;
 use crate::token_range::{TokenIndex, TokenRange};
 
 /// Selects the top-level construct the parser recognizes.
@@ -56,16 +56,12 @@ pub struct InProgressState {
 #[derive(Debug)]
 pub struct Parser {
     mode: ParseMode,
-    tokens: TokenBuffer,
+    tree: SyntaxTree,
     events: Vec<Event>,
-    index: SyntaxIndex,
-    errors: ErrorSink,
     /// Full-token index the grammar has consumed up to.
     at: usize,
     /// Nesting depth counter maintained by grammar loops.
     depth: usize,
-    /// Whether the caller has asserted end of input.
-    finished: bool,
     /// Whether the stub grammar is currently inside a top-level unit.
     unit_in_progress: bool,
     /// If `unit_in_progress` is true, the event index of the current
@@ -86,13 +82,10 @@ impl Parser {
     pub fn new(mode: ParseMode) -> Self {
         Self {
             mode,
-            tokens: TokenBuffer::new(),
+            tree: SyntaxTree::new(),
             events: Vec::new(),
-            index: SyntaxIndex::new(),
-            errors: ErrorSink::new(),
             at: 0,
             depth: 0,
-            finished: false,
             unit_in_progress: false,
             unit_start_event: None,
             unit_events_cursor: 0,
@@ -107,16 +100,9 @@ impl Parser {
     }
 
     /// Appends a token to the internal buffer.
-    ///
-    /// Returns [`ProtocolError::PushAfterFinish`] when `finish` was already
-    /// asserted.
-    pub fn push_token(&mut self, token: Token) -> Result<(), ProtocolError> {
-        if self.finished {
-            return Err(ProtocolError::PushAfterFinish);
-        }
-        self.tokens.push(token);
+    pub fn push_token(&mut self, token: Token) {
+        self.tree.tokens_mut().push(token);
         self.advance_grammar();
-        Ok(())
     }
 
     /// Returns the next completed top-level unit's [`NodeId`], or `None`
@@ -133,19 +119,10 @@ impl Parser {
         self.in_progress
     }
 
-    /// Borrows the accumulated syntax index.
-    pub fn syntax_index(&self) -> &SyntaxIndex {
-        &self.index
-    }
-
-    /// Borrows the accumulated parse errors.
-    pub fn errors(&self) -> &[ParseError] {
-        self.errors.as_slice()
-    }
-
-    /// Borrows the internal token buffer.
-    pub fn tokens(&self) -> &TokenBuffer {
-        &self.tokens
+    /// Borrows the accumulated syntax tree (tokens, syntax index, and
+    /// errors) for reading during parsing.
+    pub fn syntax_tree(&self) -> &SyntaxTree {
+        &self.tree
     }
 
     /// Returns the current grammar nesting depth.
@@ -153,27 +130,18 @@ impl Parser {
         self.depth
     }
 
-    /// Whether `finish` has been asserted.
-    pub fn is_finished(&self) -> bool {
-        self.finished
-    }
-
-    /// Asserts end of input.
+    /// Asserts end of input, consumes the parser, and returns the finished
+    /// [`SyntaxTree`].
     ///
-    /// After this returns, subsequent `push_token` calls fail with
-    /// `ProtocolError::PushAfterFinish`. If a top-level unit is in
-    /// progress, an [`UnexpectedEof`][ParseErrorKind::UnexpectedEof] is
-    /// appended to the error sink and the unit is force-closed so callers
-    /// can still pull it out via `next_top_node`.
-    pub fn finish(&mut self) -> Result<(), ProtocolError> {
-        if self.finished {
-            return Err(ProtocolError::FinishTwice);
-        }
-        self.finished = true;
+    /// If a top-level unit is still in progress an
+    /// [`UnexpectedEof`][ParseErrorKind::UnexpectedEof] is appended to
+    /// the error list and the unit is force-closed as
+    /// [`SyntaxKind::Error`] so it survives in the returned tree.
+    pub fn finish(mut self) -> SyntaxTree {
         self.advance_grammar();
         if self.unit_in_progress {
-            let end = self.tokens.end_index();
-            self.errors.push(ParseError::new(
+            let end = self.tree.tokens().end_index();
+            self.tree.errors_mut().push(ParseError::new(
                 ParseErrorKind::UnexpectedEof,
                 TokenRange::empty_at(end),
                 Expected::Unspecified,
@@ -190,7 +158,7 @@ impl Parser {
             self.unit_in_progress = false;
             self.finalize_pending_units();
         }
-        Ok(())
+        self.tree
     }
 
     // ---------------------------------------------------------------------
@@ -224,7 +192,7 @@ impl Parser {
     /// hidden tokens into the consumed span. Returns the boundary the
     /// cursor advanced to, or `None` when no lexical token is available.
     pub(crate) fn consume_lexical(&mut self) -> Option<TokenIndex> {
-        let mut cursor = TokenCursor::new(&self.tokens, self.at);
+        let mut cursor = TokenCursor::new(self.tree.tokens(), self.at);
         let end = cursor.advance_lexical()?;
         self.at = end.get();
         Some(end)
@@ -234,7 +202,7 @@ impl Parser {
     /// skipping hidden tokens. Returns `None` when the requested lookahead
     /// is beyond the tokens that have been pushed so far.
     pub(crate) fn peek_lexical(&self, offset: usize) -> Option<(TokenIndex, Token)> {
-        TokenCursor::new(&self.tokens, self.at).peek_lexical(offset)
+        TokenCursor::new(self.tree.tokens(), self.at).peek_lexical(offset)
     }
 
     /// Returns `true` when the cursor has reached the end of the currently
@@ -248,7 +216,7 @@ impl Parser {
         )
     )]
     pub(crate) fn is_cursor_at_buffer_end(&self) -> bool {
-        self.at >= self.tokens.len()
+        self.at >= self.tree.tokens().len()
     }
 
     /// Captures a checkpoint over `(cursor, event_log_len, error_sink_len)`
@@ -262,9 +230,9 @@ impl Parser {
     )]
     pub(crate) fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
-            cursor: TokenCursor::new(&self.tokens, self.at).save(),
+            cursor: TokenCursor::new(self.tree.tokens(), self.at).save(),
             events_len: self.events.len(),
-            errors_len: self.errors.len(),
+            errors_len: self.tree.errors().len(),
         }
     }
 
@@ -280,7 +248,7 @@ impl Parser {
     pub(crate) fn restore(&mut self, checkpoint: Checkpoint) {
         self.at = checkpoint.cursor.at();
         self.events.truncate(checkpoint.events_len);
-        self.errors.truncate(checkpoint.errors_len);
+        self.tree.errors_mut().truncate(checkpoint.errors_len);
     }
 
     /// Runs `body` inside a nesting-depth-tracked block. `body` returns the
@@ -391,7 +359,7 @@ impl Parser {
         let events_end = self.events.len();
         self.unit_events_cursor = events_end;
 
-        let root_id = finalize_unit(&self.events[events_start..], &mut self.index);
+        let root_id = finalize_unit(&self.events[events_start..], self.tree.syntax_mut());
         if let Some(id) = root_id {
             self.pending_pull.push_back(id);
         }
@@ -666,7 +634,7 @@ mod tests {
 
     fn push_all(parser: &mut Parser, source: &str) {
         for t in scan_all(source) {
-            parser.push_token(t).expect("no protocol error");
+            parser.push_token(t);
         }
     }
 
@@ -674,15 +642,15 @@ mod tests {
     fn empty_buffer_pulls_nothing() {
         let mut p = Parser::new(ParseMode::Module);
         assert!(p.next_top_node().is_none());
-        assert!(p.syntax_index().is_empty());
-        assert!(p.errors().is_empty());
+        assert!(p.syntax_tree().syntax().is_empty());
+        assert!(p.syntax_tree().errors().is_empty());
     }
 
     #[test]
     fn hidden_only_buffer_yields_nothing_but_stores_tokens() {
         let mut p = Parser::new(ParseMode::Module);
         push_all(&mut p, "   \n  ");
-        assert!(!p.tokens().is_empty());
+        assert!(!p.syntax_tree().tokens().is_empty());
         assert!(p.next_top_node().is_none());
     }
 
@@ -694,32 +662,23 @@ mod tests {
         push_all(&mut p, " .");
         let node = p.next_top_node().expect("unit completed at dot");
         assert_eq!(node, NodeId::new(0));
-        assert_eq!(p.syntax_index().len(), 1);
+        assert_eq!(p.syntax_tree().syntax().len(), 1);
         assert!(p.next_top_node().is_none(), "one unit only");
     }
 
     #[test]
-    fn buffer_end_distinguishes_from_true_eof() {
-        let mut p = Parser::new(ParseMode::Module);
+    fn buffer_end_reports_true_before_any_push() {
+        let p = Parser::new(ParseMode::Module);
         assert!(p.is_cursor_at_buffer_end());
-        assert!(!p.is_finished());
-        p.finish().expect("first finish");
-        assert!(p.is_finished());
     }
 
     #[test]
-    fn finish_twice_is_protocol_error() {
+    fn finish_returns_syntax_tree_with_completed_units() {
         let mut p = Parser::new(ParseMode::Module);
-        p.finish().expect("first");
-        assert_eq!(p.finish(), Err(ProtocolError::FinishTwice));
-    }
-
-    #[test]
-    fn push_after_finish_is_protocol_error() {
-        let mut p = Parser::new(ParseMode::Module);
-        p.finish().expect("first");
-        let tokens = scan_all("foo");
-        assert_eq!(p.push_token(tokens[0]), Err(ProtocolError::PushAfterFinish));
+        push_all(&mut p, "foo. bar.");
+        let tree = p.finish();
+        assert_eq!(tree.syntax().len(), 2);
+        assert!(tree.errors().is_empty());
     }
 
     #[test]
@@ -727,11 +686,10 @@ mod tests {
         let mut p = Parser::new(ParseMode::Module);
         push_all(&mut p, "foo bar");
         assert!(p.next_top_node().is_none());
-        p.finish().expect("finish");
-        let node = p.next_top_node().expect("force-completed unit");
-        assert_eq!(node, NodeId::new(0));
-        assert_eq!(p.errors().len(), 1);
-        assert_eq!(p.errors()[0].kind(), ParseErrorKind::UnexpectedEof);
+        let tree = p.finish();
+        assert_eq!(tree.syntax().len(), 1);
+        assert_eq!(tree.errors().len(), 1);
+        assert_eq!(tree.errors()[0].kind(), ParseErrorKind::UnexpectedEof);
     }
 
     #[test]
@@ -741,12 +699,14 @@ mod tests {
         let mut b = Parser::new(ParseMode::Module);
         push_all(&mut a, source);
         push_all(&mut b, source);
-        assert_eq!(a.syntax_index().len(), b.syntax_index().len());
-        assert_eq!(a.errors().len(), b.errors().len());
-        for i in 0..a.syntax_index().len() {
+        let ta = a.syntax_tree();
+        let tb = b.syntax_tree();
+        assert_eq!(ta.syntax().len(), tb.syntax().len());
+        assert_eq!(ta.errors().len(), tb.errors().len());
+        for i in 0..ta.syntax().len() {
             assert_eq!(
-                a.syntax_index().entry(NodeId::new(i)),
-                b.syntax_index().entry(NodeId::new(i)),
+                ta.syntax().entry(NodeId::new(i)),
+                tb.syntax().entry(NodeId::new(i)),
                 "entry {} differs",
                 i
             );
@@ -761,9 +721,10 @@ mod tests {
         // through the closing dot.
         push_all(&mut p, "foo .");
         let node = p.next_top_node().expect("unit completed");
-        let entry = p.syntax_index().entry(node).unwrap();
+        let tree = p.syntax_tree();
+        let entry = tree.syntax().entry(node).unwrap();
         assert_eq!(entry.range().start(), TokenIndex::new(0));
-        assert_eq!(entry.range().end(), p.tokens().end_index());
+        assert_eq!(entry.range().end(), tree.tokens().end_index());
     }
 
     #[test]
@@ -774,8 +735,9 @@ mod tests {
         // unit's end.
         push_all(&mut p, "foo . ");
         let node = p.next_top_node().expect("unit completed");
-        let entry = p.syntax_index().entry(node).unwrap();
-        assert!(entry.range().end() < p.tokens().end_index());
+        let tree = p.syntax_tree();
+        let entry = tree.syntax().entry(node).unwrap();
+        assert!(entry.range().end() < tree.tokens().end_index());
     }
 
     #[test]
@@ -788,26 +750,29 @@ mod tests {
         p.at = 0;
         p.unit_in_progress = false;
         p.unit_events_cursor = p.events.len();
-        p.errors = ErrorSink::new();
+        p.tree.errors_mut().clear();
 
         let ckpt = p.checkpoint();
         let before_at = p.at;
         let before_events = p.events.len();
         // Advance the cursor and add a speculative error.
         let _ = p.consume_lexical();
-        p.errors.push(ParseError::new(
+        p.tree.errors_mut().push(ParseError::new(
             ParseErrorKind::UnexpectedToken,
             TokenRange::empty_at(TokenIndex::new(0)),
             Expected::Unspecified,
             None,
         ));
         assert!(p.at > before_at);
-        assert_eq!(p.errors().len(), 1);
+        assert_eq!(p.syntax_tree().errors().len(), 1);
 
         p.restore(ckpt);
         assert_eq!(p.at, before_at);
         assert_eq!(p.events.len(), before_events);
-        assert!(p.errors().is_empty(), "restored errors are dropped");
+        assert!(
+            p.syntax_tree().errors().is_empty(),
+            "restored errors are dropped"
+        );
     }
 
     #[test]
@@ -826,7 +791,7 @@ mod tests {
         outer.complete(&mut p, SyntaxKind::Error);
         p.finalize_pending_units();
         let node = p.next_top_node().expect("outer unit");
-        let entry = p.syntax_index().entry(node).unwrap();
+        let entry = p.syntax_tree().syntax().entry(node).unwrap();
         assert_eq!(entry.range().start(), TokenIndex::new(0));
     }
 
@@ -850,11 +815,12 @@ mod tests {
 
         let root = p.next_top_node().expect("root");
         assert_eq!(root, NodeId::new(0));
-        let outer_entry = p.syntax_index().entry(root).unwrap();
+        let index = p.syntax_tree().syntax();
+        let outer_entry = index.entry(root).unwrap();
         // The outer wraps the inner, so its subtree spans two entries.
         assert_eq!(outer_entry.subtree_end().get() - root.get(), 2);
         let inner_id = NodeId::new(1);
-        let inner_entry = p.syntax_index().entry(inner_id).unwrap();
+        let inner_entry = index.entry(inner_id).unwrap();
         // Both share the same range (the inner + wrapper occupy the same
         // consumed tokens; the wrapper does not add new consumption).
         assert_eq!(outer_entry.range(), inner_entry.range());
@@ -882,7 +848,7 @@ mod tests {
         assert_eq!(root, NodeId::new(0));
         // Only one entry: the outer node. The abandoned inner produced no
         // syntax entry.
-        assert_eq!(p.syntax_index().len(), 1);
+        assert_eq!(p.syntax_tree().syntax().len(), 1);
     }
 
     #[test]

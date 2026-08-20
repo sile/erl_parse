@@ -135,7 +135,7 @@ impl SyntaxEntry {
 /// - Entries are appended at top-level unit boundaries. Interior entries
 ///   are not inserted mid-form, and entries are never reordered or removed
 ///   across top-level unit boundaries.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SyntaxIndex {
     entries: Vec<SyntaxEntry>,
 }
