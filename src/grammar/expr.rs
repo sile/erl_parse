@@ -26,8 +26,8 @@ use erl_tokenize::{Keyword, Symbol, TokenKind};
 
 use crate::error::{Expected, ParseError, ParseErrorKind};
 use crate::grammar::clause::{
-    parse_arrow_body, parse_body, parse_case_clause, parse_if_clause, parse_semicolon_separated,
-    parse_try_clause,
+    parse_argument_list, parse_arrow_body, parse_body, parse_case_clause, parse_clause_guard_opt,
+    parse_if_clause, parse_semicolon_separated, parse_try_clause,
 };
 use crate::grammar::operator::{self, Assoc, CALL_LBP, REMOTE_LBP};
 use crate::grammar::util::{
@@ -166,6 +166,7 @@ fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
         TokenKind::Keyword(Keyword::Receive) => parse_receive(p, m),
         TokenKind::Keyword(Keyword::Try) => parse_try(p, m),
         TokenKind::Keyword(Keyword::Maybe) => parse_maybe(p, m),
+        TokenKind::Keyword(Keyword::Fun) => parse_fun(p, m),
         _ => {
             let _ = idx;
             p.push_error(ParseError::new(
@@ -243,24 +244,10 @@ fn parse_list(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
     m.complete(p, kind)
 }
 
-/// Parses `(Expr, Expr, ...)` including the opening `(` and closing `)`
-/// as an [`SyntaxKind::ArgumentList`] node.
-fn parse_argument_list(p: &mut Parser) -> CompletedMarker {
-    let m = p.start();
-    p.consume_lexical(); // `(`
-    if at_symbol(p, Symbol::CloseParen) {
-        p.consume_lexical();
-        return m.complete(p, SyntaxKind::ArgumentList);
-    }
-    parse_comma_separated_exprs(p, Symbol::CloseParen);
-    expect_symbol(p, Symbol::CloseParen, "`)` to close argument list");
-    m.complete(p, SyntaxKind::ArgumentList)
-}
-
 /// Parses `Expr, Expr, ...` up to but not including `close`. Stops on
 /// end-of-input as well; the caller is responsible for the closing
 /// delimiter.
-fn parse_comma_separated_exprs(p: &mut Parser, close: Symbol) {
+pub(crate) fn parse_comma_separated_exprs(p: &mut Parser, close: Symbol) {
     loop {
         parse_expr_bp(p, 0);
         if !at_symbol(p, Symbol::Comma) {
@@ -374,6 +361,145 @@ fn parse_maybe(p: &mut Parser, m: Marker) -> CompletedMarker {
     }
     expect_keyword(p, Keyword::End, "`end` to close `maybe`");
     m.complete(p, SyntaxKind::MaybeExpr)
+}
+
+// ---------------------------------------------------------------------
+// Fun expressions and references.
+// ---------------------------------------------------------------------
+
+/// Dispatches on the shape of the tokens following `fun`:
+///
+/// - `fun (` → anonymous fun with clauses.
+/// - `fun Name /` → [`SyntaxKind::LocalFunRef`] (`Name` is an atom in
+///   valid Erlang; a variable is accepted at the syntax layer and left
+///   for a semantic pass to reject).
+/// - `fun Mod :` → [`SyntaxKind::RemoteFunRef`] (module, name, and arity
+///   may each be an atom / var / integer).
+/// - `fun Name (` → named fun (`Name` is a variable in valid Erlang;
+///   atom accepted at the syntax layer for the same reason).
+fn parse_fun(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `fun`
+
+    if at_symbol(p, Symbol::OpenParen) {
+        parse_semicolon_separated(p, parse_fun_clause);
+        expect_keyword(p, Keyword::End, "`end` to close `fun`");
+        return m.complete(p, SyntaxKind::AnonymousFun);
+    }
+
+    // Decide between LocalFunRef / RemoteFunRef / NamedFun by the token
+    // that follows the head atom / variable.
+    let first = p.peek_lexical(0);
+    let second = p.peek_lexical(1);
+    match (first.map(|(_, t)| t.kind()), second.map(|(_, t)| t.kind())) {
+        (Some(TokenKind::Atom | TokenKind::Variable), Some(TokenKind::Symbol(Symbol::Slash))) => {
+            parse_local_fun_ref(p, m)
+        }
+        (Some(TokenKind::Atom | TokenKind::Variable), Some(TokenKind::Symbol(Symbol::Colon))) => {
+            parse_remote_fun_ref(p, m)
+        }
+        (
+            Some(TokenKind::Atom | TokenKind::Variable),
+            Some(TokenKind::Symbol(Symbol::OpenParen)),
+        ) => parse_named_fun(p, m),
+        _ => {
+            let found = first.map(|(_, t)| t);
+            p.push_error(ParseError::new(
+                if found.is_some() {
+                    ParseErrorKind::UnexpectedToken
+                } else {
+                    ParseErrorKind::UnexpectedEof
+                },
+                TokenRange::empty_at(p.cursor_position()),
+                Expected::Category("`(`, fun reference, or named fun after `fun`"),
+                found,
+            ));
+            m.complete(p, SyntaxKind::Error)
+        }
+    }
+}
+
+fn parse_local_fun_ref(p: &mut Parser, m: Marker) -> CompletedMarker {
+    consume_atom_or_var(p, "fun name (atom or variable)");
+    expect_symbol(p, Symbol::Slash, "`/` in fun reference");
+    consume_integer_or_var(p, "arity (integer or variable)");
+    m.complete(p, SyntaxKind::LocalFunRef)
+}
+
+fn parse_remote_fun_ref(p: &mut Parser, m: Marker) -> CompletedMarker {
+    consume_atom_or_var(p, "module name (atom or variable)");
+    expect_symbol(p, Symbol::Colon, "`:` in remote fun reference");
+    consume_atom_or_var(p, "function name (atom or variable)");
+    expect_symbol(p, Symbol::Slash, "`/` in remote fun reference");
+    consume_integer_or_var(p, "arity (integer or variable)");
+    m.complete(p, SyntaxKind::RemoteFunRef)
+}
+
+fn parse_named_fun(p: &mut Parser, m: Marker) -> CompletedMarker {
+    parse_semicolon_separated(p, parse_named_fun_clause);
+    expect_keyword(p, Keyword::End, "`end` to close named `fun`");
+    m.complete(p, SyntaxKind::NamedFun)
+}
+
+/// Anonymous fun clause: `(Args) [when Guard] -> Body`. Wraps as a
+/// [`SyntaxKind::Clause`] node (same shape as case/receive clauses).
+fn parse_fun_clause(p: &mut Parser) -> CompletedMarker {
+    let m = p.start();
+    parse_argument_list(p);
+    parse_clause_guard_opt(p);
+    parse_arrow_body(p);
+    m.complete(p, SyntaxKind::Clause)
+}
+
+/// Named fun clause: `Name (Args) [when Guard] -> Body`.
+fn parse_named_fun_clause(p: &mut Parser) -> CompletedMarker {
+    let m = p.start();
+    consume_atom_or_var(p, "named-fun name (variable or atom)");
+    parse_argument_list(p);
+    parse_clause_guard_opt(p);
+    parse_arrow_body(p);
+    m.complete(p, SyntaxKind::Clause)
+}
+
+fn consume_atom_or_var(p: &mut Parser, msg: &'static str) {
+    match p.peek_lexical(0).map(|(_, t)| t.kind()) {
+        Some(TokenKind::Atom | TokenKind::Variable) => {
+            p.consume_lexical();
+        }
+        _ => {
+            let found = p.peek_lexical(0).map(|(_, t)| t);
+            p.push_error(ParseError::new(
+                if found.is_some() {
+                    ParseErrorKind::UnexpectedToken
+                } else {
+                    ParseErrorKind::UnexpectedEof
+                },
+                TokenRange::empty_at(p.cursor_position()),
+                Expected::Category(msg),
+                found,
+            ));
+        }
+    }
+}
+
+fn consume_integer_or_var(p: &mut Parser, msg: &'static str) {
+    match p.peek_lexical(0).map(|(_, t)| t.kind()) {
+        Some(TokenKind::Integer | TokenKind::Variable) => {
+            p.consume_lexical();
+        }
+        _ => {
+            let found = p.peek_lexical(0).map(|(_, t)| t);
+            p.push_error(ParseError::new(
+                if found.is_some() {
+                    ParseErrorKind::UnexpectedToken
+                } else {
+                    ParseErrorKind::UnexpectedEof
+                },
+                TokenRange::empty_at(p.cursor_position()),
+                Expected::Category(msg),
+                found,
+            ));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -535,7 +661,8 @@ mod tests {
 
     #[test]
     fn remote_call_chain_wraps_remote_then_call() {
-        let mut p = drive("mod:fun(1)");
+        // `mod:foo(1)`; `foo` is a plain atom, not the `fun` keyword.
+        let mut p = drive("mod:foo(1)");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::CallExpr);
         // Second entry after the CallExpr is the RemoteExpr target.
@@ -658,5 +785,65 @@ mod tests {
             syntax.entry(NodeId::new(i)).expect("entry exists").kind() == SyntaxKind::MaybeMatchExpr
         });
         assert!(has_maybe_match, "expected a MaybeMatchExpr node");
+    }
+
+    // -----------------------------------------------------------------
+    // Fun expressions and references.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn parses_anonymous_fun_single_clause() {
+        let mut p = drive("fun (X) -> X + 1 end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::AnonymousFun);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_anonymous_fun_with_multiple_clauses_and_guard() {
+        let mut p = drive("fun (0) -> zero; (N) when N > 0 -> N end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::AnonymousFun);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_named_fun() {
+        let mut p = drive("fun Loop(0) -> ok; Loop(N) -> Loop(N - 1) end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::NamedFun);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_local_fun_ref() {
+        let mut p = drive("fun foo/2");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::LocalFunRef);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_remote_fun_ref_with_concrete_names() {
+        let mut p = drive("fun mod:fun_name/3");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::RemoteFunRef);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_remote_fun_ref_with_variables() {
+        let mut p = drive("fun M:F/N");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::RemoteFunRef);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn empty_argument_list_in_fun_clause_is_accepted() {
+        let mut p = drive("fun () -> ok end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::AnonymousFun);
+        assert!(p.syntax_tree().errors().is_empty());
     }
 }

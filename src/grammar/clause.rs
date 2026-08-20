@@ -25,7 +25,7 @@
 
 use erl_tokenize::{Keyword, Symbol};
 
-use crate::grammar::expr::parse_expr;
+use crate::grammar::expr::{parse_comma_separated_exprs, parse_expr};
 use crate::grammar::util::{at_keyword, at_symbol, expect_symbol};
 use crate::parser::{CompletedMarker, Parser};
 use crate::syntax::SyntaxKind;
@@ -134,6 +134,22 @@ where
         p.consume_lexical();
         production(p);
     }
+}
+
+/// Parses `( [Expr, Expr, ...] )` as a [`SyntaxKind::ArgumentList`]
+/// node, consuming both delimiters. Shared between the expression
+/// call suffix and the fun-clause argument position; will also be
+/// reused by function declarations in the form / module grammar.
+pub(crate) fn parse_argument_list(p: &mut Parser) -> CompletedMarker {
+    let m = p.start();
+    expect_symbol(p, Symbol::OpenParen, "`(` to open argument list");
+    if at_symbol(p, Symbol::CloseParen) {
+        p.consume_lexical();
+        return m.complete(p, SyntaxKind::ArgumentList);
+    }
+    parse_comma_separated_exprs(p, Symbol::CloseParen);
+    expect_symbol(p, Symbol::CloseParen, "`)` to close argument list");
+    m.complete(p, SyntaxKind::ArgumentList)
 }
 
 fn parse_exprs_comma(p: &mut Parser) {
