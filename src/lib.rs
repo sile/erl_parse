@@ -30,6 +30,8 @@
 //! - [`NodeView`] and [`Cursor`] navigate the syntax index and token buffer
 //!   together. Their iterator-returning methods hand back opaque
 //!   `impl Iterator` values.
+#![warn(missing_docs)]
+#![forbid(unsafe_code)]
 
 mod cursor;
 mod error;

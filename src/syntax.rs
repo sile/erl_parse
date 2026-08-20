@@ -47,27 +47,41 @@ pub enum SyntaxKind {
 
     // Atomic expressions (single lexical token, occasionally with
     // adjacent-string concatenation).
+    /// An atom literal (single `atom` lexical token).
     AtomExpr,
+    /// A variable reference (single `variable` lexical token).
     VarExpr,
+    /// An integer literal (single `integer` lexical token).
     IntegerExpr,
+    /// A float literal (single `float` lexical token).
     FloatExpr,
+    /// A character literal (single `$c` lexical token).
     CharExpr,
     /// One or more adjacent string tokens concatenated at the syntactic
     /// level; the node's range spans every lexical string token in the
     /// run plus interior hidden tokens.
     StringExpr,
+    /// A sigil string literal (`~"..."` and friends).
     SigilStringExpr,
 
     // Containers.
+    /// A tuple literal, written `{Expr, Expr, ...}`.
     TupleExpr,
+    /// A proper list literal, written `[Expr, Expr, ...]` (or `[]`).
     ListExpr,
     /// A list whose tail is not `[]`, written `[H1, H2, ... | Tail]`.
     ConsExpr,
+    /// A parenthesized expression, written `(Expr)`.
     ParenExpr,
+    /// A bitstring literal, written `<<BitstringElement, ...>>`.
     BitstringExpr,
+    /// A map literal, written `#{K => V, K := V, ...}`.
     MapExpr,
     /// A map update on an arbitrary expression, written `Expr#{...}`.
     MapUpdateExpr,
+    /// A record literal, written `#Name{Field = Expr, ...}` (including
+    /// the EEP 79 native-record forms `#Module:Name{...}` and
+    /// `#_{...}`).
     RecordExpr,
     /// A record update, written `Expr#Name{...}`.
     RecordUpdateExpr,
@@ -81,29 +95,43 @@ pub enum SyntaxKind {
     /// bitwise, boolean, etc.). The operator token is embedded in the
     /// node's range but is not a separate syntax entry.
     BinaryOpExpr,
+    /// A prefix operator application (`+`, `-`, `bnot`, `not`).
     UnaryOpExpr,
+    /// A `Pattern = Expr` match expression.
     MatchExpr,
+    /// A `Pid ! Msg` send expression.
     SendExpr,
     /// A `maybe`-block match expression `X ?= Y`.
     MaybeMatchExpr,
 
     // Calls and remote references.
+    /// A function application, `Target(Args)`, where `Target` is any
+    /// expression (typically an atom, remote reference, or fun value)
+    /// and `Args` is an [`ArgumentList`][Self::ArgumentList].
     CallExpr,
     /// A `Module:Function` reference used as a call target or a fun
     /// reference qualifier; interpreted by the parent node.
     RemoteExpr,
 
     // Blocks.
+    /// A `begin Body end` block.
     BeginExpr,
+    /// A `catch Expr` prefix expression (distinct from the `try`
+    /// block's `catch` clauses).
     CatchExpr,
+    /// A `case Subject of Clauses end` block.
     CaseExpr,
+    /// An `if Clauses end` block.
     IfExpr,
+    /// A `receive Clauses [after ...] end` block.
     ReceiveExpr,
     /// The optional `after Timeout -> Body` tail of a `receive` block,
     /// wrapping the timeout expression together with its body so the
     /// section is identifiable without inspecting the terminal
     /// `after` / `end` keywords.
     ReceiveAfterSection,
+    /// A `try Body [of Clauses] [catch Clauses] [after Body] end`
+    /// block.
     TryExpr,
     /// The optional `of Clause; Clause; ...` group of a `try` block.
     TryOfSection,
@@ -111,6 +139,7 @@ pub enum SyntaxKind {
     TryCatchSection,
     /// The optional `after Body` group of a `try` block.
     TryAfterSection,
+    /// A `maybe Body [else Clauses] end` block.
     MaybeExpr,
     /// The optional `else Clauses` group of a `maybe` block.
     MaybeElseSection,
@@ -126,8 +155,11 @@ pub enum SyntaxKind {
     RemoteFunRef,
 
     // Comprehensions and qualifiers.
+    /// A list comprehension, written `[Expr || Qualifier, ...]`.
     ListComprehension,
+    /// A map comprehension, written `#{K => V || Qualifier, ...}`.
     MapComprehension,
+    /// A binary comprehension, written `<<Elem || Qualifier, ...>>`.
     BinaryComprehension,
     /// `Pat <- Expr`.
     Generator,
@@ -149,15 +181,35 @@ pub enum SyntaxKind {
     Filter,
 
     // Structural grouping used inside blocks, funs, and clauses.
+    /// A comma-separated body of expressions (a block's contents, a
+    /// clause's body, etc.).
     Body,
+    /// A clause of the form `Pattern [when Guard] -> Body`, used by
+    /// `case`, `receive`, `fun`, `maybe else`, and the pattern-only
+    /// form of `try catch`.
     Clause,
+    /// An `if`-block clause of the form `Guard -> Body`.
     IfClause,
+    /// A class-qualified `try catch` clause of the form
+    /// `Class : Reason [: Stack] [when Guard] -> Body`.
     CatchClause,
+    /// A single guard: a comma-separated list of guard expressions.
     Guard,
+    /// A `;`-separated sequence of [`Guard`][Self::Guard]s.
     GuardSequence,
+    /// A `(Expr, Expr, ...)` argument list, shared by call sites and
+    /// fun-clause argument positions.
     ArgumentList,
+    /// A single `Field = Expr` entry inside a
+    /// [`RecordExpr`][Self::RecordExpr] or
+    /// [`RecordUpdateExpr`][Self::RecordUpdateExpr].
     RecordField,
+    /// A single `Key => Value` or `Key := Value` entry inside a
+    /// [`MapExpr`][Self::MapExpr] or
+    /// [`MapUpdateExpr`][Self::MapUpdateExpr].
     MapField,
+    /// A single `Value [: Size] [/ TypeSpec]` element inside a
+    /// [`BitstringExpr`][Self::BitstringExpr].
     BitstringElement,
 }
 
