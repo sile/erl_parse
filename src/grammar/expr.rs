@@ -369,7 +369,10 @@ fn parse_if(p: &mut Parser, m: Marker) -> CompletedMarker {
 }
 
 /// `receive Clauses [after Expr -> Body] end` or `receive after Expr ->
-/// Body end` when no message clauses are given.
+/// Body end` when no message clauses are given. The optional
+/// `after Timeout -> Body` tail is wrapped as
+/// [`SyntaxKind::ReceiveAfterSection`] so callers can find it via
+/// child kind without scanning terminal keywords.
 fn parse_receive(p: &mut Parser, m: Marker) -> CompletedMarker {
     reject_in_restricted(p, "`receive` block not allowed here");
     let prev = p.set_context(ParseContext::Expression);
@@ -378,9 +381,11 @@ fn parse_receive(p: &mut Parser, m: Marker) -> CompletedMarker {
         parse_semicolon_separated(p, parse_case_clause);
     }
     if at_keyword(p, Keyword::After) {
+        let section = p.start();
         p.consume_lexical();
         parse_expr(p);
         parse_arrow_body(p);
+        section.complete(p, SyntaxKind::ReceiveAfterSection);
     }
     expect_keyword(p, Keyword::End, "`end` to close `receive`");
     p.set_context(prev);
@@ -398,17 +403,28 @@ fn parse_try(p: &mut Parser, m: Marker) -> CompletedMarker {
     let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `try`
     parse_body(p);
+    // Each optional tail is wrapped in its own section node so `of` /
+    // `catch` / `after` are identifiable without scanning terminal
+    // keywords, and so the two `Clause` shapes (from `of` and from
+    // pattern-only `catch`) can be told apart by their parent
+    // section's kind.
     if at_keyword(p, Keyword::Of) {
+        let section = p.start();
         p.consume_lexical();
         parse_semicolon_separated(p, parse_case_clause);
+        section.complete(p, SyntaxKind::TryOfSection);
     }
     if at_keyword(p, Keyword::Catch) {
+        let section = p.start();
         p.consume_lexical();
         parse_semicolon_separated(p, parse_try_clause);
+        section.complete(p, SyntaxKind::TryCatchSection);
     }
     if at_keyword(p, Keyword::After) {
+        let section = p.start();
         p.consume_lexical();
         parse_body(p);
+        section.complete(p, SyntaxKind::TryAfterSection);
     }
     expect_keyword(p, Keyword::End, "`end` to close `try`");
     p.set_context(prev);
@@ -424,8 +440,10 @@ fn parse_maybe(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `maybe`
     parse_body(p);
     if at_keyword(p, Keyword::Else) {
+        let section = p.start();
         p.consume_lexical();
         parse_semicolon_separated(p, parse_case_clause);
+        section.complete(p, SyntaxKind::MaybeElseSection);
     }
     expect_keyword(p, Keyword::End, "`end` to close `maybe`");
     p.set_context(prev);

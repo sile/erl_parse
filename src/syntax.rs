@@ -99,8 +99,21 @@ pub enum SyntaxKind {
     CaseExpr,
     IfExpr,
     ReceiveExpr,
+    /// The optional `after Timeout -> Body` tail of a `receive` block,
+    /// wrapping the timeout expression together with its body so the
+    /// section is identifiable without inspecting the terminal
+    /// `after` / `end` keywords.
+    ReceiveAfterSection,
     TryExpr,
+    /// The optional `of Clause; Clause; ...` group of a `try` block.
+    TryOfSection,
+    /// The optional `catch Clauses` group of a `try` block.
+    TryCatchSection,
+    /// The optional `after Body` group of a `try` block.
+    TryAfterSection,
     MaybeExpr,
+    /// The optional `else Clauses` group of a `maybe` block.
+    MaybeElseSection,
 
     // Fun expressions and references.
     /// `fun (Args) [when Guard] -> Body end`.
