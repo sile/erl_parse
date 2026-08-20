@@ -100,6 +100,8 @@ pub(crate) fn infix_binding_power(token: Token) -> Option<InfixBp> {
         TokenKind::Symbol(sym) => match sym {
             // Right 100 '=' '!'.
             Symbol::Match | Symbol::Bang => Some(right(100)),
+            // `?=` in maybe blocks shares the match precedence.
+            Symbol::MaybeMatch => Some(right(100)),
             // Nonassoc 200 comp_op.
             Symbol::Eq
             | Symbol::NotEq

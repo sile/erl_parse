@@ -22,11 +22,18 @@
     )
 )]
 
-use erl_tokenize::{Symbol, TokenKind};
+use erl_tokenize::{Keyword, Symbol, TokenKind};
 
 use crate::error::{Expected, ParseError, ParseErrorKind};
+use crate::grammar::clause::{
+    parse_arrow_body, parse_body, parse_case_clause, parse_if_clause, parse_semicolon_separated,
+    parse_try_clause,
+};
 use crate::grammar::operator::{self, Assoc, CALL_LBP, REMOTE_LBP};
-use crate::parser::{CompletedMarker, Parser};
+use crate::grammar::util::{
+    at_keyword, at_symbol, expect_keyword, expect_symbol, is_keyword, is_symbol,
+};
+use crate::parser::{CompletedMarker, Marker, Parser};
 use crate::syntax::SyntaxKind;
 use crate::token_range::TokenRange;
 
@@ -153,6 +160,12 @@ fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
         TokenKind::Symbol(Symbol::OpenParen) => parse_paren(p, m),
         TokenKind::Symbol(Symbol::OpenBrace) => parse_tuple(p, m),
         TokenKind::Symbol(Symbol::OpenSquare) => parse_list(p, m),
+        TokenKind::Keyword(Keyword::Begin) => parse_begin(p, m),
+        TokenKind::Keyword(Keyword::Case) => parse_case(p, m),
+        TokenKind::Keyword(Keyword::If) => parse_if(p, m),
+        TokenKind::Keyword(Keyword::Receive) => parse_receive(p, m),
+        TokenKind::Keyword(Keyword::Try) => parse_try(p, m),
+        TokenKind::Keyword(Keyword::Maybe) => parse_maybe(p, m),
         _ => {
             let _ = idx;
             p.push_error(ParseError::new(
@@ -273,45 +286,94 @@ fn binary_op_kind(token: erl_tokenize::Token) -> SyntaxKind {
     match token.kind() {
         TokenKind::Symbol(Symbol::Match) => SyntaxKind::MatchExpr,
         TokenKind::Symbol(Symbol::Bang) => SyntaxKind::SendExpr,
+        TokenKind::Symbol(Symbol::MaybeMatch) => SyntaxKind::MaybeMatchExpr,
         _ => SyntaxKind::BinaryOpExpr,
     }
 }
 
 // ---------------------------------------------------------------------
-// Cursor helpers.
+// Block expressions.
 // ---------------------------------------------------------------------
 
-fn at_symbol(p: &Parser, sym: Symbol) -> bool {
-    matches!(
-        p.peek_lexical(0).map(|(_, t)| t.kind()),
-        Some(TokenKind::Symbol(s)) if s == sym
-    )
+/// `begin Exprs end`.
+fn parse_begin(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `begin`
+    parse_body(p);
+    expect_keyword(p, Keyword::End, "`end` to close `begin`");
+    m.complete(p, SyntaxKind::BeginExpr)
 }
 
-fn is_symbol(token: erl_tokenize::Token, sym: Symbol) -> bool {
-    matches!(token.kind(), TokenKind::Symbol(s) if s == sym)
+/// `case Expr of Clause; Clause; ... end`.
+fn parse_case(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `case`
+    parse_expr(p);
+    expect_keyword(p, Keyword::Of, "`of` in `case` expression");
+    parse_semicolon_separated(p, parse_case_clause);
+    expect_keyword(p, Keyword::End, "`end` to close `case`");
+    m.complete(p, SyntaxKind::CaseExpr)
 }
 
-fn is_keyword(token: erl_tokenize::Token, kw: erl_tokenize::Keyword) -> bool {
-    matches!(token.kind(), TokenKind::Keyword(k) if k == kw)
+/// `if Guard -> Body ; Guard -> Body ; ... end`.
+fn parse_if(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `if`
+    parse_semicolon_separated(p, parse_if_clause);
+    expect_keyword(p, Keyword::End, "`end` to close `if`");
+    m.complete(p, SyntaxKind::IfExpr)
 }
 
-fn expect_symbol(p: &mut Parser, sym: Symbol, msg: &'static str) {
-    if at_symbol(p, sym) {
-        p.consume_lexical();
-        return;
+/// `receive Clauses [after Expr -> Body] end` or `receive after Expr ->
+/// Body end` when no message clauses are given.
+fn parse_receive(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `receive`
+    if !at_keyword(p, Keyword::After) && !at_keyword(p, Keyword::End) {
+        parse_semicolon_separated(p, parse_case_clause);
     }
-    let found = p.peek_lexical(0).map(|(_, t)| t);
-    p.push_error(ParseError::new(
-        if found.is_some() {
-            ParseErrorKind::UnexpectedToken
-        } else {
-            ParseErrorKind::UnexpectedEof
-        },
-        TokenRange::empty_at(p.cursor_position()),
-        Expected::Category(msg),
-        found,
-    ));
+    if at_keyword(p, Keyword::After) {
+        p.consume_lexical();
+        parse_expr(p);
+        parse_arrow_body(p);
+    }
+    expect_keyword(p, Keyword::End, "`end` to close `receive`");
+    m.complete(p, SyntaxKind::ReceiveExpr)
+}
+
+/// `try Body [of Clauses] [catch CatchClauses] [after AfterBody] end`.
+///
+/// The `catch` and `after` sections are individually optional but at
+/// least one of the two must appear in valid Erlang. This parser
+/// accepts either or both without enforcing that either is present;
+/// error-recovery contracts tighten this in a later change.
+fn parse_try(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `try`
+    parse_body(p);
+    if at_keyword(p, Keyword::Of) {
+        p.consume_lexical();
+        parse_semicolon_separated(p, parse_case_clause);
+    }
+    if at_keyword(p, Keyword::Catch) {
+        p.consume_lexical();
+        parse_semicolon_separated(p, parse_try_clause);
+    }
+    if at_keyword(p, Keyword::After) {
+        p.consume_lexical();
+        parse_body(p);
+    }
+    expect_keyword(p, Keyword::End, "`end` to close `try`");
+    m.complete(p, SyntaxKind::TryExpr)
+}
+
+/// `maybe Body [else Clauses] end`. `?=` inside the body is handled by
+/// the shared infix table (see [`crate::grammar::operator`]) and
+/// materialises as [`SyntaxKind::MaybeMatchExpr`].
+fn parse_maybe(p: &mut Parser, m: Marker) -> CompletedMarker {
+    p.consume_lexical(); // `maybe`
+    parse_body(p);
+    if at_keyword(p, Keyword::Else) {
+        p.consume_lexical();
+        parse_semicolon_separated(p, parse_case_clause);
+    }
+    expect_keyword(p, Keyword::End, "`end` to close `maybe`");
+    m.complete(p, SyntaxKind::MaybeExpr)
 }
 
 #[cfg(test)]
@@ -515,5 +577,86 @@ mod tests {
         let root = p.next_top_node().expect("unit");
         assert_eq!(root_kind(&p, root), SyntaxKind::Error);
         assert!(!p.syntax_tree().errors().is_empty());
+    }
+
+    // -----------------------------------------------------------------
+    // Block expressions.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn parses_begin_block() {
+        let mut p = drive("begin 1, 2, 3 end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::BeginExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_case_expression_with_two_clauses() {
+        let mut p = drive("case X of a -> 1; b -> 2 end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::CaseExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_if_expression_with_guard_sequence() {
+        let mut p = drive("if X > 0 -> pos; X < 0 -> neg; true -> zero end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::IfExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_receive_with_after() {
+        let mut p = drive("receive msg -> ok after 1000 -> timeout end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::ReceiveExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_receive_after_only() {
+        let mut p = drive("receive after 0 -> ok end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::ReceiveExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_try_with_catch_class_reason_stack() {
+        let mut p = drive("try foo() of X -> X catch error:Reason:Stack -> Stack end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::TryExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_try_with_after_only() {
+        let mut p = drive("try do_thing() after cleanup() end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::TryExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_maybe_with_maybe_match_and_else() {
+        let mut p = drive("maybe {ok, X} ?= foo() else error:E -> E end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::MaybeExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn maybe_match_operator_uses_maybe_match_expr_kind() {
+        let mut p = drive("maybe X ?= foo() end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::MaybeExpr);
+        // Search for the MaybeMatchExpr node inside the tree.
+        let syntax = p.syntax_tree().syntax();
+        let has_maybe_match = (0..syntax.len()).any(|i| {
+            syntax.entry(NodeId::new(i)).expect("entry exists").kind() == SyntaxKind::MaybeMatchExpr
+        });
+        assert!(has_maybe_match, "expected a MaybeMatchExpr node");
     }
 }

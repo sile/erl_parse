@@ -21,3 +21,4 @@ pub(crate) mod guard;
 pub(crate) mod operator;
 pub(crate) mod pattern;
 pub(crate) mod term;
+pub(crate) mod util;

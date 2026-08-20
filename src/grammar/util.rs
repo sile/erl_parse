@@ -1,0 +1,82 @@
+//! Small cursor-inspection and expectation helpers shared by the
+//! grammar modules.
+//!
+//! These wrap the parser core's `peek_lexical` / `consume_lexical` /
+//! `push_error` primitives with the "peek for a specific token /
+//! consume-or-error" pattern that grammar productions repeat.
+
+#![cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "Exercised through the grammar modules that build on top; only in-crate tests currently drive some of these directly"
+    )
+)]
+
+use erl_tokenize::{Keyword, Symbol, Token, TokenKind};
+
+use crate::error::{Expected, ParseError, ParseErrorKind};
+use crate::parser::Parser;
+use crate::token_range::TokenRange;
+
+/// Returns `true` when the next lexical token is the given [`Symbol`].
+pub(crate) fn at_symbol(p: &Parser, sym: Symbol) -> bool {
+    matches!(
+        p.peek_lexical(0).map(|(_, t)| t.kind()),
+        Some(TokenKind::Symbol(s)) if s == sym
+    )
+}
+
+/// Returns `true` when the next lexical token is the given [`Keyword`].
+pub(crate) fn at_keyword(p: &Parser, kw: Keyword) -> bool {
+    matches!(
+        p.peek_lexical(0).map(|(_, t)| t.kind()),
+        Some(TokenKind::Keyword(k)) if k == kw
+    )
+}
+
+/// Returns `true` when `token` matches the given [`Symbol`].
+pub(crate) fn is_symbol(token: Token, sym: Symbol) -> bool {
+    matches!(token.kind(), TokenKind::Symbol(s) if s == sym)
+}
+
+/// Returns `true` when `token` matches the given [`Keyword`].
+pub(crate) fn is_keyword(token: Token, kw: Keyword) -> bool {
+    matches!(token.kind(), TokenKind::Keyword(k) if k == kw)
+}
+
+/// Consumes the next lexical token if it is [`Symbol`] `sym`. Otherwise
+/// pushes an [`UnexpectedToken`][ParseErrorKind::UnexpectedToken] (or
+/// [`UnexpectedEof`][ParseErrorKind::UnexpectedEof] when the buffer is
+/// exhausted) with the supplied `msg` and does not advance.
+pub(crate) fn expect_symbol(p: &mut Parser, sym: Symbol, msg: &'static str) {
+    if at_symbol(p, sym) {
+        p.consume_lexical();
+        return;
+    }
+    push_expectation_error(p, msg);
+}
+
+/// Consumes the next lexical token if it is [`Keyword`] `kw`. Otherwise
+/// pushes a diagnostic as for [`expect_symbol`].
+pub(crate) fn expect_keyword(p: &mut Parser, kw: Keyword, msg: &'static str) {
+    if at_keyword(p, kw) {
+        p.consume_lexical();
+        return;
+    }
+    push_expectation_error(p, msg);
+}
+
+fn push_expectation_error(p: &mut Parser, msg: &'static str) {
+    let found = p.peek_lexical(0).map(|(_, t)| t);
+    p.push_error(ParseError::new(
+        if found.is_some() {
+            ParseErrorKind::UnexpectedToken
+        } else {
+            ParseErrorKind::UnexpectedEof
+        },
+        TokenRange::empty_at(p.cursor_position()),
+        Expected::Category(msg),
+        found,
+    ));
+}
