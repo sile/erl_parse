@@ -51,11 +51,3 @@ preprocesses cleanly but still has parse errors fails the process. The
 driver expands OTP predefined macros (`?MODULE`, `?FUNCTION_NAME`,
 `?OTP_RELEASE`, and so on); files that cannot be handled are listed in the
 skip list rather than tolerated as parse errors.
-
-Nested predefined macros inside `-define` bodies need an `erl_pp` that
-splices caller-driven expansions in front of the remaining expansion
-queue. Until that fix is on crates.io, point Cargo at a local checkout:
-
-```text
-cargo run --release -p otp_conformance --config 'patch.crates-io.erl_pp.path="../erl_pp"' --bin check_otp_parse -- otp
-```
