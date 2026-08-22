@@ -20,8 +20,8 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
         let mut a = erl_parse::Parser::new(mode);
         let mut b = erl_parse::Parser::new(mode);
         for t in &tokens {
-            a.push_token(*t);
-            b.push_token(*t);
+            a.feed_token(*t);
+            b.feed_token(*t);
         }
         let ta = a.finish();
         let tb = b.finish();
@@ -43,7 +43,7 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
 /// Two parsers driven with the same tokens produce the same
 /// `SyntaxIndex` / `erl_parse::Diagnostic` regardless of whether the caller
 /// interleaves `next_node` / `state` / `syntax_tree`
-/// observations between `push_token` calls or defers all
+/// observations between `feed_token` calls or defers all
 /// observation until `finish` returns.
 #[test]
 fn observation_invariance() -> noprop::TestResult {
@@ -58,8 +58,8 @@ fn observation_invariance() -> noprop::TestResult {
         let mut quiet = erl_parse::Parser::new(erl_parse::ParseMode::Module);
         let mut noisy = erl_parse::Parser::new(erl_parse::ParseMode::Module);
         for (i, t) in tokens.iter().enumerate() {
-            quiet.push_token(*t);
-            noisy.push_token(*t);
+            quiet.feed_token(*t);
+            noisy.feed_token(*t);
             // Interleave observations at pseudo-random points.
             if i.is_multiple_of(3) {
                 let _ = noisy.next_node();
@@ -106,7 +106,7 @@ fn parser_always_terminates_across_modes() -> noprop::TestResult {
         };
         let mut p = erl_parse::Parser::new(mode);
         for t in &tokens {
-            p.push_token(*t);
+            p.feed_token(*t);
         }
         let _tree = p.finish();
         touched.set();

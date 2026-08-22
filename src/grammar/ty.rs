@@ -574,7 +574,7 @@ mod tests {
         // `parse_type` directly on the accumulated buffer.
         let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
-            p.push_token_without_grammar_for_test(t);
+            p.feed_token_without_grammar_for_test(t);
         }
         p.reset_for_test();
         let outer = p.start();
@@ -750,12 +750,12 @@ mod tests {
 
     #[test]
     fn parses_type_guard_when_clause() {
-        // Drive parse_type_guard directly by pushing tokens for a bare
+        // Drive parse_type_guard directly by feeding tokens for a bare
         // `when` clause.
         let source = "when X :: integer(), Y :: atom()";
         let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
-            p.push_token_without_grammar_for_test(t);
+            p.feed_token_without_grammar_for_test(t);
         }
         p.reset_for_test();
         let outer = p.start();

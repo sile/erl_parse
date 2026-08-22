@@ -12,9 +12,9 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     out
 }
 
-fn push_all(parser: &mut erl_parse::Parser, source: &str) {
+fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
     for t in scan_all(source) {
-        parser.push_token(t);
+        parser.feed_token(t);
     }
 }
 
@@ -24,7 +24,7 @@ fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::Sy
 
 fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
     let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-    push_all(&mut p, source);
+    feed_all(&mut p, source);
     let mut roots = Vec::new();
     while let Some(id) = p.next_node() {
         roots.push(id);
@@ -149,7 +149,7 @@ fn spec_type_record_and_export_are_uniform_attributes() {
 #[test]
 fn record_field_dot_does_not_end_the_form_mid_push() {
     // The field-access `.` is the same token as a form terminator.
-    // Incremental `push_token` must not start `parse_one` when that
+    // Incremental `feed_token` must not start `parse_one` when that
     // `.` is pushed, because the field name is not in the buffer yet.
     for source in [
         "f(X) -> X#r.f.",
@@ -313,7 +313,7 @@ fn missing_form_terminating_dot_flushes_via_finish() {
     // final unit whose contents include the parsed attribute plus
     // whatever the mode's grammar can extract.
     let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-    push_all(&mut p, "-module(m)");
+    feed_all(&mut p, "-module(m)");
     assert!(p.next_node().is_none());
     let tree = p.finish();
     assert!(!tree.syntax().is_empty());
@@ -332,7 +332,7 @@ fn independent_parser_instances_do_not_share_state() {
 #[test]
 fn in_progress_state_is_default_before_between_and_after_forms() {
     // The dot-driven top-level driver consumes an entire form within
-    // a single `push_token` call (the one that added the terminating
+    // a single `feed_token` call (the one that added the terminating
     // `.`), so `state()` is only observable at form boundaries.
     // Between and outside forms all form-level fields read back as
     // their default (`None`), and no `erl_tokenize::Position` value is exposed on
@@ -347,11 +347,11 @@ fn in_progress_state_is_default_before_between_and_after_forms() {
     };
     expect_default(p.state());
 
-    push_all(&mut p, "-attr(payload).");
+    feed_all(&mut p, "-attr(payload).");
     let _ = p.next_node().expect("first form");
     expect_default(p.state());
 
-    push_all(&mut p, " foo(1, 2) -> ok.");
+    feed_all(&mut p, " foo(1, 2) -> ok.");
     let _ = p.next_node().expect("second form");
     expect_default(p.state());
 }

@@ -1026,7 +1026,7 @@ mod tests {
         // then resets state and drives the grammar under test directly.
         let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
-            p.push_token_without_grammar_for_test(t);
+            p.feed_token_without_grammar_for_test(t);
         }
         // Reset stub-grammar state; the stub will have consumed the whole
         // buffer as a single Error unit ending at the first `.`.

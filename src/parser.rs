@@ -5,7 +5,7 @@
 //! `Diagnostic`s) plus an internal event log that grammar functions
 //! extend as they run. It exposes a small feed/pull API:
 //!
-//! - [`Parser::push_token`] appends one input token.
+//! - [`Parser::feed_token`] feeds one input token.
 //! - [`Parser::next_node`] pulls the next completed `.`-terminated unit.
 //! - [`Parser::state`] queries in-progress grammar state.
 //! - [`Parser::syntax_tree`] borrows the accumulated tree for reading.
@@ -262,19 +262,19 @@ impl Parser {
         self.mode
     }
 
-    /// Appends a token to the internal buffer and returns the
-    /// [`TokenIndex`] at which the token was placed.
+    /// Feeds one token into the parser and returns the [`TokenIndex`]
+    /// at which it was placed in the buffer.
     ///
     /// The returned index is a real (in-range) index — passing it to
     /// [`TokenBuffer::get`][crate::TokenBuffer::get] recovers the same
     /// token. Hidden tokens are indexed alongside lexical tokens, so a
-    /// caller pushing every token they receive from `erl_tokenize` gets
+    /// caller feeding every token they receive from `erl_tokenize` gets
     /// a strictly-increasing sequence starting at `TokenIndex::new(0)`.
     ///
     /// The return value can be discarded when the caller does not need
     /// to associate the token with any external metadata; the method is
     /// intentionally not marked `#[must_use]`.
-    pub fn push_token(&mut self, token: Token) -> TokenIndex {
+    pub fn feed_token(&mut self, token: Token) -> TokenIndex {
         let index = self.tree.tokens_mut().push(token);
         self.advance_grammar();
         index
@@ -285,7 +285,7 @@ impl Parser {
     /// call. Nested nodes stay in the syntax index and are walked
     /// from this root (see [`crate::Cursor::roots`]).
     pub fn next_node(&mut self) -> Option<NodeId> {
-        // Attempt to make grammar progress in case the previous push_token
+        // Attempt to make grammar progress in case the previous feed_token
         // paused at a partial unit.
         self.advance_grammar();
         self.pending_pull.pop_front()
@@ -294,8 +294,8 @@ impl Parser {
     /// Returns a snapshot of the in-progress grammar state.
     ///
     /// The parser's top-level driver consumes a whole `.`-terminated
-    /// unit within one `push_token` call and resets [`InProgressState`]
-    /// afterwards, so a caller polling between pushes will see the
+    /// unit within one `feed_token` call and resets [`InProgressState`]
+    /// afterwards, so a caller polling between `feed_token` calls will see the
     /// default value at every observation point. The fields become
     /// meaningful when a future recovery grammar leaves a partial
     /// unit open across driver calls, or when a caller layers its
@@ -523,10 +523,10 @@ impl Parser {
     /// top-level driver. Test-only helper used by grammar modules'
     /// unit tests when they want to load a token buffer and then
     /// drive a specific grammar production manually — production
-    /// callers use [`Self::push_token`], which triggers grammar
+    /// callers use [`Self::feed_token`], which triggers grammar
     /// dispatch as tokens arrive.
     #[cfg(test)]
-    pub(crate) fn push_token_without_grammar_for_test(&mut self, token: Token) -> TokenIndex {
+    pub(crate) fn feed_token_without_grammar_for_test(&mut self, token: Token) -> TokenIndex {
         self.tree.tokens_mut().push(token)
     }
 
@@ -1020,9 +1020,9 @@ mod tests {
         out
     }
 
-    fn push_all(parser: &mut Parser, source: &str) {
+    fn feed_all(parser: &mut Parser, source: &str) {
         for t in scan_all(source) {
-            parser.push_token(t);
+            parser.feed_token(t);
         }
     }
 
@@ -1037,7 +1037,7 @@ mod tests {
     #[test]
     fn hidden_only_buffer_yields_nothing_but_stores_tokens() {
         let mut p = Parser::new(ParseMode::Module);
-        push_all(&mut p, "   \n  ");
+        feed_all(&mut p, "   \n  ");
         assert!(!p.syntax_tree().tokens().is_empty());
         assert!(p.next_node().is_none());
     }
@@ -1045,9 +1045,9 @@ mod tests {
     #[test]
     fn pull_returns_none_before_boundary_and_node_id_after() {
         let mut p = Parser::new(ParseMode::Module);
-        push_all(&mut p, "-foo");
+        feed_all(&mut p, "-foo");
         assert!(p.next_node().is_none(), "no dot yet");
-        push_all(&mut p, " .");
+        feed_all(&mut p, " .");
         let node = p.next_node().expect("unit completed at dot");
         assert_eq!(node, NodeId::new(0));
         assert!(p.next_node().is_none(), "one unit only");
@@ -1063,7 +1063,7 @@ mod tests {
     #[test]
     fn finish_returns_syntax_tree_with_completed_units() {
         let mut p = Parser::new(ParseMode::Module);
-        push_all(&mut p, "-foo. -bar.");
+        feed_all(&mut p, "-foo. -bar.");
         let first = p.next_node().expect("first form");
         let second = p.next_node().expect("second form");
         assert_ne!(first, second);
@@ -1078,7 +1078,7 @@ mod tests {
         // trailing input as one final unit that carries the grammar's
         // error diagnostics.
         let mut p = Parser::new(ParseMode::Module);
-        push_all(&mut p, "-foo(");
+        feed_all(&mut p, "-foo(");
         assert!(p.next_node().is_none());
         let tree = p.finish();
         assert!(!tree.syntax().is_empty());
@@ -1090,8 +1090,8 @@ mod tests {
         let source = "-foo. -bar.";
         let mut a = Parser::new(ParseMode::Module);
         let mut b = Parser::new(ParseMode::Module);
-        push_all(&mut a, source);
-        push_all(&mut b, source);
+        feed_all(&mut a, source);
+        feed_all(&mut b, source);
         let ta = a.syntax_tree();
         let tb = b.syntax_tree();
         assert_eq!(ta.syntax().len(), tb.syntax().len());
@@ -1114,7 +1114,7 @@ mod tests {
         // the unit's range extends past the space. The terminating
         // `.` is consumed by the top-level driver outside the unit's
         // marker, so the range stops just before the dot.
-        push_all(&mut p, "-foo .");
+        feed_all(&mut p, "-foo .");
         let node = p.next_node().expect("unit completed");
         let tree = p.syntax_tree();
         let entry = tree.syntax().entry(node).expect("entry exists");
@@ -1132,7 +1132,7 @@ mod tests {
         // Whitespace pushed after the closing dot cannot be folded into a
         // unit that already completed; it stays in the buffer past the
         // unit's end.
-        push_all(&mut p, "-foo . ");
+        feed_all(&mut p, "-foo . ");
         let node = p.next_node().expect("unit completed");
         let tree = p.syntax_tree();
         let entry = tree.syntax().entry(node).expect("entry exists");
@@ -1145,7 +1145,7 @@ mod tests {
         // Push two lexical tokens without a boundary so the stub grammar
         // consumes them into an in-progress unit; then reset the cursor
         // manually so this test can drive the checkpoint API directly.
-        push_all(&mut p, "foo bar");
+        feed_all(&mut p, "foo bar");
         p.at = 0;
         p.unit_in_progress = false;
         p.unit_events_cursor = p.events.len();
@@ -1177,7 +1177,7 @@ mod tests {
     #[test]
     fn marker_complete_produces_syntax_entry() {
         let mut p = Parser::new(ParseMode::Expression);
-        push_all(&mut p, "foo");
+        feed_all(&mut p, "foo");
         // Reset internal cursor to 0 so we can manually build a unit.
         // (The stub grammar has already consumed to the end.)
         p.at = 0;
@@ -1197,7 +1197,7 @@ mod tests {
     #[test]
     fn completed_marker_precede_makes_pratt_wrapper() {
         let mut p = Parser::new(ParseMode::Expression);
-        push_all(&mut p, "foo");
+        feed_all(&mut p, "foo");
         // Reset for manual scenario.
         p.at = 0;
         p.unit_in_progress = false;
@@ -1228,7 +1228,7 @@ mod tests {
     #[test]
     fn marker_abandon_leaves_tombstone_that_finalize_skips() {
         let mut p = Parser::new(ParseMode::Expression);
-        push_all(&mut p, "foo");
+        feed_all(&mut p, "foo");
         p.at = 0;
         p.unit_in_progress = false;
         p.unit_events_cursor = p.events.len();
@@ -1262,7 +1262,7 @@ mod tests {
     fn advance_with_forbids_zero_consumption() {
         // Positive case: consuming one token is fine.
         let mut p = Parser::new(ParseMode::Module);
-        push_all(&mut p, "foo");
+        feed_all(&mut p, "foo");
         p.at = 0;
         p.unit_in_progress = false;
         p.unit_events_cursor = p.events.len();
@@ -1278,7 +1278,7 @@ mod tests {
     #[should_panic(expected = "consume at least one token")]
     fn advance_with_panics_on_zero_consumption() {
         let mut p = Parser::new(ParseMode::Module);
-        push_all(&mut p, "foo");
+        feed_all(&mut p, "foo");
         p.at = 0;
         p.unit_in_progress = false;
         p.unit_events_cursor = p.events.len();

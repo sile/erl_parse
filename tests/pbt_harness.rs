@@ -371,7 +371,7 @@ pub fn parse_full(
 ) -> erl_parse::SyntaxTree {
     let mut p = erl_parse::Parser::new(mode);
     for t in tokens {
-        p.push_token(*t);
+        p.feed_token(*t);
     }
     p.finish()
 }

@@ -18,7 +18,7 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
 fn parse_expr(source: &str) -> erl_parse::SyntaxTree {
     let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
     for t in scan_all(source) {
-        parser.push_token(t);
+        parser.feed_token(t);
     }
     parser.finish()
 }

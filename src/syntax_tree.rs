@@ -1,7 +1,7 @@
 //! Bundled output of a completed parse.
 //!
 //! A [`SyntaxTree`] owns everything the caller needs to keep around after
-//! the parser goes away: the pushed [`TokenBuffer`], the flat preorder
+//! the parser goes away: the [`TokenBuffer`], the flat preorder
 //! [`SyntaxIndex`], and the accumulated [`Diagnostic`]s. All three parts
 //! reference each other through [`crate::TokenIndex`] and [`crate::NodeId`],
 //! so navigation helpers work on a `SyntaxTree` in the same way they do

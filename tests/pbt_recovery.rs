@@ -149,7 +149,7 @@ fn skipped_token_range_matches_error_node_range() -> noprop::TestResult {
 }
 
 /// `MissingToken` diagnostics never come with an added
-/// `erl_tokenize::Token` in the buffer: pushed token count equals
+/// `erl_tokenize::Token` in the buffer: fed token count equals
 /// `tree.tokens().len()`.
 #[test]
 fn missing_token_does_not_fabricate_tokens() -> noprop::TestResult {

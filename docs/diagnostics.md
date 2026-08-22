@@ -34,7 +34,7 @@ as `Result::Err`. Every diagnostic currently produced is a syntax
 error; warnings and notes are not emitted yet.
 
 There is no public "please recover" API. Recovery runs as
-[`Parser::push_token`](crate::Parser::push_token),
+[`Parser::feed_token`](crate::Parser::feed_token),
 [`Parser::next_node`](crate::Parser::next_node), and
 [`Parser::finish`](crate::Parser::finish) drive the grammar.
 
@@ -48,7 +48,7 @@ Three recovery shapes cover the grammar:
 with a zero-width range at the cursor and does not advance. It does
 not invent a fake [`erl_tokenize::Token`], so
 [`SyntaxTree::tokens`](crate::SyntaxTree::tokens) stays a faithful
-copy of what the caller pushed. There is no `SyntaxKind::Error` node
+copy of what the caller fed. There is no `SyntaxKind::Error` node
 for the missing token itself.
 
 **Skip one token.** An atomic expression or type position sees a
@@ -122,7 +122,7 @@ They are related but not 1:1.
   stack.
 
 Tokenizer / lexer failures never appear as parser diagnostics. The
-caller tokenizes ([`erl_tokenize::scan_token`]) and pushes tokens;
+caller tokenizes ([`erl_tokenize::scan_token`]) and feeds tokens;
 only `DiagnosticKind` variants this crate owns land on the tree.
 
 ## End of input
@@ -149,7 +149,7 @@ let source = "1 2 3.\n-ok.";
 let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
 let mut pos = Position::new();
 while let Some(token) = scan_token(source, pos).expect("valid source") {
-    parser.push_token(token);
+    parser.feed_token(token);
     pos = token.end();
 }
 
@@ -176,7 +176,7 @@ A strict caller would treat that tree as a failed parse
 
 - Invent tokens to "repair" the input.
 - Expose a skip-to-next-form or rewind API. Continue driving
-  `push_token` / `next_node`, or drop the [`Parser`](crate::Parser).
+  `feed_token` / `next_node`, or drop the [`Parser`](crate::Parser).
 - Emit warnings or notes. Every diagnostic is currently an error.
 - Report preprocessor or tokenizer problems. Those belong to `erl_pp`
   / `erl_tokenize` (and to the driver that sits between them).
@@ -189,12 +189,12 @@ A strict caller would treat that tree as a failed parse
 Within the design above:
 
 - [`Parser::finish`](crate::Parser::finish) returns a `SyntaxTree` for
-  every input the caller pushed.
+  every input the caller fed.
 - Hidden tokens around recovered spans stay in `TokenBuffer`.
 - A `SkippedToken` diagnostic's range equals the corresponding
   `Error` node's range.
 - A `MissingToken` diagnostic's range is empty, and the token count
-  of the tree equals the number of tokens the caller pushed.
+  of the tree equals the number of tokens the caller fed.
 - Hitting the nesting-depth cap surfaces `NestingDepthExceeded`
   rather than panicking or overflowing the stack.
 - Recovery at a given site makes forward progress or refuses to

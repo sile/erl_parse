@@ -1,6 +1,6 @@
 //! Sans I/O parser core and data model for an Erlang source parser.
 //!
-//! This crate exposes an incremental parser that a caller drives by pushing
+//! This crate exposes an incremental parser that a caller drives by feeding
 //! [`erl_tokenize::Token`] values one at a time and pulling completed
 //! top-level units back out. The parser holds the input token buffer, a
 //! flat preorder syntax index, and the accumulated diagnostics bundled
@@ -13,7 +13,7 @@
 //! Top-level types:
 //!
 //! - [`Parser`] and [`ParseMode`] are the entry point. Construct a parser
-//!   for the desired [`ParseMode`] and drive it with [`Parser::push_token`]
+//!   for the desired [`ParseMode`] and drive it with [`Parser::feed_token`]
 //!   / [`Parser::next_node`] / [`Parser::state`] /
 //!   [`Parser::syntax_tree`] / [`Parser::finish`].
 //! - [`SyntaxTree`] bundles the token buffer, the syntax index, and the
@@ -25,8 +25,8 @@
 //!   for how recovery continues after a diagnostic is recorded.
 //! - [`TokenIndex`] and [`TokenRange`] describe positions and half-open
 //!   spans over the token buffer.
-//! - [`TokenBuffer`] is the append-only container that stores the pushed
-//!   tokens.
+//! - [`TokenBuffer`] is the append-only container that stores the tokens
+//!   the caller fed.
 //! - [`SyntaxIndex`] is a flat preorder array of [`SyntaxEntry`], addressed
 //!   by [`NodeId`] (existing entries) and [`EntryIndex`] (entry-array
 //!   boundaries, including the trailing sentinel). [`SyntaxKind`] tags each

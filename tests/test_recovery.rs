@@ -17,9 +17,9 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     out
 }
 
-fn push_all(parser: &mut erl_parse::Parser, source: &str) {
+fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
     for t in scan_all(source) {
-        parser.push_token(t);
+        parser.feed_token(t);
     }
 }
 
@@ -28,7 +28,7 @@ fn drive(
     source: &str,
 ) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
     let mut p = erl_parse::Parser::new(mode);
-    push_all(&mut p, source);
+    feed_all(&mut p, source);
     let mut roots = Vec::new();
     while let Some(id) = p.next_node() {
         roots.push(id);

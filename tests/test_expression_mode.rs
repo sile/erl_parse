@@ -11,9 +11,9 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     out
 }
 
-fn push_all(parser: &mut erl_parse::Parser, source: &str) {
+fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
     for t in scan_all(source) {
-        parser.push_token(t);
+        parser.feed_token(t);
     }
 }
 
@@ -24,7 +24,7 @@ fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::Sy
 #[test]
 fn expression_mode_emits_unit_on_dot() {
     let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    push_all(&mut parser, "1 + 2.");
+    feed_all(&mut parser, "1 + 2.");
     let node = parser.next_node().expect("unit completed at `.`");
     let tree = parser.finish();
     assert_eq!(kind_of(&tree, node), erl_parse::SyntaxKind::BinaryOpExpr);
@@ -36,7 +36,7 @@ fn expression_mode_emits_unit_on_dot() {
 #[test]
 fn expression_mode_finish_flushes_input_without_trailing_dot() {
     let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    push_all(&mut parser, "foo(1, 2)");
+    feed_all(&mut parser, "foo(1, 2)");
     // No unit before finish because no `.` has been seen.
     assert!(parser.next_node().is_none());
     let tree = parser.finish();
@@ -51,7 +51,7 @@ fn expression_mode_finish_flushes_input_without_trailing_dot() {
 #[test]
 fn expression_mode_emits_multiple_units_across_dots() {
     let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    push_all(&mut parser, "1. 2.");
+    feed_all(&mut parser, "1. 2.");
     let first = parser.next_node().expect("first unit");
     let second = parser.next_node().expect("second unit");
     let tree = parser.finish();
@@ -61,7 +61,7 @@ fn expression_mode_emits_multiple_units_across_dots() {
 }
 
 #[test]
-fn push_token_returns_index_of_added_token() {
+fn feed_token_returns_index_of_added_token() {
     // Include a comment so hidden tokens participate in the index
     // stream on the same footing as lexical tokens.
     let source = "foo % note\n bar";
@@ -69,19 +69,19 @@ fn push_token_returns_index_of_added_token() {
     let scanned = scan_all(source);
     let mut returned = Vec::new();
     for t in &scanned {
-        returned.push(parser.push_token(*t));
+        returned.push(parser.feed_token(*t));
     }
     let tree = parser.finish();
     for (i, (index, expected)) in returned.iter().zip(scanned.iter()).enumerate() {
         assert_eq!(
             *index,
             erl_parse::TokenIndex::new(i),
-            "push_token {i} returned unexpected index"
+            "feed_token {i} returned unexpected index"
         );
         let got = tree
             .tokens()
             .get(*index)
-            .expect("returned index recovers the pushed token");
+            .expect("returned index recovers the fed token");
         assert_eq!(got, *expected, "get({index:?}) mismatch");
     }
 }

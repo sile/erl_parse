@@ -12,9 +12,9 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     out
 }
 
-fn push_all(parser: &mut erl_parse::Parser, source: &str) {
+fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
     for t in scan_all(source) {
-        parser.push_token(t);
+        parser.feed_token(t);
     }
 }
 
@@ -24,7 +24,7 @@ fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::Sy
 
 fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
     let mut p = erl_parse::Parser::new(erl_parse::ParseMode::TermList);
-    push_all(&mut p, source);
+    feed_all(&mut p, source);
     let mut roots = Vec::new();
     while let Some(id) = p.next_node() {
         roots.push(id);

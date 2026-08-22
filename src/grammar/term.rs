@@ -47,7 +47,7 @@ mod tests {
     fn drive_term(source: &str) -> Parser {
         let mut p = Parser::new(ParseMode::Module);
         for t in scan_all(source) {
-            p.push_token_without_grammar_for_test(t);
+            p.feed_token_without_grammar_for_test(t);
         }
         p.reset_for_test();
         let outer = p.start();

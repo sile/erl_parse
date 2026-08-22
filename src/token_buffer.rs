@@ -1,7 +1,7 @@
 //! Token buffer owned by the parser core.
 //!
-//! Accumulates [`erl_tokenize::Token`] values pushed by the caller into a
-//! growing buffer. Removing, reordering, or mutating already-pushed tokens
+//! Accumulates [`erl_tokenize::Token`] values the caller feeds into a
+//! growing buffer. Removing, reordering, or mutating already-appended tokens
 //! is not exposed.
 
 use erl_tokenize::Token;

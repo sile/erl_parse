@@ -115,7 +115,7 @@ pub fn parse_text(
                 token_count += 1;
                 predef.on_token(&t);
                 token_sources.push(Arc::clone(t.source()));
-                parser.push_token(*t.token());
+                parser.feed_token(*t.token());
                 while let Some(id) = parser.next_node() {
                     roots.push(id);
                 }
