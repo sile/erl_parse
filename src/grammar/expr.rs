@@ -271,8 +271,8 @@ fn parse_tuple(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
 
 /// Parses list body starting at the opening `[`. Distinguishes proper
 /// lists (`[a, b, c]` and `[]`), cons form (`[H1, H2, ... | Tail]`),
-/// and list comprehensions (`[Expr || Q, Q, ...]`) by looking at the
-/// separator that follows the first expression.
+/// and list comprehensions (`[Expr, ... || Q, Q, ...]`) by looking at the
+/// separator that follows the template expression(s).
 fn parse_list(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
     p.consume_lexical(); // `[`
     if at_symbol(p, Symbol::CloseSquare) {
@@ -280,35 +280,29 @@ fn parse_list(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
         return m.complete(p, SyntaxKind::ListExpr);
     }
     parse_expr_bp(p, 0);
-    if at_symbol(p, Symbol::DoubleVerticalBar) {
-        reject_in_restricted(p, "list comprehension not allowed here");
-        p.consume_lexical();
-        parse_comprehension_qualifiers(p);
-        expect_symbol(p, Symbol::CloseSquare, "`]` to close list comprehension");
-        return m.complete(p, SyntaxKind::ListComprehension);
-    }
-    let mut has_tail = false;
     loop {
+        if at_symbol(p, Symbol::DoubleVerticalBar) {
+            reject_in_restricted(p, "list comprehension not allowed here");
+            p.consume_lexical();
+            parse_comprehension_qualifiers(p);
+            expect_symbol(p, Symbol::CloseSquare, "`]` to close list comprehension");
+            return m.complete(p, SyntaxKind::ListComprehension);
+        }
+        if at_symbol(p, Symbol::VerticalBar) {
+            p.consume_lexical();
+            parse_expr_bp(p, 0);
+            expect_symbol(p, Symbol::CloseSquare, "`]` to close list");
+            return m.complete(p, SyntaxKind::ConsExpr);
+        }
         if at_symbol(p, Symbol::Comma) {
             p.consume_lexical();
             parse_expr_bp(p, 0);
             continue;
         }
-        if at_symbol(p, Symbol::VerticalBar) {
-            p.consume_lexical();
-            has_tail = true;
-            parse_expr_bp(p, 0);
-            break;
-        }
         break;
     }
     expect_symbol(p, Symbol::CloseSquare, "`]` to close list");
-    let kind = if has_tail {
-        SyntaxKind::ConsExpr
-    } else {
-        SyntaxKind::ListExpr
-    };
-    m.complete(p, kind)
+    m.complete(p, SyntaxKind::ListExpr)
 }
 
 /// Parses `Expr, Expr, ...` up to but not including `close`. Stops on
@@ -726,7 +720,7 @@ fn complete_anon_record_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
 
 /// Parses `{ [MapField, MapField, ...] }`, consuming both braces.
 /// Returns `true` when the body was a map comprehension
-/// (`Field || Q, Q`) so the caller can complete the outer marker as
+/// (`Field, ... || Q, Q`) so the caller can complete the outer marker as
 /// [`SyntaxKind::MapComprehension`] rather than [`SyntaxKind::MapExpr`].
 ///
 /// A map field is `Key => Value` or `Key := Value`; the parser reads
@@ -739,16 +733,20 @@ fn parse_map_body(p: &mut Parser) -> bool {
         return false;
     }
     parse_map_field(p);
-    if at_symbol(p, Symbol::DoubleVerticalBar) {
-        reject_in_restricted(p, "map comprehension not allowed here");
-        p.consume_lexical();
-        parse_comprehension_qualifiers(p);
-        expect_symbol(p, Symbol::CloseBrace, "`}` to close map comprehension");
-        return true;
-    }
-    while at_symbol(p, Symbol::Comma) {
-        p.consume_lexical();
-        parse_map_field(p);
+    loop {
+        if at_symbol(p, Symbol::DoubleVerticalBar) {
+            reject_in_restricted(p, "map comprehension not allowed here");
+            p.consume_lexical();
+            parse_comprehension_qualifiers(p);
+            expect_symbol(p, Symbol::CloseBrace, "`}` to close map comprehension");
+            return true;
+        }
+        if at_symbol(p, Symbol::Comma) {
+            p.consume_lexical();
+            parse_map_field(p);
+            continue;
+        }
+        break;
     }
     expect_symbol(p, Symbol::CloseBrace, "`}` to close map");
     false
@@ -1533,6 +1531,22 @@ mod tests {
             .count();
         assert_eq!(gen_count, 2);
         assert!(tree_contains_kind(&p, SyntaxKind::Filter));
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_multi_valued_list_comprehension_template() {
+        let mut p = drive("[X, Y || X <- [1], Y <- [2]]");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_multi_valued_map_comprehension_template() {
+        let mut p = drive("#{K => V, A => B || K := V <- M}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::MapComprehension);
         assert!(p.syntax_tree().errors().is_empty());
     }
 }
