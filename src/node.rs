@@ -2,8 +2,11 @@
 //! [`TokenBuffer`].
 //!
 //! [`Cursor`] is the whole forest; [`NodeView`] is one node. Neither is
-//! a zipper. See [`docs::navigation`](crate::docs::navigation) for a
-//! caller-facing walkthrough.
+//! a zipper. Construct them from
+//! [`SyntaxTree::cursor`](crate::SyntaxTree::cursor) /
+//! [`SyntaxTree::view`](crate::SyntaxTree::view). See
+//! [`docs::navigation`](crate::docs::navigation) for a caller-facing
+//! walkthrough.
 //!
 //! [`NodeView`] is provided as a plain struct rather than a trait, so
 //! navigation is a concrete value type rather than an abstraction. All
@@ -18,7 +21,9 @@ use crate::token_range::{TokenIndex, TokenRange};
 /// Lightweight navigation view anchored on a specific [`NodeId`].
 ///
 /// Kind, range, children, descendants, ancestors, and the tokens in
-/// this span. See [`docs::navigation`](crate::docs::navigation).
+/// this span. Build one with [`SyntaxTree::view`](crate::SyntaxTree::view),
+/// or take one from a [`Cursor`] / existing view. See
+/// [`docs::navigation`](crate::docs::navigation).
 #[derive(Debug, Clone, Copy)]
 pub struct NodeView<'a> {
     tokens: &'a TokenBuffer,
@@ -29,7 +34,13 @@ pub struct NodeView<'a> {
 impl<'a> NodeView<'a> {
     /// Creates a view for a specific [`NodeId`]. Returns `None` when the id
     /// does not refer to an existing entry.
-    pub fn new(tokens: &'a TokenBuffer, index: &'a SyntaxIndex, node_id: NodeId) -> Option<Self> {
+    // `pub(crate)`: pairing a buffer with an index is easy to get
+    // wrong across trees. External callers use `SyntaxTree::view`.
+    pub(crate) fn new(
+        tokens: &'a TokenBuffer,
+        index: &'a SyntaxIndex,
+        node_id: NodeId,
+    ) -> Option<Self> {
         if node_id.get() < index.len() {
             Some(Self {
                 tokens,
@@ -222,7 +233,8 @@ impl<'a> Iterator for Ancestors<'a> {
 /// Provides operations that a [`NodeView`] cannot express by itself, such
 /// as listing root units or finding the innermost node containing a
 /// specific [`TokenIndex`]. There is no current node: this is not a
-/// zipper. See [`docs::navigation`](crate::docs::navigation).
+/// zipper. Construct with [`SyntaxTree::cursor`](crate::SyntaxTree::cursor).
+/// See [`docs::navigation`](crate::docs::navigation).
 #[derive(Debug, Clone, Copy)]
 pub struct Cursor<'a> {
     tokens: &'a TokenBuffer,
@@ -231,7 +243,9 @@ pub struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     /// Creates a cursor from a token buffer and a syntax index.
-    pub fn new(tokens: &'a TokenBuffer, index: &'a SyntaxIndex) -> Self {
+    // `pub(crate)`: pairing a buffer with an index is easy to get
+    // wrong across trees. External callers use `SyntaxTree::cursor`.
+    pub(crate) fn new(tokens: &'a TokenBuffer, index: &'a SyntaxIndex) -> Self {
         Self { tokens, index }
     }
 

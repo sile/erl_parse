@@ -25,7 +25,7 @@ fn parse_expr(source: &str) -> erl_parse::SyntaxTree {
 
 /// Returns a `erl_parse::NodeView` for the tree's first root node.
 fn root_view(tree: &erl_parse::SyntaxTree) -> erl_parse::NodeView<'_> {
-    erl_parse::Cursor::new(tree.tokens(), tree.syntax())
+    tree.cursor()
         .roots()
         .next()
         .expect("at least one root node")

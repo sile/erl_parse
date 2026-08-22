@@ -14,10 +14,10 @@ A finished [`SyntaxTree`](crate::SyntaxTree) is a
   its ancestors, and the tokens that sit in its range.
 
 Neither is a zipper. You do not park a cursor on a node and then
-`goto_first_child` / `goto_next_sibling`. You build a `Cursor` from
-the tree, then you get `NodeView` values back. `NodeView` is
-`Copy`, so walking is "hand me another view", not "mutate this
-one".
+`goto_first_child` / `goto_next_sibling`. You take a `Cursor` from
+the tree ([`SyntaxTree::cursor`](crate::SyntaxTree::cursor)), then
+you get `NodeView` values back. `NodeView` is `Copy`, so walking is
+"hand me another view", not "mutate this one".
 
 ## The preorder array
 
@@ -50,8 +50,9 @@ root, you do not pull them one by one.
 
 ## After `finish`
 
-Pair the tree's buffer with its index. That pair is a `Cursor`.
-From there, roots are `NodeView`s.
+[`SyntaxTree::cursor`](crate::SyntaxTree::cursor) borrows this
+tree's buffer and index together. From there, roots are
+`NodeView`s.
 
 ```rust
 let source = "{1, 2}.";
@@ -63,7 +64,7 @@ while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid sour
 }
 let tree = parser.finish();
 
-let cursor = erl_parse::Cursor::new(tree.tokens(), tree.syntax());
+let cursor = tree.cursor();
 let root = cursor.roots().next().expect("one expression unit");
 assert_eq!(root.kind(), erl_parse::SyntaxKind::TupleExpr);
 
@@ -91,17 +92,17 @@ let hit = cursor
 assert_eq!(hit.kind(), erl_parse::SyntaxKind::IntegerExpr);
 ```
 
-Use the same `tokens` and `syntax` that belong together. A
-[`NodeId`](crate::NodeId) or [`TokenIndex`](crate::TokenIndex) from
-one tree does not address another.
+A [`NodeId`](crate::NodeId) or [`TokenIndex`](crate::TokenIndex) from
+another tree is still the caller's problem: `cursor` / `view` only
+keep this tree's buffer and index paired.
 
 ## During a pull parse
 
 [`Parser::next_node`](crate::Parser::next_node) yields the same
 root ids that [`Cursor::roots`](crate::Cursor::roots) will yield
-after [`Parser::finish`](crate::Parser::finish). Wrap each id in a
-[`NodeView`](crate::NodeView) while the parser is still alive, or
-collect the ids and wrap them on the finished tree.
+after [`Parser::finish`](crate::Parser::finish). Wrap each id with
+[`SyntaxTree::view`](crate::SyntaxTree::view) while the parser is
+still alive, or collect the ids and wrap them on the finished tree.
 
 ```rust
 let source = "{1}. {2}.";
@@ -119,20 +120,22 @@ while let Some(id) = parser.next_node() {
 let tree = parser.finish();
 assert_eq!(root_ids.len(), 2);
 
-let first = erl_parse::NodeView::new(tree.tokens(), tree.syntax(), root_ids[0])
+let first = tree
+    .view(root_ids[0])
     .expect("id came from next_node");
 assert_eq!(first.kind(), erl_parse::SyntaxKind::TupleExpr);
 
-let via_cursor: Vec<erl_parse::NodeId> = erl_parse::Cursor::new(tree.tokens(), tree.syntax())
+let via_cursor: Vec<erl_parse::NodeId> = tree
+    .cursor()
     .roots()
     .map(|v| v.node_id())
     .collect();
 assert_eq!(via_cursor, root_ids);
 ```
 
-[`NodeView::new`](crate::NodeView::new) returns `None` when the id
-is past the end of the index. Ids from `next_node` on that same
-tree are always in range.
+[`SyntaxTree::view`](crate::SyntaxTree::view) returns `None` when
+the id is past the end of the index. Ids from `next_node` on that
+same tree are always in range.
 
 ## Choosing a walk
 
@@ -175,7 +178,7 @@ recovery uses that shape; see
   concrete struct.
 - There is no "current node" on [`Cursor`](crate::Cursor). If you
   already have a [`NodeId`](crate::NodeId), start with
-  [`NodeView::new`](crate::NodeView::new).
+  [`SyntaxTree::view`](crate::SyntaxTree::view).
 - Kind and range alone do not need a view:
   [`SyntaxIndex::entry`](crate::SyntaxIndex::entry) is enough.
   Reach for [`NodeView`](crate::NodeView) when the walk also needs

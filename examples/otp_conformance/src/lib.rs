@@ -260,7 +260,7 @@ pub fn is_epp_consumed_feature_attribute(
     if entry.kind() != erl_parse::SyntaxKind::Attribute {
         return false;
     }
-    let Some(view) = erl_parse::NodeView::new(tree.tokens(), tree.syntax(), id) else {
+    let Some(view) = tree.view(id) else {
         return false;
     };
     let Some(name_node) = child_of_kind(view, erl_parse::SyntaxKind::AttributeName) else {
@@ -534,7 +534,7 @@ pub fn tree_shape(
     source: &str,
     id: erl_parse::NodeId,
 ) -> Option<String> {
-    let view = erl_parse::NodeView::new(tree.tokens(), tree.syntax(), id)?;
+    let view = tree.view(id)?;
     Some(shape_node(tree, source, view))
 }
 

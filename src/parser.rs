@@ -282,10 +282,10 @@ impl Parser {
 
     /// Returns the [`NodeId`] of the next completed `.`-terminated
     /// unit, or `None` when no new unit has completed since the last
-    /// call. Nested nodes stay in the syntax index; wrap this id in a
-    /// [`NodeView`](crate::NodeView), or collect the same roots later
-    /// via [`Cursor::roots`](crate::Cursor::roots). See
-    /// [`docs::navigation`](crate::docs::navigation).
+    /// call. Nested nodes stay in the syntax index; wrap this id with
+    /// [`SyntaxTree::view`](crate::SyntaxTree::view), or collect the
+    /// same roots later via [`Cursor::roots`](crate::Cursor::roots).
+    /// See [`docs::navigation`](crate::docs::navigation).
     pub fn next_node(&mut self) -> Option<NodeId> {
         // Attempt to make grammar progress in case the previous feed_token
         // paused at a partial unit.

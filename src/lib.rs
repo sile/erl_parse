@@ -34,7 +34,9 @@
 //!   entry with a grammar-level nonterminal kind.
 //! - [`NodeView`] and [`Cursor`] navigate the syntax index and token buffer
 //!   together. [`Cursor`] is the whole forest; [`NodeView`] is one node.
-//!   See [`docs::navigation`]. Their iterator-returning methods hand back
+//!   Construct them from [`SyntaxTree::cursor`] / [`SyntaxTree::view`] so
+//!   the buffer and index always belong to the same tree. See
+//!   [`docs::navigation`]. Their iterator-returning methods hand back
 //!   opaque `impl Iterator` values.
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]

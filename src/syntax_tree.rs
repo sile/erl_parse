@@ -6,7 +6,8 @@
 //! reference each other through [`TokenIndex`](crate::TokenIndex) and
 //! [`NodeId`](crate::NodeId), so [`Cursor`](crate::Cursor) and
 //! [`NodeView`](crate::NodeView) work on a `SyntaxTree` in the same
-//! way they do against a live [`Parser`](crate::Parser). See
+//! way they do against a live [`Parser`](crate::Parser). Construct
+//! them with [`SyntaxTree::cursor`] and [`SyntaxTree::view`]. See
 //! [`docs::navigation`](crate::docs::navigation).
 //!
 //! `SyntaxTree` is `Clone` (all sub-components are `Clone`), so callers
@@ -15,7 +16,8 @@
 //! if they want to decouple the snapshot from the running parser.
 
 use crate::diagnostic::Diagnostic;
-use crate::syntax::SyntaxIndex;
+use crate::node::{Cursor, NodeView};
+use crate::syntax::{NodeId, SyntaxIndex};
 use crate::token_buffer::TokenBuffer;
 
 /// The full result of a parse: input tokens, flat syntax index, and
@@ -55,6 +57,26 @@ impl SyntaxTree {
     /// Borrows the syntax index.
     pub fn syntax(&self) -> &SyntaxIndex {
         &self.syntax
+    }
+
+    /// Returns a [`Cursor`] over this tree's token buffer and syntax
+    /// index.
+    ///
+    /// This is the public constructor for [`Cursor`]: the buffer and
+    /// index always belong to the same tree.
+    pub fn cursor(&self) -> Cursor<'_> {
+        Cursor::new(&self.tokens, &self.syntax)
+    }
+
+    /// Returns a [`NodeView`] for `node_id` in this tree, or `None`
+    /// when the id does not refer to an existing entry.
+    ///
+    /// This is the public constructor for [`NodeView`] from a
+    /// [`NodeId`]. Views obtained from [`Cursor`] or from another
+    /// view's child / descendant / ancestor iterators are already
+    /// bound to a tree.
+    pub fn view(&self, node_id: NodeId) -> Option<NodeView<'_>> {
+        NodeView::new(&self.tokens, &self.syntax, node_id)
     }
 
     /// Borrows the accumulated diagnostics.
