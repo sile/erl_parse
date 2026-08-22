@@ -5,13 +5,11 @@
 //! [`crate::grammar::term::parse_term`] under
 //! [`crate::parser::ParseContext::Term`]; the surrounding loop, dot
 //! consumption, and unit-boundary finalization live in the parser
-//! core so all three modes (Expression, Module, TermList) share the
+//! core so all four modes (Expression, Module, TermList, Type) share the
 //! same top-level machinery.
 //!
-//! `parse_term` is invoked directly rather than through the public
-//! [`crate::Parser::parse_term_range`] auxiliary entry point because
-//! `parse_term_range` guards against "a top-level unit is already in
-//! progress" — the very state the driver runs in.
+//! `parse_term` is invoked directly by this driver while a top-level
+//! unit is already in progress.
 
 use crate::grammar::term::parse_term;
 use crate::parser::{CompletedMarker, Parser};

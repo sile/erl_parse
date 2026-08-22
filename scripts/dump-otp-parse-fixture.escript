@@ -280,22 +280,14 @@ synthetics() ->
      syn("syn:otp29:mc-multi", "expression", "[X, Y || X <- [1], Y <- [2]].", parse),
      syn("syn:otp29:native-record", "expression", "#mod:name{a = 1}.", parse),
      syn("syn:otp29:anon-record", "expression", "#_{a = 1}.", parse),
-     aux("syn:aux:pattern:cons", "module", "f([H|T]) -> ok.",
-         "pattern", "form[0].function_decl.clause[0].argument_list[0]"),
-     aux("syn:aux:guard:seq", "module", "f(X) when X > 0, is_atom(X) -> ok.",
-         "guard", "form[0].function_decl.clause[0].guard_sequence"),
-     aux("syn:aux:type:union", "module", "-spec f() -> integer() | atom().",
-         "type", "form[0].attribute.payload.after_arrow"),
-     aux("syn:aux:type:range", "module", "-spec f() -> 1..10.",
-         "type", "form[0].attribute.payload.after_arrow"),
-     aux("syn:aux:type:map", "module", "-spec f() -> #{a => integer()}.",
-         "type", "form[0].attribute.payload.after_arrow"),
-     aux("syn:aux:type:record", "module", "-spec f() -> #r{a :: integer()}.",
-         "type", "form[0].attribute.payload.after_arrow"),
-     aux("syn:aux:type:fun", "module", "-spec f() -> fun((integer()) -> integer()).",
-         "type", "form[0].attribute.payload.after_arrow"),
-     aux("syn:aux:term:tuple", "term_list", "{ok, 1}.",
-         "term", "form[0]"),
+     syn("syn:fun:cons-pat", "module", "f([H|T]) -> ok.", parse),
+     syn("syn:fun:guard-seq", "module", "f(X) when X > 0, is_atom(X) -> ok.", parse),
+     syn("syn:attr:spec-union", "module", "-spec f() -> integer() | atom().", parse),
+     syn("syn:attr:spec-range", "module", "-spec f() -> 1..10.", parse),
+     syn("syn:attr:spec-map", "module", "-spec f() -> #{a => integer()}.", parse),
+     syn("syn:attr:spec-record", "module", "-spec f() -> #r{a :: integer()}.", parse),
+     syn("syn:attr:spec-fun", "module", "-spec f() -> fun((integer()) -> integer()).", parse),
+     syn("syn:term:tuple", "term_list", "{ok, 1}.", parse),
      syn("syn:term:reject-var", "term_list", "X.", parse),
      syn("syn:term:reject-call", "term_list", "foo(1).", parse),
      syn("syn:term-list:seq", "term_list", "1. 2. 3.", parse),
@@ -322,10 +314,6 @@ synthetics() ->
 syn(Id, Mode, Source, Kind) ->
     #{id => Id, kind => "synthetic", mode => Mode, source => Source, extra => Kind}.
 
-aux(Id, Mode, Source, AuxKind, Path) ->
-    #{id => Id, kind => "aux", mode => Mode, source => Source,
-      extra => {aux, AuxKind, Path}}.
-
 rec(Id, Mode, Source, Later) ->
     #{id => Id, kind => "recovery", mode => Mode, source => Source,
       extra => {recovery, Later}}.
@@ -346,10 +334,6 @@ emit_synthetic(#{id := Id, kind := Kind, mode := Mode, source := Source, extra :
     Fields2 = case Extra of
                   tree when Tree =/= undefined ->
                       Fields1 ++ [{"tree_raw", Tree}];
-                  {aux, AuxKind, Path} ->
-                      Fields1 ++ [{"aux_kind", AuxKind},
-                                  {"extract_path", Path},
-                                  {"aux_parse", atom_to_list(Parse)}];
                   {recovery, Later} ->
                       Fields1 ++ [{"expect_later_forms", Later}];
                   _ ->

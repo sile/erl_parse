@@ -218,6 +218,57 @@ pub fn sample_term(ctx: &mut noprop::TestCaseContext, depth: usize) -> String {
     }
 }
 
+/// Draws a type-expression source of bounded depth. Leaves are atoms,
+/// integers, nullary type calls (`atom()`), and variables; compounds
+/// include tuples, lists, unions, integer ranges, and parentheses.
+pub fn sample_type(ctx: &mut noprop::TestCaseContext, depth: usize) -> String {
+    if depth == 0 {
+        return match noprop::sample_weighted_index(ctx, &[3, 2, 2, 1]) {
+            0 => sample_atom_name(ctx).to_string(),
+            1 => sample_integer_literal(ctx),
+            2 => format!("{}()", sample_atom_name(ctx)),
+            _ => sample_var_name(ctx).to_string(),
+        };
+    }
+    match noprop::sample_weighted_index(ctx, &[3, 2, 2, 2, 1, 1]) {
+        0 => sample_type(ctx, 0),
+        1 => {
+            let n = noprop::sample_usize_in(ctx, 0..=MAX_CHILDREN);
+            let mut parts = Vec::with_capacity(n);
+            for _ in 0..n {
+                parts.push(sample_type(ctx, depth - 1));
+            }
+            format!("{{{}}}", parts.join(", "))
+        }
+        2 => {
+            let inner = sample_type(ctx, depth - 1);
+            format!("[{inner}]")
+        }
+        3 => {
+            let lhs = sample_type(ctx, depth - 1);
+            let rhs = sample_type(ctx, depth - 1);
+            format!("{lhs} | {rhs}")
+        }
+        4 => {
+            let lo = sample_integer_literal(ctx);
+            let hi = sample_integer_literal(ctx);
+            format!("{lo}..{hi}")
+        }
+        _ => {
+            let inner = sample_type(ctx, depth - 1);
+            format!("({inner})")
+        }
+    }
+}
+
+/// Wraps [`sample_type`] with a terminating `.` so the result is a
+/// valid type-mode top-level unit.
+pub fn sample_type_unit(ctx: &mut noprop::TestCaseContext) -> String {
+    let mut s = sample_type(ctx, MAX_GEN_DEPTH);
+    s.push('.');
+    s
+}
+
 /// Draws a term-list top-level source with N `.`-terminated terms.
 pub fn sample_term_list_source(ctx: &mut noprop::TestCaseContext) -> String {
     let n =
@@ -323,6 +374,38 @@ pub fn parse_full(
         p.push_token(*t);
     }
     p.finish()
+}
+
+/// All public [`erl_parse::ParseMode`] variants, in a stable order
+/// used by properties that sample a mode then a matching source.
+pub const ALL_MODES: &[erl_parse::ParseMode] = &[
+    erl_parse::ParseMode::Expression,
+    erl_parse::ParseMode::Module,
+    erl_parse::ParseMode::TermList,
+    erl_parse::ParseMode::Type,
+];
+
+/// Draws a top-level source appropriate for `mode`.
+pub fn sample_source_for_mode(
+    ctx: &mut noprop::TestCaseContext,
+    mode: erl_parse::ParseMode,
+) -> String {
+    match mode {
+        erl_parse::ParseMode::Expression => sample_expression_unit(ctx),
+        erl_parse::ParseMode::Module => sample_module_source(ctx),
+        erl_parse::ParseMode::TermList => sample_term_list_source(ctx),
+        erl_parse::ParseMode::Type => sample_type_unit(ctx),
+    }
+}
+
+/// Short label for coverage gates that distinguish modes.
+pub fn mode_label(mode: erl_parse::ParseMode) -> &'static str {
+    match mode {
+        erl_parse::ParseMode::Expression => "expression",
+        erl_parse::ParseMode::Module => "module",
+        erl_parse::ParseMode::TermList => "term-list",
+        erl_parse::ParseMode::Type => "type",
+    }
 }
 
 // -----------------------------------------------------------------

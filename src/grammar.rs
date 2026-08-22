@@ -8,7 +8,8 @@
 //! - [`pattern`] parses patterns (a restricted subset of expressions).
 //! - [`guard`] parses guard sequences.
 //! - [`term`] parses `file:consult/1`-style Erlang terms.
-//! - [`ty`] parses Erlang type expressions.
+//! - [`ty`] parses Erlang type expressions and is also the
+//!   [`crate::ParseMode::Type`] top-level driver.
 //! - [`clause`] parses clause / body / guard groups shared by block
 //!   expressions and function declarations.
 //! - [`attribute`], [`function`], and [`form`] parse module-level

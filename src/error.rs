@@ -84,35 +84,6 @@ pub enum ParseErrorKind {
     NestingDepthExceeded,
 }
 
-/// Misuse of the parser's programmatic API by the caller. Kept
-/// separate from [`ParseError`] so that "the code called the parser
-/// wrong" and "the Erlang source has a syntax error" take different
-/// code paths.
-///
-/// The type is a zero-sized unit struct because every method that
-/// returns it has exactly one failure mode: an auxiliary entry
-/// point (`parse_expression_range` / `parse_pattern_range` /
-/// `parse_guard_range` / `parse_term_range` / `parse_type_range`)
-/// was called while a top-level unit was still in progress.
-/// Distinguishing this in the error type would duplicate what the
-/// caller already knows from the call site; the fix in every case is
-/// to complete the current unit (via `next_top_node` / `finish`) or
-/// start from a fresh parser before invoking an auxiliary entry
-/// point.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ProtocolError;
-
-impl std::fmt::Display for ProtocolError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            "parser protocol violation; \
-             an auxiliary entry point was called while a top-level unit was still in progress",
-        )
-    }
-}
-
-impl std::error::Error for ProtocolError {}
-
 /// Appends `error` to `errors` unless the immediately preceding
 /// element already carries the same `kind` and starts at the same
 /// [`TokenRange::start`]. This is a lightweight deduplication that

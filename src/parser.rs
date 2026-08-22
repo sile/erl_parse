@@ -20,12 +20,9 @@
 use erl_tokenize::Token;
 
 use crate::cursor::{CursorCheckpoint, TokenCursor};
-use crate::error::{Expected, ParseError, ParseErrorKind, ProtocolError};
+use crate::error::{Expected, ParseError, ParseErrorKind};
 use crate::event::Event;
 use crate::grammar::expr::parse_expr;
-use crate::grammar::guard::parse_guard;
-use crate::grammar::pattern::parse_pattern;
-use crate::grammar::term::parse_term;
 use crate::grammar::ty::parse_type;
 use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 use crate::syntax_tree::SyntaxTree;
@@ -48,6 +45,9 @@ pub enum ParseMode {
     /// A single expression (an `erl_eval`-style input) terminated by
     /// `.`.
     Expression,
+    /// A type expression (a `-spec` / `-type` payload-style input)
+    /// terminated by `.`.
+    Type,
 }
 
 /// Which kind of module-mode form the parser has currently opened,
@@ -308,67 +308,6 @@ impl Parser {
         &self.tree
     }
 
-    /// Re-parses the tokens in `range` (which must already be inside the
-    /// internal buffer) as a single expression. Returns the [`NodeId`]
-    /// of the resulting top-level unit, which is appended to the syntax
-    /// index alongside any units produced by the mode's top-level
-    /// grammar.
-    ///
-    /// Fails with [`ProtocolError`] when a top-level unit is still
-    /// open — callers must drain completed units via `next_top_node`
-    /// (or start from a fresh parser) before invoking an auxiliary
-    /// entry point.
-    ///
-    /// The cursor is saved before the sub-parse and restored after so
-    /// the mode's top-level grammar continues from where it left off.
-    pub fn parse_expression_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
-        self.aux_parse(range, parse_expr)
-    }
-
-    /// Same shape as [`parse_expression_range`][Self::parse_expression_range]
-    /// but parses the range as a single pattern.
-    pub fn parse_pattern_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
-        self.aux_parse(range, parse_pattern)
-    }
-
-    /// Same shape as [`parse_expression_range`][Self::parse_expression_range]
-    /// but parses the range as a single guard sequence.
-    pub fn parse_guard_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
-        self.aux_parse(range, parse_guard)
-    }
-
-    /// Same shape as [`parse_expression_range`][Self::parse_expression_range]
-    /// but parses the range as a single Erlang term.
-    pub fn parse_term_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
-        self.aux_parse(range, parse_term)
-    }
-
-    /// Same shape as [`parse_expression_range`][Self::parse_expression_range]
-    /// but parses the range as a single Erlang type expression.
-    pub fn parse_type_range(&mut self, range: TokenRange) -> Result<NodeId, ProtocolError> {
-        self.aux_parse(range, parse_type)
-    }
-
-    fn aux_parse<F>(&mut self, range: TokenRange, body: F) -> Result<NodeId, ProtocolError>
-    where
-        F: FnOnce(&mut Parser) -> crate::parser::CompletedMarker,
-    {
-        if self.unit_in_progress {
-            return Err(ProtocolError);
-        }
-        let saved_at = self.at;
-        self.at = range.start().get();
-        // Sub-parse events belong to a fresh unit.
-        self.unit_events_cursor = self.events.len();
-        let _completed = body(self);
-        self.finalize_pending_units();
-        self.at = saved_at;
-        Ok(self
-            .pending_pull
-            .pop_back()
-            .expect("finalize_pending_units appends exactly one unit"))
-    }
-
     /// Asserts end of input, consumes the parser, and returns the finished
     /// [`SyntaxTree`].
     ///
@@ -392,6 +331,7 @@ impl Parser {
                 ParseMode::Expression => parse_expr(&mut self),
                 ParseMode::Module => crate::grammar::module::parse_top_form(&mut self),
                 ParseMode::TermList => crate::grammar::term_list::parse_top_term(&mut self),
+                ParseMode::Type => parse_type(&mut self),
             };
             self.finalize_pending_units();
             self.in_progress = InProgressState::default();
@@ -710,10 +650,15 @@ impl Parser {
                 RecoveryContext::Term,
                 "`.` to close top-level term",
             ),
+            ParseMode::Type => self.advance_dot_driven_grammar(
+                parse_type,
+                RecoveryContext::Type,
+                "`.` to close top-level type",
+            ),
         }
     }
 
-    /// Shared driver for the three `.`-terminated top-level modes:
+    /// Shared driver for the `.`-terminated top-level modes:
     /// whenever a lexical `.` appears in the pending buffer, invoke
     /// `parse_one` to consume the tokens up to (but not including)
     /// the boundary dot as a single top-level unit, then consume the

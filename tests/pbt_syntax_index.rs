@@ -99,6 +99,33 @@ fn term_list_mode_tree_invariants_hold() -> noprop::TestResult {
     Ok(())
 }
 
+/// Same invariants hold for type-mode sources.
+#[test]
+fn type_mode_tree_invariants_hold() -> noprop::TestResult {
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
+    let saw_type = pbt_harness::Counter::new();
+    let mut runner = noprop::Runner::new(seed);
+    runner.run(pbt_harness::CASES, |ctx| {
+        let src = pbt_harness::sample_type_unit(ctx);
+        let Some(tokens) = pbt_harness::scan_all(&src) else {
+            return Ok(());
+        };
+        let tree = pbt_harness::parse_full(erl_parse::ParseMode::Type, &tokens);
+        if let Err(violations) = pbt_harness::validate_tree(&tree) {
+            panic!("invariant violations for source {src:?}: {violations:?}");
+        }
+        if !tree.syntax().is_empty() {
+            saw_type.bump();
+        }
+        Ok(())
+    })?;
+    assert!(
+        saw_type.get() > 0,
+        "no case produced any type at type-mode top level\n{runner}"
+    );
+    Ok(())
+}
+
 /// For any generator-produced token stream, the parser leaves the
 /// input token buffer unchanged: same length, same tokens in the
 /// same positions.
@@ -106,32 +133,19 @@ fn term_list_mode_tree_invariants_hold() -> noprop::TestResult {
 fn parser_never_modifies_the_input_token_buffer() -> noprop::TestResult {
     let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
     let mut runner = noprop::Runner::new(seed);
-    let modes = &[
-        erl_parse::ParseMode::Expression,
-        erl_parse::ParseMode::Module,
-        erl_parse::ParseMode::TermList,
-    ];
     let saw_each_mode = pbt_harness::LabelSet::new();
     runner.run(pbt_harness::CASES, |ctx| {
-        let mode = noprop::sample_choice(ctx, modes);
-        let src = match mode {
-            erl_parse::ParseMode::Expression => pbt_harness::sample_expression_unit(ctx),
-            erl_parse::ParseMode::Module => pbt_harness::sample_module_source(ctx),
-            erl_parse::ParseMode::TermList => pbt_harness::sample_term_list_source(ctx),
-        };
+        let mode = noprop::sample_choice(ctx, pbt_harness::ALL_MODES);
+        let src = pbt_harness::sample_source_for_mode(ctx, mode);
         let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
         let tree = pbt_harness::parse_full(mode, &tokens);
         pbt_harness::assert_tokens_unchanged(tree.tokens(), &tokens);
-        saw_each_mode.insert(match mode {
-            erl_parse::ParseMode::Expression => "expression",
-            erl_parse::ParseMode::Module => "module",
-            erl_parse::ParseMode::TermList => "term-list",
-        });
+        saw_each_mode.insert(pbt_harness::mode_label(mode));
         Ok(())
     })?;
-    for label in ["expression", "module", "term-list"] {
+    for label in ["expression", "module", "term-list", "type"] {
         assert!(
             saw_each_mode.contains(label),
             "no case exercised mode {label}\n{runner}"

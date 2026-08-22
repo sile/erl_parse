@@ -11,21 +11,13 @@
 //! [`ParseContext::Expression`] because the syntactic surface of a
 //! guard expression is the same as a general expression at this level.
 //! Legality of the operations that appear (guard BIF vs arbitrary call,
-//! for example) is left to the semantic phase.
-
-use crate::grammar::clause::parse_guard_sequence;
-use crate::parser::{CompletedMarker, Parser};
-
-/// Parses a guard sequence: `Guard1 ; Guard2 ; ...` where each guard is
-/// a comma-separated list of expressions. Wraps as a
-/// [`crate::SyntaxKind::GuardSequence`] node.
-pub(crate) fn parse_guard(p: &mut Parser) -> CompletedMarker {
-    parse_guard_sequence(p)
-}
+//! for example) is left to the semantic phase. The productions live in
+//! [`crate::grammar::clause`] so block expressions and function
+//! declarations share one implementation.
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::grammar::clause::parse_guard_sequence;
     use crate::syntax::{NodeId, SyntaxKind};
     use crate::{ParseMode, Parser};
     use erl_tokenize::{Position, Token, scan_token};
@@ -47,7 +39,7 @@ mod tests {
         }
         p.reset_for_test();
         let outer = p.start();
-        parse_guard(&mut p);
+        parse_guard_sequence(&mut p);
         outer.complete(&mut p, SyntaxKind::Error);
         p.finalize_pending_units_for_test();
         p

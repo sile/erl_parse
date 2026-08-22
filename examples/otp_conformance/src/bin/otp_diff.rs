@@ -246,7 +246,7 @@ fn compare_parse(
             }
             Err(e) => return Compare::Error(format!("{id}: {e}")),
         };
-        return compare_one_parse(id, v, mode, run, tree, exp);
+        return compare_one_parse(id, v, run, tree, exp);
     }
 
     if run.parse == otp_conformance::Stage::Ok
@@ -298,13 +298,12 @@ fn compare_parse(
             }
         }
     }
-    compare_aux_and_tree(id, v, mode, run, tree)
+    compare_tree(id, v, run, tree)
 }
 
 fn compare_one_parse(
     id: &str,
     v: nojson::RawJsonValue<'_, '_>,
-    mode: erl_parse::ParseMode,
     run: &otp_conformance::ParseRun,
     tree: &erl_parse::SyntaxTree,
     exp: otp_conformance::Stage,
@@ -328,13 +327,12 @@ fn compare_one_parse(
             _ => return Compare::Ok,
         }
     }
-    compare_aux_and_tree(id, v, mode, run, tree)
+    compare_tree(id, v, run, tree)
 }
 
-fn compare_aux_and_tree(
+fn compare_tree(
     id: &str,
     v: nojson::RawJsonValue<'_, '_>,
-    mode: erl_parse::ParseMode,
     run: &otp_conformance::ParseRun,
     tree: &erl_parse::SyntaxTree,
 ) -> Compare {
@@ -350,41 +348,6 @@ fn compare_aux_and_tree(
         };
         if actual != expected_tree {
             return Compare::Error(format!("{id}: tree otp {expected_tree} rust {actual}"));
-        }
-    }
-
-    let aux_kind = match opt_str(v, "aux_kind") {
-        Ok(s) => s,
-        Err(e) => return Compare::Error(format!("{id}: {e}")),
-    };
-    if let Some(kind_s) = aux_kind {
-        let Some(aux_kind) = otp_conformance::AuxKind::parse(&kind_s) else {
-            return Compare::Error(format!("{id}: unknown aux_kind {kind_s}"));
-        };
-        let path = match req_str(v, "extract_path") {
-            Ok(p) => p,
-            Err(e) => return Compare::Error(format!("{id}: {e}")),
-        };
-        let exp = match opt_stage(v, "aux_parse") {
-            Ok(Some(s)) => s,
-            Ok(None) => otp_conformance::Stage::Ok,
-            Err(e) => return Compare::Error(format!("{id}: {e}")),
-        };
-        let ok = match otp_conformance::parse_aux(mode, tree.tokens().as_slice(), aux_kind, &path) {
-            Ok(b) => b,
-            Err(e) => return Compare::Error(format!("{id}: aux {e}")),
-        };
-        let actual = if ok {
-            otp_conformance::Stage::Ok
-        } else {
-            otp_conformance::Stage::Err
-        };
-        if actual != exp {
-            return Compare::Error(format!(
-                "{id}: aux_parse XOR (otp {}, rust {})",
-                exp.as_str(),
-                actual.as_str()
-            ));
         }
     }
     Compare::Ok

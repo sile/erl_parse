@@ -1,6 +1,5 @@
-//! Integration tests for the `erl_parse::ParseMode::Expression` top-level and the
-//! auxiliary entry point methods on `erl_parse::Parser`. Exercises the public
-//! surface as external consumers see it.
+//! Integration tests for the `erl_parse::ParseMode::Expression` top-level.
+//! Exercises the public surface as external consumers see it.
 
 fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     let mut out = Vec::new();
@@ -62,85 +61,6 @@ fn expression_mode_emits_multiple_units_across_dots() {
 }
 
 #[test]
-fn parse_expression_range_returns_new_top_level_unit() {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    push_all(&mut parser, "1 + 2");
-    // Aux entry point requires no in-progress unit and no `.` boundary
-    // has been reached yet, so `unit_in_progress` is false and the aux
-    // parse can run against the full pushed range.
-    let range = erl_parse::TokenRange::new(
-        erl_parse::TokenIndex::new(0),
-        parser.syntax_tree().tokens().end_index(),
-    );
-    let id = parser
-        .parse_expression_range(range)
-        .expect("aux entry point succeeds when no unit is in progress");
-    let tree = parser.finish();
-    assert_eq!(kind_of(&tree, id), erl_parse::SyntaxKind::BinaryOpExpr);
-    assert!(tree.errors().is_empty());
-}
-
-#[test]
-fn parse_pattern_range_rejects_expression_only_constructs() {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    push_all(&mut parser, "foo(1)");
-    let range = erl_parse::TokenRange::new(
-        erl_parse::TokenIndex::new(0),
-        parser.syntax_tree().tokens().end_index(),
-    );
-    let _ = parser
-        .parse_pattern_range(range)
-        .expect("no in-progress unit");
-    let tree = parser.finish();
-    // The call expression is rejected in pattern position, so we see
-    // an error while the tree still holds the structural node.
-    assert!(!tree.errors().is_empty());
-}
-
-#[test]
-fn parse_guard_range_returns_guard_sequence_node() {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    push_all(&mut parser, "X > 0, X < 10");
-    let range = erl_parse::TokenRange::new(
-        erl_parse::TokenIndex::new(0),
-        parser.syntax_tree().tokens().end_index(),
-    );
-    let id = parser
-        .parse_guard_range(range)
-        .expect("no in-progress unit");
-    let tree = parser.finish();
-    assert_eq!(kind_of(&tree, id), erl_parse::SyntaxKind::GuardSequence);
-    assert!(tree.errors().is_empty());
-}
-
-#[test]
-fn parse_term_range_rejects_variables_and_calls() {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    push_all(&mut parser, "X");
-    let range = erl_parse::TokenRange::new(
-        erl_parse::TokenIndex::new(0),
-        parser.syntax_tree().tokens().end_index(),
-    );
-    let _ = parser.parse_term_range(range).expect("no in-progress unit");
-    let tree = parser.finish();
-    assert!(!tree.errors().is_empty());
-}
-
-#[test]
-fn parse_term_range_accepts_literal_tuple() {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    push_all(&mut parser, "{ok, 1}");
-    let range = erl_parse::TokenRange::new(
-        erl_parse::TokenIndex::new(0),
-        parser.syntax_tree().tokens().end_index(),
-    );
-    let id = parser.parse_term_range(range).expect("no in-progress unit");
-    let tree = parser.finish();
-    assert_eq!(kind_of(&tree, id), erl_parse::SyntaxKind::TupleExpr);
-    assert!(tree.errors().is_empty());
-}
-
-#[test]
 fn push_token_returns_index_of_added_token() {
     // Include a comment so hidden tokens participate in the index
     // stream on the same footing as lexical tokens.
@@ -165,13 +85,3 @@ fn push_token_returns_index_of_added_token() {
         assert_eq!(got, *expected, "get({index:?}) mismatch");
     }
 }
-
-// The `erl_parse::ProtocolError` precondition on the aux-entry-point methods
-// (`parse_expression_range` / `parse_pattern_range` /
-// `parse_guard_range` / `parse_term_range` / `parse_type_range`)
-// covers the case where a top-level unit is still in progress when
-// the caller invokes one of them. None of the mode-level top-level
-// drivers currently in this crate leave a unit half-open across
-// `push_token` / `finish` calls, so the precondition is a contract
-// preserved for future error-recovery grammars rather than something
-// integration tests can trigger through the public API.

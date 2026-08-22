@@ -307,9 +307,10 @@ pub enum SyntaxKind {
     // parenthesized payload is present, an
     // [`AttributePayload`][Self::AttributePayload] child. Callers pull
     // the attribute name from the token buffer and, when needed, feed
-    // the payload's `TokenRange` back through the term / expression /
-    // pattern / guard / type auxiliary entry points on
-    // [`crate::Parser`].
+    // the payload's `TokenRange` back through a fresh parser in
+    // [`crate::ParseMode::Type`], [`crate::ParseMode::TermList`], or
+    // [`crate::ParseMode::Expression`] when they want a structured
+    // reading of the payload.
     // ---------------------------------------------------------------------
     /// A top-level attribute form, `-Name.` or `-Name(Payload).`. The
     /// terminating `.` is folded into the node's `TokenRange` by the

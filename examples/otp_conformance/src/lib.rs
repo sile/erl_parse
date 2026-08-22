@@ -38,35 +38,6 @@ impl Stage {
     }
 }
 
-/// Which auxiliary `erl_parse::Parser::parse_*_range` entry point to run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuxKind {
-    /// `erl_parse::Parser::parse_pattern_range`.
-    Pattern,
-    /// `erl_parse::Parser::parse_guard_range`.
-    Guard,
-    /// `erl_parse::Parser::parse_type_range`.
-    Type,
-    /// `erl_parse::Parser::parse_term_range`.
-    Term,
-    /// `erl_parse::Parser::parse_expression_range`.
-    Expression,
-}
-
-impl AuxKind {
-    /// Parses a fixture `aux_kind` string.
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "pattern" => Some(Self::Pattern),
-            "guard" => Some(Self::Guard),
-            "type" => Some(Self::Type),
-            "term" => Some(Self::Term),
-            "expression" => Some(Self::Expression),
-            _ => None,
-        }
-    }
-}
-
 /// Result of driving tokenize / preprocess / parse on one input.
 pub struct ParseRun {
     /// Tokenize stage.
@@ -305,6 +276,13 @@ pub fn is_epp_consumed_feature_attribute(
     false
 }
 
+fn child_of_kind(
+    node: erl_parse::NodeView<'_>,
+    kind: erl_parse::SyntaxKind,
+) -> Option<erl_parse::NodeView<'_>> {
+    node.children().find(|c| c.kind() == kind)
+}
+
 /// Roots aligned with OTP `erl_parse` per-form fixture lists (drops epp-consumed `-feature`).
 pub fn roots_for_otp_parse_compare(
     tree: &erl_parse::SyntaxTree,
@@ -528,138 +506,6 @@ pub fn is_skipped(path: &Path) -> bool {
     INDIVIDUAL_SKIPS.iter().any(|suffix| s.ends_with(suffix))
 }
 
-/// Resolves a dotted extract path such as
-/// `form[0].function_decl.clause[0].argument_list[0]`.
-///
-/// For `-spec` types, a trailing `after_arrow` takes the tokens after the
-/// first `->` in the current range (the payload is `f() -> Type`, not `Type`).
-pub fn extract_range(
-    tree: &erl_parse::SyntaxTree,
-    roots: &[erl_parse::NodeId],
-    path: &str,
-) -> Option<erl_parse::TokenRange> {
-    let mut segs = path.split('.');
-    let first = segs.next()?;
-    let i = parse_indexed("form", first)?;
-    let mut node = roots
-        .get(i)
-        .copied()
-        .and_then(|id| erl_parse::NodeView::new(tree.tokens(), tree.syntax(), id))?;
-    let mut range = node.range();
-    for seg in segs {
-        if seg == "after_arrow" {
-            range = range_after_arrow(tree, range)?;
-            continue;
-        }
-        node = step_path(node, seg)?;
-        range = node.range();
-    }
-    Some(range)
-}
-
-fn parse_indexed(prefix: &str, seg: &str) -> Option<usize> {
-    let rest = seg.strip_prefix(prefix)?;
-    let inside = rest.strip_prefix('[')?.strip_suffix(']')?;
-    inside.parse().ok()
-}
-
-fn step_path<'a>(node: erl_parse::NodeView<'a>, seg: &str) -> Option<erl_parse::NodeView<'a>> {
-    if let Some(i) = parse_indexed("clause", seg) {
-        return children_of_kind(node, erl_parse::SyntaxKind::FunctionClause).nth(i);
-    }
-    if let Some(i) = parse_indexed("argument_list", seg) {
-        let list = child_of_kind(node, erl_parse::SyntaxKind::ArgumentList)?;
-        return list.children().nth(i);
-    }
-    match seg {
-        "function_decl" => {
-            if node.kind() == erl_parse::SyntaxKind::FunctionDecl {
-                Some(node)
-            } else {
-                child_of_kind(node, erl_parse::SyntaxKind::FunctionDecl)
-            }
-        }
-        "argument_list" => child_of_kind(node, erl_parse::SyntaxKind::ArgumentList),
-        "guard_sequence" => child_of_kind(node, erl_parse::SyntaxKind::GuardSequence),
-        "attribute" => {
-            if node.kind() == erl_parse::SyntaxKind::Attribute {
-                Some(node)
-            } else {
-                child_of_kind(node, erl_parse::SyntaxKind::Attribute)
-            }
-        }
-        "payload" => child_of_kind(node, erl_parse::SyntaxKind::AttributePayload),
-        _ => None,
-    }
-}
-
-fn children_of_kind(
-    node: erl_parse::NodeView<'_>,
-    kind: erl_parse::SyntaxKind,
-) -> impl Iterator<Item = erl_parse::NodeView<'_>> {
-    node.children().filter(move |c| c.kind() == kind)
-}
-
-fn child_of_kind(
-    node: erl_parse::NodeView<'_>,
-    kind: erl_parse::SyntaxKind,
-) -> Option<erl_parse::NodeView<'_>> {
-    node.children().find(|c| c.kind() == kind)
-}
-
-fn range_after_arrow(
-    tree: &erl_parse::SyntaxTree,
-    payload: erl_parse::TokenRange,
-) -> Option<erl_parse::TokenRange> {
-    let mut arrow = None;
-    for (idx, t) in tree.tokens().iter_range(payload) {
-        if t.kind() == erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::RightArrow) {
-            arrow = Some(idx);
-            break;
-        }
-    }
-    let start = erl_parse::TokenIndex::new(arrow?.get() + 1);
-    if start.get() >= payload.end().get() {
-        return None;
-    }
-    Some(erl_parse::TokenRange::new(start, payload.end()))
-}
-
-/// Re-parses `tokens` and runs an auxiliary entry point. `true` if it adds no errors.
-pub fn parse_aux(
-    mode: erl_parse::ParseMode,
-    tokens: &[erl_tokenize::Token],
-    aux_kind: AuxKind,
-    extract_path: &str,
-) -> Result<bool, String> {
-    let mut parser = erl_parse::Parser::new(mode);
-    for t in tokens {
-        parser.push_token(*t);
-    }
-    let mut roots = Vec::new();
-    while let Some(id) = parser.next_top_node() {
-        roots.push(id);
-    }
-    let range = extract_range(parser.syntax_tree(), &roots, extract_path)
-        .ok_or_else(|| format!("extract_path {extract_path} did not resolve"))?;
-    let before = parser.syntax_tree().errors().len();
-    let id = match aux_kind {
-        AuxKind::Pattern => parser.parse_pattern_range(range),
-        AuxKind::Guard => parser.parse_guard_range(range),
-        AuxKind::Type => parser.parse_type_range(range),
-        AuxKind::Term => parser.parse_term_range(range),
-        AuxKind::Expression => parser.parse_expression_range(range),
-    }
-    .map_err(|_| "aux parse ProtocolError (unit still in progress)".to_string())?;
-    let tree = parser.syntax_tree();
-    let extra_errors = tree.errors().len() > before;
-    let error_node = tree
-        .syntax()
-        .entry(id)
-        .is_some_and(|e| e.kind() == erl_parse::SyntaxKind::Error);
-    Ok(!extra_errors && !error_node)
-}
-
 /// Number of non-`Error` roots after the first `erl_parse::SyntaxKind::Error` root.
 pub fn later_forms_after_error(tree: &erl_parse::SyntaxTree, roots: &[erl_parse::NodeId]) -> usize {
     let mut seen_error = false;
@@ -804,6 +650,7 @@ pub fn parse_mode_from_str(s: &str) -> Option<erl_parse::ParseMode> {
         "module" => Some(erl_parse::ParseMode::Module),
         "term_list" => Some(erl_parse::ParseMode::TermList),
         "expression" => Some(erl_parse::ParseMode::Expression),
+        "type" => Some(erl_parse::ParseMode::Type),
         _ => None,
     }
 }

@@ -1,6 +1,5 @@
 //! Property-based tests that exercise the parser at the mode /
-//! entry-point level: determinism, observation-invariance, and the
-//! `erl_parse::ProtocolError` contract on auxiliary entry points.
+//! entry-point level: determinism and observation-invariance.
 
 #[expect(dead_code, reason = "shared harness; this binary uses only a subset")]
 mod pbt_harness;
@@ -12,18 +11,9 @@ mod pbt_harness;
 fn determinism_across_two_parsers() -> noprop::TestResult {
     let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
     let mut runner = noprop::Runner::new(seed);
-    let modes = &[
-        erl_parse::ParseMode::Expression,
-        erl_parse::ParseMode::Module,
-        erl_parse::ParseMode::TermList,
-    ];
     runner.run(pbt_harness::CASES, |ctx| {
-        let mode = noprop::sample_choice(ctx, modes);
-        let src = match mode {
-            erl_parse::ParseMode::Expression => pbt_harness::sample_expression_unit(ctx),
-            erl_parse::ParseMode::Module => pbt_harness::sample_module_source(ctx),
-            erl_parse::ParseMode::TermList => pbt_harness::sample_term_list_source(ctx),
-        };
+        let mode = noprop::sample_choice(ctx, pbt_harness::ALL_MODES);
+        let src = pbt_harness::sample_source_for_mode(ctx, mode);
         let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
@@ -101,89 +91,16 @@ fn observation_invariance() -> noprop::TestResult {
     Ok(())
 }
 
-/// The five auxiliary entry points return `Ok(_)` when called on
-/// a fresh parser instance whose only pushed tokens were the range
-/// they operate on. `erl_parse::ProtocolError` fires only when a top-level
-/// unit is in progress, which the drain protocol below prevents.
-#[test]
-fn aux_entry_points_respect_protocol_when_freshly_used() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
-    let saw_each = pbt_harness::LabelSet::new();
-    let mut runner = noprop::Runner::new(seed);
-    runner.run(pbt_harness::CASES, |ctx| {
-        // Draw one of the five aux entry points and a matching
-        // source fragment. Use Expression mode so no top-level
-        // dot-driver runs while we push tokens (Expression mode
-        // triggers only on lexical dots; we omit dots).
-        let variant = noprop::sample_weighted_index(ctx, &[1, 1, 1, 1, 1]);
-        let src = match variant {
-            0 => pbt_harness::sample_expression(ctx, 2),
-            1 => pbt_harness::sample_expression(ctx, 2),
-            2 => "X > 0, X < 10".to_string(),
-            3 => pbt_harness::sample_term(ctx, 2),
-            _ => "integer() | atom()".to_string(),
-        };
-        let Some(tokens) = pbt_harness::scan_all(&src) else {
-            return Ok(());
-        };
-        if tokens.is_empty() {
-            return Ok(());
-        }
-        let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-        for t in &tokens {
-            p.push_token(*t);
-        }
-        let end = p.syntax_tree().tokens().end_index();
-        let range = erl_parse::TokenRange::new(erl_parse::TokenIndex::new(0), end);
-        let result = match variant {
-            0 => p.parse_expression_range(range),
-            1 => p.parse_pattern_range(range),
-            2 => p.parse_guard_range(range),
-            3 => p.parse_term_range(range),
-            _ => p.parse_type_range(range),
-        };
-        assert!(
-            result.is_ok(),
-            "aux entry point {variant} returned erl_parse::ProtocolError on fresh parser: source {src:?}"
-        );
-        let _ = p.finish();
-        saw_each.insert(match variant {
-            0 => "expression",
-            1 => "pattern",
-            2 => "guard",
-            3 => "term",
-            _ => "type",
-        });
-        Ok(())
-    })?;
-    for label in ["expression", "pattern", "guard", "term", "type"] {
-        assert!(
-            saw_each.contains(label),
-            "aux entry point {label} was never exercised\n{runner}"
-        );
-    }
-    Ok(())
-}
-
-/// For any input in any of the three modes, `erl_parse::Parser::finish`
+/// For any input in any of the four modes, `erl_parse::Parser::finish`
 /// returns without panicking or hanging: parsing terminates.
 #[test]
 fn parser_always_terminates_across_modes() -> noprop::TestResult {
     let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
-    let modes = &[
-        erl_parse::ParseMode::Expression,
-        erl_parse::ParseMode::Module,
-        erl_parse::ParseMode::TermList,
-    ];
     let touched = pbt_harness::Flag::new();
     let mut runner = noprop::Runner::new(seed);
     runner.run(pbt_harness::CASES, |ctx| {
-        let mode = noprop::sample_choice(ctx, modes);
-        let src = match mode {
-            erl_parse::ParseMode::Expression => pbt_harness::sample_expression_unit(ctx),
-            erl_parse::ParseMode::Module => pbt_harness::sample_module_source(ctx),
-            erl_parse::ParseMode::TermList => pbt_harness::sample_term_list_source(ctx),
-        };
+        let mode = noprop::sample_choice(ctx, pbt_harness::ALL_MODES);
+        let src = pbt_harness::sample_source_for_mode(ctx, mode);
         let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
