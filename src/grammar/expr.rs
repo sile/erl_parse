@@ -14,8 +14,6 @@
 //!
 //! Grammar shape follows OTP 29's `lib/stdlib/src/erl_parse.yrl`.
 
-use erl_tokenize::{Keyword, Symbol, TokenKind};
-
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::clause::{
     parse_argument_list, parse_arrow_body, parse_body, parse_case_clause, parse_clause_guard_opt,
@@ -106,7 +104,7 @@ fn parse_expr_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
         }
 
         // Call suffix `(...)`. `Left 750 '('` in the yrl.
-        if is_symbol(token, Symbol::OpenParen) && CALL_LBP > min_bp {
+        if is_symbol(token, erl_tokenize::Symbol::OpenParen) && CALL_LBP > min_bp {
             reject_in_restricted(p, "call not allowed here");
             let m = lhs.precede(p);
             parse_argument_list(p);
@@ -116,7 +114,7 @@ fn parse_expr_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
         }
 
         // Remote qualifier `Mod : Fun`. `Nonassoc 800 ':'` in the yrl.
-        if is_symbol(token, Symbol::Colon) && REMOTE_LBP > min_bp {
+        if is_symbol(token, erl_tokenize::Symbol::Colon) && REMOTE_LBP > min_bp {
             reject_in_restricted(p, "remote qualifier `:` not allowed here");
             let m = lhs.precede(p);
             p.consume_lexical();
@@ -131,7 +129,7 @@ fn parse_expr_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
         // - `Expr#{...}` → MapUpdateExpr
         // - `Expr#Name{...}` → RecordUpdateExpr
         // - `Expr#Name.Field` → RecordFieldAccessExpr
-        if is_symbol(token, Symbol::Sharp) && RECORD_MAP_LBP > min_bp {
+        if is_symbol(token, erl_tokenize::Symbol::Sharp) && RECORD_MAP_LBP > min_bp {
             let m = lhs.precede(p);
             p.consume_lexical(); // `#`
             lhs = complete_record_or_map_suffix(p, m);
@@ -143,7 +141,7 @@ fn parse_expr_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
         //
         // - `Expr#_{...}` → RecordUpdateExpr (anonymous)
         // - `Expr#_.Field` → RecordFieldAccessExpr (anonymous)
-        if is_symbol(token, Symbol::WildcardRecord) && RECORD_MAP_LBP > min_bp {
+        if is_symbol(token, erl_tokenize::Symbol::WildcardRecord) && RECORD_MAP_LBP > min_bp {
             let m = lhs.precede(p);
             p.consume_lexical(); // `#_`
             lhs = complete_anon_record_suffix(p, m);
@@ -191,43 +189,49 @@ pub(crate) fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
     }
 
     match token.kind() {
-        TokenKind::Atom => atomic(p, m, SyntaxKind::AtomExpr),
-        TokenKind::Variable => {
+        erl_tokenize::TokenKind::Atom => atomic(p, m, SyntaxKind::AtomExpr),
+        erl_tokenize::TokenKind::Variable => {
             if p.context() == ParseContext::Term {
                 push_context_error(p, "variable not allowed in term position");
             }
             atomic(p, m, SyntaxKind::VarExpr)
         }
-        TokenKind::Integer => atomic(p, m, SyntaxKind::IntegerExpr),
-        TokenKind::Float => atomic(p, m, SyntaxKind::FloatExpr),
-        TokenKind::Char => atomic(p, m, SyntaxKind::CharExpr),
-        TokenKind::String => {
+        erl_tokenize::TokenKind::Integer => atomic(p, m, SyntaxKind::IntegerExpr),
+        erl_tokenize::TokenKind::Float => atomic(p, m, SyntaxKind::FloatExpr),
+        erl_tokenize::TokenKind::Char => atomic(p, m, SyntaxKind::CharExpr),
+        erl_tokenize::TokenKind::String => {
             p.consume_lexical();
             while matches!(
                 p.peek_lexical(0).map(|(_, t)| t.kind()),
-                Some(TokenKind::String)
+                Some(erl_tokenize::TokenKind::String)
             ) {
                 p.consume_lexical();
             }
             m.complete(p, SyntaxKind::StringExpr)
         }
-        TokenKind::SigilString => {
+        erl_tokenize::TokenKind::SigilString => {
             p.consume_lexical();
             m.complete(p, SyntaxKind::SigilStringExpr)
         }
-        TokenKind::Symbol(Symbol::OpenParen) => parse_paren(p, m),
-        TokenKind::Symbol(Symbol::OpenBrace) => parse_tuple(p, m),
-        TokenKind::Symbol(Symbol::OpenSquare) => parse_list(p, m),
-        TokenKind::Symbol(Symbol::Sharp) => parse_record_or_map_prefix(p, m),
-        TokenKind::Symbol(Symbol::WildcardRecord) => parse_anon_record_prefix(p, m),
-        TokenKind::Symbol(Symbol::DoubleLeftAngle) => parse_bitstring(p, m),
-        TokenKind::Keyword(Keyword::Begin) => parse_begin(p, m),
-        TokenKind::Keyword(Keyword::Case) => parse_case(p, m),
-        TokenKind::Keyword(Keyword::If) => parse_if(p, m),
-        TokenKind::Keyword(Keyword::Receive) => parse_receive(p, m),
-        TokenKind::Keyword(Keyword::Try) => parse_try(p, m),
-        TokenKind::Keyword(Keyword::Maybe) => parse_maybe(p, m),
-        TokenKind::Keyword(Keyword::Fun) => parse_fun(p, m),
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenParen) => parse_paren(p, m),
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenBrace) => parse_tuple(p, m),
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenSquare) => parse_list(p, m),
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Sharp) => {
+            parse_record_or_map_prefix(p, m)
+        }
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::WildcardRecord) => {
+            parse_anon_record_prefix(p, m)
+        }
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::DoubleLeftAngle) => {
+            parse_bitstring(p, m)
+        }
+        erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Begin) => parse_begin(p, m),
+        erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Case) => parse_case(p, m),
+        erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::If) => parse_if(p, m),
+        erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Receive) => parse_receive(p, m),
+        erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Try) => parse_try(p, m),
+        erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Maybe) => parse_maybe(p, m),
+        erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Fun) => parse_fun(p, m),
         _ => {
             let _ = idx;
             let _ = token;
@@ -252,7 +256,7 @@ fn parse_paren(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
     parse_expr_bp(p, 0);
     expect_symbol(
         p,
-        Symbol::CloseParen,
+        erl_tokenize::Symbol::CloseParen,
         "`)` to close parenthesized expression",
     );
     m.complete(p, SyntaxKind::ParenExpr)
@@ -260,12 +264,12 @@ fn parse_paren(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
 
 fn parse_tuple(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
     p.consume_lexical(); // `{`
-    if at_symbol(p, Symbol::CloseBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::CloseBrace) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::TupleExpr);
     }
-    parse_comma_separated_exprs(p, Symbol::CloseBrace);
-    expect_symbol(p, Symbol::CloseBrace, "`}` to close tuple");
+    parse_comma_separated_exprs(p, erl_tokenize::Symbol::CloseBrace);
+    expect_symbol(p, erl_tokenize::Symbol::CloseBrace, "`}` to close tuple");
     m.complete(p, SyntaxKind::TupleExpr)
 }
 
@@ -275,33 +279,37 @@ fn parse_tuple(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
 /// separator that follows the template expression(s).
 fn parse_list(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
     p.consume_lexical(); // `[`
-    if at_symbol(p, Symbol::CloseSquare) {
+    if at_symbol(p, erl_tokenize::Symbol::CloseSquare) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::ListExpr);
     }
     parse_expr_bp(p, 0);
     loop {
-        if at_symbol(p, Symbol::DoubleVerticalBar) {
+        if at_symbol(p, erl_tokenize::Symbol::DoubleVerticalBar) {
             reject_in_restricted(p, "list comprehension not allowed here");
             p.consume_lexical();
             parse_comprehension_qualifiers(p);
-            expect_symbol(p, Symbol::CloseSquare, "`]` to close list comprehension");
+            expect_symbol(
+                p,
+                erl_tokenize::Symbol::CloseSquare,
+                "`]` to close list comprehension",
+            );
             return m.complete(p, SyntaxKind::ListComprehension);
         }
-        if at_symbol(p, Symbol::VerticalBar) {
+        if at_symbol(p, erl_tokenize::Symbol::VerticalBar) {
             p.consume_lexical();
             parse_expr_bp(p, 0);
-            expect_symbol(p, Symbol::CloseSquare, "`]` to close list");
+            expect_symbol(p, erl_tokenize::Symbol::CloseSquare, "`]` to close list");
             return m.complete(p, SyntaxKind::ConsExpr);
         }
-        if at_symbol(p, Symbol::Comma) {
+        if at_symbol(p, erl_tokenize::Symbol::Comma) {
             p.consume_lexical();
             parse_expr_bp(p, 0);
             continue;
         }
         break;
     }
-    expect_symbol(p, Symbol::CloseSquare, "`]` to close list");
+    expect_symbol(p, erl_tokenize::Symbol::CloseSquare, "`]` to close list");
     m.complete(p, SyntaxKind::ListExpr)
 }
 
@@ -316,21 +324,21 @@ fn parse_list(p: &mut Parser, m: crate::parser::Marker) -> CompletedMarker {
 /// so a malformed element does not swallow the rest of the
 /// container. The [`SyntaxKind::Error`] node the recovery emits
 /// keeps the skipped span visible in the syntax index.
-pub(crate) fn parse_comma_separated_exprs(p: &mut Parser, close: Symbol) {
+pub(crate) fn parse_comma_separated_exprs(p: &mut Parser, close: erl_tokenize::Symbol) {
     loop {
         parse_expr_bp(p, 0);
-        if !at_symbol(p, Symbol::Comma) && !at_symbol(p, close) {
+        if !at_symbol(p, erl_tokenize::Symbol::Comma) && !at_symbol(p, close) {
             let _ = crate::grammar::recovery::skip_until_sync(
                 p,
                 crate::parser::RecoveryContext::Container,
                 |t| {
-                    crate::grammar::util::is_symbol(t, Symbol::Comma)
+                    crate::grammar::util::is_symbol(t, erl_tokenize::Symbol::Comma)
                         || crate::grammar::util::is_symbol(t, close)
                 },
                 "`,` or closing delimiter",
             );
         }
-        if !at_symbol(p, Symbol::Comma) {
+        if !at_symbol(p, erl_tokenize::Symbol::Comma) {
             break;
         }
         p.consume_lexical();
@@ -351,9 +359,11 @@ pub(crate) fn parse_comma_separated_exprs(p: &mut Parser, close: Symbol) {
 
 fn binary_op_kind(token: erl_tokenize::Token) -> SyntaxKind {
     match token.kind() {
-        TokenKind::Symbol(Symbol::Match) => SyntaxKind::MatchExpr,
-        TokenKind::Symbol(Symbol::Bang) => SyntaxKind::SendExpr,
-        TokenKind::Symbol(Symbol::MaybeMatch) => SyntaxKind::MaybeMatchExpr,
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Match) => SyntaxKind::MatchExpr,
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Bang) => SyntaxKind::SendExpr,
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::MaybeMatch) => {
+            SyntaxKind::MaybeMatchExpr
+        }
         _ => SyntaxKind::BinaryOpExpr,
     }
 }
@@ -368,7 +378,7 @@ fn parse_begin(p: &mut Parser, m: Marker) -> CompletedMarker {
     let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `begin`
     parse_body(p);
-    expect_keyword(p, Keyword::End, "`end` to close `begin`");
+    expect_keyword(p, erl_tokenize::Keyword::End, "`end` to close `begin`");
     p.set_context(prev);
     m.complete(p, SyntaxKind::BeginExpr)
 }
@@ -379,9 +389,9 @@ fn parse_case(p: &mut Parser, m: Marker) -> CompletedMarker {
     let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `case`
     parse_expr(p);
-    expect_keyword(p, Keyword::Of, "`of` in `case` expression");
+    expect_keyword(p, erl_tokenize::Keyword::Of, "`of` in `case` expression");
     parse_semicolon_separated(p, parse_case_clause);
-    expect_keyword(p, Keyword::End, "`end` to close `case`");
+    expect_keyword(p, erl_tokenize::Keyword::End, "`end` to close `case`");
     p.set_context(prev);
     m.complete(p, SyntaxKind::CaseExpr)
 }
@@ -392,7 +402,7 @@ fn parse_if(p: &mut Parser, m: Marker) -> CompletedMarker {
     let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `if`
     parse_semicolon_separated(p, parse_if_clause);
-    expect_keyword(p, Keyword::End, "`end` to close `if`");
+    expect_keyword(p, erl_tokenize::Keyword::End, "`end` to close `if`");
     p.set_context(prev);
     m.complete(p, SyntaxKind::IfExpr)
 }
@@ -406,17 +416,17 @@ fn parse_receive(p: &mut Parser, m: Marker) -> CompletedMarker {
     reject_in_restricted(p, "`receive` block not allowed here");
     let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `receive`
-    if !at_keyword(p, Keyword::After) && !at_keyword(p, Keyword::End) {
+    if !at_keyword(p, erl_tokenize::Keyword::After) && !at_keyword(p, erl_tokenize::Keyword::End) {
         parse_semicolon_separated(p, parse_case_clause);
     }
-    if at_keyword(p, Keyword::After) {
+    if at_keyword(p, erl_tokenize::Keyword::After) {
         let section = p.start();
         p.consume_lexical();
         parse_expr(p);
         parse_arrow_body(p);
         section.complete(p, SyntaxKind::ReceiveAfterSection);
     }
-    expect_keyword(p, Keyword::End, "`end` to close `receive`");
+    expect_keyword(p, erl_tokenize::Keyword::End, "`end` to close `receive`");
     p.set_context(prev);
     m.complete(p, SyntaxKind::ReceiveExpr)
 }
@@ -437,25 +447,25 @@ fn parse_try(p: &mut Parser, m: Marker) -> CompletedMarker {
     // keywords, and so the two `Clause` shapes (from `of` and from
     // pattern-only `catch`) can be told apart by their parent
     // section's kind.
-    if at_keyword(p, Keyword::Of) {
+    if at_keyword(p, erl_tokenize::Keyword::Of) {
         let section = p.start();
         p.consume_lexical();
         parse_semicolon_separated(p, parse_case_clause);
         section.complete(p, SyntaxKind::TryOfSection);
     }
-    if at_keyword(p, Keyword::Catch) {
+    if at_keyword(p, erl_tokenize::Keyword::Catch) {
         let section = p.start();
         p.consume_lexical();
         parse_semicolon_separated(p, parse_try_clause);
         section.complete(p, SyntaxKind::TryCatchSection);
     }
-    if at_keyword(p, Keyword::After) {
+    if at_keyword(p, erl_tokenize::Keyword::After) {
         let section = p.start();
         p.consume_lexical();
         parse_body(p);
         section.complete(p, SyntaxKind::TryAfterSection);
     }
-    expect_keyword(p, Keyword::End, "`end` to close `try`");
+    expect_keyword(p, erl_tokenize::Keyword::End, "`end` to close `try`");
     p.set_context(prev);
     m.complete(p, SyntaxKind::TryExpr)
 }
@@ -468,13 +478,13 @@ fn parse_maybe(p: &mut Parser, m: Marker) -> CompletedMarker {
     let prev = p.set_context(ParseContext::Expression);
     p.consume_lexical(); // `maybe`
     parse_body(p);
-    if at_keyword(p, Keyword::Else) {
+    if at_keyword(p, erl_tokenize::Keyword::Else) {
         let section = p.start();
         p.consume_lexical();
         parse_semicolon_separated(p, parse_case_clause);
         section.complete(p, SyntaxKind::MaybeElseSection);
     }
-    expect_keyword(p, Keyword::End, "`end` to close `maybe`");
+    expect_keyword(p, erl_tokenize::Keyword::End, "`end` to close `maybe`");
     p.set_context(prev);
     m.complete(p, SyntaxKind::MaybeExpr)
 }
@@ -504,9 +514,9 @@ fn parse_fun(p: &mut Parser, m: Marker) -> CompletedMarker {
 fn parse_fun_inner(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `fun`
 
-    if at_symbol(p, Symbol::OpenParen) {
+    if at_symbol(p, erl_tokenize::Symbol::OpenParen) {
         parse_semicolon_separated(p, parse_fun_clause);
-        expect_keyword(p, Keyword::End, "`end` to close `fun`");
+        expect_keyword(p, erl_tokenize::Keyword::End, "`end` to close `fun`");
         return m.complete(p, SyntaxKind::AnonymousFun);
     }
 
@@ -515,15 +525,17 @@ fn parse_fun_inner(p: &mut Parser, m: Marker) -> CompletedMarker {
     let first = p.peek_lexical(0);
     let second = p.peek_lexical(1);
     match (first.map(|(_, t)| t.kind()), second.map(|(_, t)| t.kind())) {
-        (Some(TokenKind::Atom | TokenKind::Variable), Some(TokenKind::Symbol(Symbol::Slash))) => {
-            parse_local_fun_ref(p, m)
-        }
-        (Some(TokenKind::Atom | TokenKind::Variable), Some(TokenKind::Symbol(Symbol::Colon))) => {
-            parse_remote_fun_ref(p, m)
-        }
         (
-            Some(TokenKind::Atom | TokenKind::Variable),
-            Some(TokenKind::Symbol(Symbol::OpenParen)),
+            Some(erl_tokenize::TokenKind::Atom | erl_tokenize::TokenKind::Variable),
+            Some(erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Slash)),
+        ) => parse_local_fun_ref(p, m),
+        (
+            Some(erl_tokenize::TokenKind::Atom | erl_tokenize::TokenKind::Variable),
+            Some(erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Colon)),
+        ) => parse_remote_fun_ref(p, m),
+        (
+            Some(erl_tokenize::TokenKind::Atom | erl_tokenize::TokenKind::Variable),
+            Some(erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenParen)),
         ) => parse_named_fun(p, m),
         _ => {
             let found = first.map(|(_, t)| t);
@@ -544,23 +556,31 @@ fn parse_fun_inner(p: &mut Parser, m: Marker) -> CompletedMarker {
 
 fn parse_local_fun_ref(p: &mut Parser, m: Marker) -> CompletedMarker {
     consume_atom_or_var(p, "fun name (atom or variable)");
-    expect_symbol(p, Symbol::Slash, "`/` in fun reference");
+    expect_symbol(p, erl_tokenize::Symbol::Slash, "`/` in fun reference");
     consume_integer_or_var(p, "arity (integer or variable)");
     m.complete(p, SyntaxKind::LocalFunRef)
 }
 
 fn parse_remote_fun_ref(p: &mut Parser, m: Marker) -> CompletedMarker {
     consume_atom_or_var(p, "module name (atom or variable)");
-    expect_symbol(p, Symbol::Colon, "`:` in remote fun reference");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::Colon,
+        "`:` in remote fun reference",
+    );
     consume_atom_or_var(p, "function name (atom or variable)");
-    expect_symbol(p, Symbol::Slash, "`/` in remote fun reference");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::Slash,
+        "`/` in remote fun reference",
+    );
     consume_integer_or_var(p, "arity (integer or variable)");
     m.complete(p, SyntaxKind::RemoteFunRef)
 }
 
 fn parse_named_fun(p: &mut Parser, m: Marker) -> CompletedMarker {
     parse_semicolon_separated(p, parse_named_fun_clause);
-    expect_keyword(p, Keyword::End, "`end` to close named `fun`");
+    expect_keyword(p, erl_tokenize::Keyword::End, "`end` to close named `fun`");
     m.complete(p, SyntaxKind::NamedFun)
 }
 
@@ -604,7 +624,7 @@ fn parse_named_fun_clause(p: &mut Parser) -> CompletedMarker {
 /// - `#Name.Field` → [`SyntaxKind::RecordIndexExpr`]
 fn parse_record_or_map_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `#`
-    if at_symbol(p, Symbol::OpenBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::OpenBrace) {
         let is_comprehension = parse_map_body(p);
         let kind = if is_comprehension {
             SyntaxKind::MapComprehension
@@ -615,11 +635,11 @@ fn parse_record_or_map_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
     }
     consume_atom_or_var(p, "record name");
     try_consume_native_record_qualifier(p);
-    if at_symbol(p, Symbol::OpenBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::OpenBrace) {
         parse_record_body(p);
         return m.complete(p, SyntaxKind::RecordExpr);
     }
-    if at_symbol(p, Symbol::Dot) {
+    if at_symbol(p, erl_tokenize::Symbol::Dot) {
         p.consume_lexical();
         consume_atom_or_var(p, "record field name");
         return m.complete(p, SyntaxKind::RecordIndexExpr);
@@ -642,7 +662,7 @@ fn parse_record_or_map_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
 /// (EEP 79 anonymous form). Completes as [`SyntaxKind::RecordExpr`].
 fn parse_anon_record_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `#_`
-    if at_symbol(p, Symbol::OpenBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::OpenBrace) {
         parse_record_body(p);
         return m.complete(p, SyntaxKind::RecordExpr);
     }
@@ -663,18 +683,18 @@ fn parse_anon_record_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
 /// Completes an already-started marker whose parent already consumed
 /// `#`, dispatching on the token that follows.
 fn complete_record_or_map_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
-    if at_symbol(p, Symbol::OpenBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::OpenBrace) {
         // Update never carries a comprehension body; ignore the flag.
         let _ = parse_map_body(p);
         return m.complete(p, SyntaxKind::MapUpdateExpr);
     }
     consume_atom_or_var(p, "record name");
     try_consume_native_record_qualifier(p);
-    if at_symbol(p, Symbol::OpenBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::OpenBrace) {
         parse_record_body(p);
         return m.complete(p, SyntaxKind::RecordUpdateExpr);
     }
-    if at_symbol(p, Symbol::Dot) {
+    if at_symbol(p, erl_tokenize::Symbol::Dot) {
         p.consume_lexical();
         consume_atom_or_var(p, "record field name");
         return m.complete(p, SyntaxKind::RecordFieldAccessExpr);
@@ -697,10 +717,10 @@ fn complete_record_or_map_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
 /// consumes EEP 79's `:` `record_name` qualifier when the next tokens
 /// match `#Module:Name`.
 fn try_consume_native_record_qualifier(p: &mut Parser) {
-    if at_symbol(p, Symbol::Colon)
+    if at_symbol(p, erl_tokenize::Symbol::Colon)
         && matches!(
             p.peek_lexical(1).map(|(_, t)| t.kind()),
-            Some(TokenKind::Atom) | Some(TokenKind::Variable)
+            Some(erl_tokenize::TokenKind::Atom) | Some(erl_tokenize::TokenKind::Variable)
         )
     {
         p.consume_lexical(); // `:`
@@ -712,11 +732,11 @@ fn try_consume_native_record_qualifier(p: &mut Parser) {
 /// `#_` (anonymous native-record suffix), dispatching on the token
 /// that follows.
 fn complete_anon_record_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
-    if at_symbol(p, Symbol::OpenBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::OpenBrace) {
         parse_record_body(p);
         return m.complete(p, SyntaxKind::RecordUpdateExpr);
     }
-    if at_symbol(p, Symbol::Dot) {
+    if at_symbol(p, erl_tokenize::Symbol::Dot) {
         p.consume_lexical();
         consume_atom_or_var(p, "record field name");
         return m.complete(p, SyntaxKind::RecordFieldAccessExpr);
@@ -745,34 +765,40 @@ fn complete_anon_record_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
 /// creation-vs-update semantics to a downstream pass.
 fn parse_map_body(p: &mut Parser) -> bool {
     p.consume_lexical(); // `{`
-    if at_symbol(p, Symbol::CloseBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::CloseBrace) {
         p.consume_lexical();
         return false;
     }
     parse_map_field(p);
     loop {
-        if at_symbol(p, Symbol::DoubleVerticalBar) {
+        if at_symbol(p, erl_tokenize::Symbol::DoubleVerticalBar) {
             reject_in_restricted(p, "map comprehension not allowed here");
             p.consume_lexical();
             parse_comprehension_qualifiers(p);
-            expect_symbol(p, Symbol::CloseBrace, "`}` to close map comprehension");
+            expect_symbol(
+                p,
+                erl_tokenize::Symbol::CloseBrace,
+                "`}` to close map comprehension",
+            );
             return true;
         }
-        if at_symbol(p, Symbol::Comma) {
+        if at_symbol(p, erl_tokenize::Symbol::Comma) {
             p.consume_lexical();
             parse_map_field(p);
             continue;
         }
         break;
     }
-    expect_symbol(p, Symbol::CloseBrace, "`}` to close map");
+    expect_symbol(p, erl_tokenize::Symbol::CloseBrace, "`}` to close map");
     false
 }
 
 fn parse_map_field(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     parse_expr(p);
-    if at_symbol(p, Symbol::DoubleRightArrow) || at_symbol(p, Symbol::MapMatch) {
+    if at_symbol(p, erl_tokenize::Symbol::DoubleRightArrow)
+        || at_symbol(p, erl_tokenize::Symbol::MapMatch)
+    {
         p.consume_lexical();
         parse_expr(p);
     } else {
@@ -794,24 +820,24 @@ fn parse_map_field(p: &mut Parser) -> CompletedMarker {
 /// Parses `{ [RecordField, RecordField, ...] }`, consuming both braces.
 fn parse_record_body(p: &mut Parser) {
     p.consume_lexical(); // `{`
-    if at_symbol(p, Symbol::CloseBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::CloseBrace) {
         p.consume_lexical();
         return;
     }
     loop {
         parse_record_field(p);
-        if !at_symbol(p, Symbol::Comma) {
+        if !at_symbol(p, erl_tokenize::Symbol::Comma) {
             break;
         }
         p.consume_lexical();
     }
-    expect_symbol(p, Symbol::CloseBrace, "`}` to close record");
+    expect_symbol(p, erl_tokenize::Symbol::CloseBrace, "`}` to close record");
 }
 
 fn parse_record_field(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     consume_atom_or_var(p, "record field name");
-    expect_symbol(p, Symbol::Match, "`=` in record field");
+    expect_symbol(p, erl_tokenize::Symbol::Match, "`=` in record field");
     parse_expr(p);
     m.complete(p, SyntaxKind::RecordField)
 }
@@ -825,27 +851,31 @@ fn parse_record_field(p: &mut Parser) -> CompletedMarker {
 /// [`SyntaxKind::BinaryComprehension`].
 fn parse_bitstring(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `<<`
-    if at_symbol(p, Symbol::DoubleRightAngle) {
+    if at_symbol(p, erl_tokenize::Symbol::DoubleRightAngle) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::BitstringExpr);
     }
     parse_bitstring_element(p);
-    if at_symbol(p, Symbol::DoubleVerticalBar) {
+    if at_symbol(p, erl_tokenize::Symbol::DoubleVerticalBar) {
         reject_in_restricted(p, "binary comprehension not allowed here");
         p.consume_lexical();
         parse_comprehension_qualifiers(p);
         expect_symbol(
             p,
-            Symbol::DoubleRightAngle,
+            erl_tokenize::Symbol::DoubleRightAngle,
             "`>>` to close binary comprehension",
         );
         return m.complete(p, SyntaxKind::BinaryComprehension);
     }
-    while at_symbol(p, Symbol::Comma) {
+    while at_symbol(p, erl_tokenize::Symbol::Comma) {
         p.consume_lexical();
         parse_bitstring_element(p);
     }
-    expect_symbol(p, Symbol::DoubleRightAngle, "`>>` to close bitstring");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::DoubleRightAngle,
+        "`>>` to close bitstring",
+    );
     m.complete(p, SyntaxKind::BitstringExpr)
 }
 
@@ -853,11 +883,11 @@ fn parse_bitstring(p: &mut Parser, m: Marker) -> CompletedMarker {
 fn parse_bitstring_element(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     parse_expr_max(p);
-    if at_symbol(p, Symbol::Colon) {
+    if at_symbol(p, erl_tokenize::Symbol::Colon) {
         p.consume_lexical();
         parse_expr_max(p);
     }
-    if at_symbol(p, Symbol::Slash) {
+    if at_symbol(p, erl_tokenize::Symbol::Slash) {
         p.consume_lexical();
         parse_bit_type_list(p);
     }
@@ -867,7 +897,7 @@ fn parse_bitstring_element(p: &mut Parser) -> CompletedMarker {
 /// `Type - Type - ...` where each `Type` is `atom [: integer_or_var]`.
 fn parse_bit_type_list(p: &mut Parser) {
     parse_bit_type(p);
-    while at_symbol(p, Symbol::Hyphen) {
+    while at_symbol(p, erl_tokenize::Symbol::Hyphen) {
         p.consume_lexical();
         parse_bit_type(p);
     }
@@ -875,7 +905,7 @@ fn parse_bit_type_list(p: &mut Parser) {
 
 fn parse_bit_type(p: &mut Parser) {
     consume_atom_or_var(p, "bit type name");
-    if at_symbol(p, Symbol::Colon) {
+    if at_symbol(p, erl_tokenize::Symbol::Colon) {
         p.consume_lexical();
         consume_integer_or_var(p, "bit type unit size");
     }
@@ -890,7 +920,7 @@ fn parse_bit_type(p: &mut Parser) {
 /// optionally chained with `&&` to form a parallel (zip) qualifier.
 fn parse_comprehension_qualifiers(p: &mut Parser) {
     parse_qualifier(p);
-    while at_symbol(p, Symbol::Comma) {
+    while at_symbol(p, erl_tokenize::Symbol::Comma) {
         p.consume_lexical();
         parse_qualifier(p);
     }
@@ -910,15 +940,15 @@ fn parse_comprehension_qualifiers(p: &mut Parser) {
 fn parse_qualifier(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     parse_expr(p);
-    let kind = if at_symbol(p, Symbol::MapMatch) {
+    let kind = if at_symbol(p, erl_tokenize::Symbol::MapMatch) {
         // Map generator: `Key := Value <-|<:- Expr`.
         p.consume_lexical(); // `:=`
         parse_expr(p);
-        if at_symbol(p, Symbol::LeftArrow) {
+        if at_symbol(p, erl_tokenize::Symbol::LeftArrow) {
             p.consume_lexical();
             parse_expr(p);
             SyntaxKind::MapGenerator
-        } else if at_symbol(p, Symbol::StrictLeftArrow) {
+        } else if at_symbol(p, erl_tokenize::Symbol::StrictLeftArrow) {
             p.consume_lexical();
             parse_expr(p);
             SyntaxKind::StrictMapGenerator
@@ -926,19 +956,19 @@ fn parse_qualifier(p: &mut Parser) -> CompletedMarker {
             expect_generator_arrow_error(p, "`<-` or `<:-` after `Key := Value`");
             SyntaxKind::Error
         }
-    } else if at_symbol(p, Symbol::LeftArrow) {
+    } else if at_symbol(p, erl_tokenize::Symbol::LeftArrow) {
         p.consume_lexical();
         parse_expr(p);
         SyntaxKind::Generator
-    } else if at_symbol(p, Symbol::DoubleLeftArrow) {
+    } else if at_symbol(p, erl_tokenize::Symbol::DoubleLeftArrow) {
         p.consume_lexical();
         parse_expr(p);
         SyntaxKind::BitstringGenerator
-    } else if at_symbol(p, Symbol::StrictLeftArrow) {
+    } else if at_symbol(p, erl_tokenize::Symbol::StrictLeftArrow) {
         p.consume_lexical();
         parse_expr(p);
         SyntaxKind::StrictGenerator
-    } else if at_symbol(p, Symbol::StrictDoubleLeftArrow) {
+    } else if at_symbol(p, erl_tokenize::Symbol::StrictDoubleLeftArrow) {
         p.consume_lexical();
         parse_expr(p);
         SyntaxKind::StrictBitstringGenerator
@@ -948,7 +978,7 @@ fn parse_qualifier(p: &mut Parser) -> CompletedMarker {
     let mut result = m.complete(p, kind);
     // Zip chain: `Q && Q && ...`. Wraps successively so a chain of N
     // produces a nested ZipQualifier of depth N-1.
-    while at_symbol(p, Symbol::DoubleAmpersand) {
+    while at_symbol(p, erl_tokenize::Symbol::DoubleAmpersand) {
         let outer = result.precede(p);
         p.consume_lexical(); // `&&`
         parse_qualifier(p);
@@ -1001,12 +1031,11 @@ mod tests {
     use super::*;
     use crate::syntax::{NodeId, SyntaxKind};
     use crate::{ParseMode, Parser};
-    use erl_tokenize::{Position, Token, scan_token};
 
-    fn scan_all(source: &str) -> Vec<Token> {
+    fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
         let mut out = Vec::new();
-        let mut pos = Position::new();
-        while let Some(t) = scan_token(source, pos).expect("valid source") {
+        let mut pos = erl_tokenize::Position::new();
+        while let Some(t) = erl_tokenize::scan_token(source, pos).expect("valid source") {
             out.push(t);
             pos = t.end();
         }

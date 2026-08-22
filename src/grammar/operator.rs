@@ -43,8 +43,6 @@
     )
 )]
 
-use erl_tokenize::{Keyword, Symbol, Token, TokenKind};
-
 /// Binding-power pair for an infix operator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct InfixBp {
@@ -95,44 +93,47 @@ const fn nonassoc(p: u16) -> InfixBp {
 ///
 /// Recognizes: `= ! orelse andalso` and all `comp_op` / `list_op` /
 /// `add_op` / `mult_op` categories from OTP 29's `erl_parse.yrl`.
-pub(crate) fn infix_binding_power(token: Token) -> Option<InfixBp> {
+pub(crate) fn infix_binding_power(token: erl_tokenize::Token) -> Option<InfixBp> {
     match token.kind() {
-        TokenKind::Symbol(sym) => match sym {
+        erl_tokenize::TokenKind::Symbol(sym) => match sym {
             // Right 100 '=' '!'.
-            Symbol::Match | Symbol::Bang => Some(right(100)),
+            erl_tokenize::Symbol::Match | erl_tokenize::Symbol::Bang => Some(right(100)),
             // `?=` in maybe blocks shares the match precedence.
-            Symbol::MaybeMatch => Some(right(100)),
+            erl_tokenize::Symbol::MaybeMatch => Some(right(100)),
             // Nonassoc 200 comp_op.
-            Symbol::Eq
-            | Symbol::NotEq
-            | Symbol::LessEq
-            | Symbol::Less
-            | Symbol::GreaterEq
-            | Symbol::Greater
-            | Symbol::ExactEq
-            | Symbol::ExactNotEq => Some(nonassoc(200)),
+            erl_tokenize::Symbol::Eq
+            | erl_tokenize::Symbol::NotEq
+            | erl_tokenize::Symbol::LessEq
+            | erl_tokenize::Symbol::Less
+            | erl_tokenize::Symbol::GreaterEq
+            | erl_tokenize::Symbol::Greater
+            | erl_tokenize::Symbol::ExactEq
+            | erl_tokenize::Symbol::ExactNotEq => Some(nonassoc(200)),
             // Right 300 list_op.
-            Symbol::PlusPlus | Symbol::MinusMinus => Some(right(300)),
+            erl_tokenize::Symbol::PlusPlus | erl_tokenize::Symbol::MinusMinus => Some(right(300)),
             // Left 400 add_op (symbols).
-            Symbol::Plus | Symbol::Hyphen => Some(left(400)),
+            erl_tokenize::Symbol::Plus | erl_tokenize::Symbol::Hyphen => Some(left(400)),
             // Left 500 mult_op (symbols).
-            Symbol::Multiply | Symbol::Slash => Some(left(500)),
+            erl_tokenize::Symbol::Multiply | erl_tokenize::Symbol::Slash => Some(left(500)),
             _ => None,
         },
-        TokenKind::Keyword(kw) => match kw {
+        erl_tokenize::TokenKind::Keyword(kw) => match kw {
             // Right 150 'orelse'.
-            Keyword::Orelse => Some(right(150)),
+            erl_tokenize::Keyword::Orelse => Some(right(150)),
             // Right 160 'andalso'.
-            Keyword::Andalso => Some(right(160)),
+            erl_tokenize::Keyword::Andalso => Some(right(160)),
             // Left 400 add_op (keywords).
-            Keyword::Bor
-            | Keyword::Bxor
-            | Keyword::Bsl
-            | Keyword::Bsr
-            | Keyword::Or
-            | Keyword::Xor => Some(left(400)),
+            erl_tokenize::Keyword::Bor
+            | erl_tokenize::Keyword::Bxor
+            | erl_tokenize::Keyword::Bsl
+            | erl_tokenize::Keyword::Bsr
+            | erl_tokenize::Keyword::Or
+            | erl_tokenize::Keyword::Xor => Some(left(400)),
             // Left 500 mult_op (keywords).
-            Keyword::Div | Keyword::Rem | Keyword::Band | Keyword::And => Some(left(500)),
+            erl_tokenize::Keyword::Div
+            | erl_tokenize::Keyword::Rem
+            | erl_tokenize::Keyword::Band
+            | erl_tokenize::Keyword::And => Some(left(500)),
             _ => None,
         },
         _ => None,
@@ -144,11 +145,15 @@ pub(crate) fn infix_binding_power(token: Token) -> Option<InfixBp> {
 ///
 /// Recognizes: `+ - bnot not` at precedence 600 (`prefix_op` in the yrl),
 /// plus `catch` at precedence 0 (`Unary 0 'catch'`).
-pub(crate) fn prefix_binding_power(token: Token) -> Option<u16> {
+pub(crate) fn prefix_binding_power(token: erl_tokenize::Token) -> Option<u16> {
     match token.kind() {
-        TokenKind::Symbol(Symbol::Plus | Symbol::Hyphen) => Some(600),
-        TokenKind::Keyword(Keyword::Bnot | Keyword::Not) => Some(600),
-        TokenKind::Keyword(Keyword::Catch) => Some(0),
+        erl_tokenize::TokenKind::Symbol(
+            erl_tokenize::Symbol::Plus | erl_tokenize::Symbol::Hyphen,
+        ) => Some(600),
+        erl_tokenize::TokenKind::Keyword(
+            erl_tokenize::Keyword::Bnot | erl_tokenize::Keyword::Not,
+        ) => Some(600),
+        erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Catch) => Some(0),
         _ => None,
     }
 }
@@ -177,10 +182,9 @@ pub(crate) const MAYBE_MATCH_RBP: u16 = 99;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erl_tokenize::{Position, scan_token};
 
-    fn tok(source: &str) -> Token {
-        scan_token(source, Position::new())
+    fn tok(source: &str) -> erl_tokenize::Token {
+        erl_tokenize::scan_token(source, erl_tokenize::Position::new())
             .expect("valid source")
             .expect("non-empty source")
     }

@@ -11,8 +11,6 @@
 //! informational notes are not emitted yet. How the grammar continues
 //! after a diagnostic is recorded is in [`docs::diagnostics`](crate::docs::diagnostics).
 
-use erl_tokenize::Token;
-
 use crate::token_range::TokenRange;
 
 /// A syntax diagnostic surfaced by the parser.
@@ -28,7 +26,7 @@ pub struct Diagnostic {
     kind: DiagnosticKind,
     range: TokenRange,
     expected: Expected,
-    found: Option<Token>,
+    found: Option<erl_tokenize::Token>,
 }
 
 impl Diagnostic {
@@ -39,7 +37,7 @@ impl Diagnostic {
         kind: DiagnosticKind,
         range: TokenRange,
         expected: Expected,
-        found: Option<Token>,
+        found: Option<erl_tokenize::Token>,
     ) -> Self {
         Self {
             kind,
@@ -68,7 +66,7 @@ impl Diagnostic {
     /// Returns the token that was actually found, if any. `None` when the
     /// diagnostic anchors at a boundary (unexpected EOF) or when no
     /// specific token can be blamed.
-    pub const fn found(self) -> Option<Token> {
+    pub const fn found(self) -> Option<erl_tokenize::Token> {
         self.found
     }
 }

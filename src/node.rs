@@ -10,8 +10,6 @@
 //! navigation is a concrete value type rather than an abstraction. All
 //! borrows share a single lifetime.
 
-use erl_tokenize::Token;
-
 use crate::syntax::{NodeId, SyntaxIndex, SyntaxKind};
 use crate::token_buffer::TokenBuffer;
 use crate::token_range::{TokenIndex, TokenRange};
@@ -93,7 +91,7 @@ impl<'a> NodeView<'a> {
     /// Returns an iterator over `(TokenIndex, Token)` pairs within this
     /// entry's [`TokenRange`]. Hidden tokens appear in their original buffer
     /// order.
-    pub fn tokens_in_range(self) -> impl Iterator<Item = (TokenIndex, Token)> {
+    pub fn tokens_in_range(self) -> impl Iterator<Item = (TokenIndex, erl_tokenize::Token)> {
         self.tokens.iter_range(self.range())
     }
 
@@ -276,7 +274,6 @@ mod tests {
     use super::*;
     use crate::syntax::{EntryIndex, SyntaxEntry, SyntaxIndex, SyntaxKind};
     use crate::token_range::{TokenIndex, TokenRange};
-    use erl_tokenize::{Position, scan_token};
 
     fn range(start: usize, end: usize) -> TokenRange {
         TokenRange::new(TokenIndex::new(start), TokenIndex::new(end))
@@ -287,8 +284,9 @@ mod tests {
         // atom (i.e. two lexical + one hidden token).
         let source = "foo bar";
         let mut tokens = TokenBuffer::new();
-        let mut pos = Position::new();
-        while let Some(token) = scan_token(source, pos).expect("valid Erlang source") {
+        let mut pos = erl_tokenize::Position::new();
+        while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid Erlang source")
+        {
             tokens.push(token);
             pos = token.end();
         }
@@ -391,8 +389,9 @@ mod tests {
         // contain any position.
         let source = "foo";
         let mut tokens = TokenBuffer::new();
-        let mut pos = Position::new();
-        while let Some(token) = scan_token(source, pos).expect("valid Erlang source") {
+        let mut pos = erl_tokenize::Position::new();
+        while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid Erlang source")
+        {
             tokens.push(token);
             pos = token.end();
         }

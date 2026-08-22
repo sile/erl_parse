@@ -25,8 +25,6 @@
 //! available to the caller by reading the [`AttributeName`] child's
 //! range from the token buffer.
 
-use erl_tokenize::{Symbol, TokenKind};
-
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::util::expect_symbol;
 use crate::parser::{CompletedMarker, Parser};
@@ -37,7 +35,11 @@ use crate::token_range::TokenRange;
 pub(crate) fn parse_attribute(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
 
-    expect_symbol(p, Symbol::Hyphen, "`-` to open attribute form");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::Hyphen,
+        "`-` to open attribute form",
+    );
     parse_attribute_name(p);
     parse_attribute_payload(p);
 
@@ -48,7 +50,7 @@ fn parse_attribute_name(p: &mut Parser) {
     let m = p.start();
     let start_at = p.cursor_position();
     match p.peek_lexical(0).map(|(_, t)| t.kind()) {
-        Some(TokenKind::Atom) => {
+        Some(erl_tokenize::TokenKind::Atom) => {
             p.consume_lexical();
         }
         _ => {
@@ -85,7 +87,7 @@ fn parse_attribute_payload(p: &mut Parser) {
     // Empty payload: the next lexical is the terminating `.`.
     if matches!(
         p.peek_lexical(0).map(|(_, t)| t.kind()),
-        Some(TokenKind::Symbol(Symbol::Dot))
+        Some(erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Dot))
     ) {
         let m = p.start();
         m.complete(p, SyntaxKind::AttributePayload);
@@ -98,7 +100,11 @@ fn parse_attribute_payload(p: &mut Parser) {
         // Report as a missing `)` at the current cursor position; the
         // driver still terminates the form at the (possibly consumed)
         // boundary `.` afterwards.
-        expect_symbol(p, Symbol::CloseParen, "`)` to close attribute payload");
+        expect_symbol(
+            p,
+            erl_tokenize::Symbol::CloseParen,
+            "`)` to close attribute payload",
+        );
     }
 }
 
@@ -114,7 +120,7 @@ fn consume_balanced_until_top_level_dot(p: &mut Parser) -> usize {
     let mut depth_binary: usize = 0;
     while let Some((_, token)) = p.peek_lexical(0) {
         match token.kind() {
-            TokenKind::Symbol(Symbol::Dot)
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Dot)
                 if depth_paren == 0
                     && depth_brace == 0
                     && depth_square == 0
@@ -122,20 +128,22 @@ fn consume_balanced_until_top_level_dot(p: &mut Parser) -> usize {
             {
                 return depth_paren;
             }
-            TokenKind::Symbol(Symbol::OpenParen) => depth_paren += 1,
-            TokenKind::Symbol(Symbol::CloseParen) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenParen) => depth_paren += 1,
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::CloseParen) => {
                 depth_paren = depth_paren.saturating_sub(1);
             }
-            TokenKind::Symbol(Symbol::OpenBrace) => depth_brace += 1,
-            TokenKind::Symbol(Symbol::CloseBrace) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenBrace) => depth_brace += 1,
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::CloseBrace) => {
                 depth_brace = depth_brace.saturating_sub(1);
             }
-            TokenKind::Symbol(Symbol::OpenSquare) => depth_square += 1,
-            TokenKind::Symbol(Symbol::CloseSquare) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenSquare) => depth_square += 1,
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::CloseSquare) => {
                 depth_square = depth_square.saturating_sub(1);
             }
-            TokenKind::Symbol(Symbol::DoubleLeftAngle) => depth_binary += 1,
-            TokenKind::Symbol(Symbol::DoubleRightAngle) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::DoubleLeftAngle) => {
+                depth_binary += 1
+            }
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::DoubleRightAngle) => {
                 depth_binary = depth_binary.saturating_sub(1);
             }
             _ => {}

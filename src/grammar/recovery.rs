@@ -27,8 +27,6 @@
 //! [`Parser::push_diagnostic`], so recovery loops that revisit the same
 //! cursor position do not surface the same diagnostic twice.
 
-use erl_tokenize::Token;
-
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::parser::{CompletedMarker, Parser, RecoveryContext};
 use crate::syntax::SyntaxKind;
@@ -83,7 +81,7 @@ pub(crate) fn skip_until_sync<F>(
     category: &'static str,
 ) -> Option<CompletedMarker>
 where
-    F: Fn(Token) -> bool,
+    F: Fn(erl_tokenize::Token) -> bool,
 {
     match p.peek_lexical(0) {
         None => return None,
@@ -135,14 +133,13 @@ pub(crate) fn push_missing_token(p: &mut Parser, category: &'static str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::assert_matches;
     use crate::{ParseMode, Parser};
-    use erl_tokenize::{Position, scan_token};
+    use core::assert_matches;
 
-    fn scan_all(source: &str) -> Vec<Token> {
+    fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
         let mut out = Vec::new();
-        let mut pos = Position::new();
-        while let Some(t) = scan_token(source, pos).expect("valid source") {
+        let mut pos = erl_tokenize::Position::new();
+        while let Some(t) = erl_tokenize::scan_token(source, pos).expect("valid source") {
             out.push(t);
             pos = t.end();
         }

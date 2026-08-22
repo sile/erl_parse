@@ -4,8 +4,6 @@
 //! as transparent to lookahead but folded into consumed node ranges when a
 //! lexical token is consumed.
 
-use erl_tokenize::Token;
-
 use crate::token_buffer::TokenBuffer;
 use crate::token_range::TokenIndex;
 
@@ -25,7 +23,7 @@ impl<'a> TokenCursor<'a> {
     /// Returns the nth lexical token from the current position, skipping
     /// hidden tokens. Returns `None` when the nth lexical token has not
     /// been reached before buffer end.
-    pub(crate) fn peek_lexical(&self, offset: usize) -> Option<(TokenIndex, Token)> {
+    pub(crate) fn peek_lexical(&self, offset: usize) -> Option<(TokenIndex, erl_tokenize::Token)> {
         let mut cursor = self.at;
         let mut seen = 0usize;
         loop {

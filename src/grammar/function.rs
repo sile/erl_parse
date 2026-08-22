@@ -15,8 +15,6 @@
 //! Same-name / same-arity checks and cross-form same-name grouping
 //! belong to a later semantic phase.
 
-use erl_tokenize::{Symbol, TokenKind};
-
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::clause::{parse_argument_list, parse_arrow_body, parse_clause_guard_opt};
 use crate::grammar::util::at_symbol;
@@ -29,7 +27,7 @@ pub(crate) fn parse_function_decl(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
 
     parse_function_clause(p);
-    while at_symbol(p, Symbol::Semicolon) {
+    while at_symbol(p, erl_tokenize::Symbol::Semicolon) {
         p.consume_lexical();
         parse_function_clause(p);
     }
@@ -43,7 +41,7 @@ fn parse_function_clause(p: &mut Parser) -> CompletedMarker {
     let name_start = p.cursor_position();
     if matches!(
         p.peek_lexical(0).map(|(_, t)| t.kind()),
-        Some(TokenKind::Atom)
+        Some(erl_tokenize::TokenKind::Atom)
     ) {
         p.consume_lexical();
     } else {

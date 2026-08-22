@@ -21,7 +21,6 @@ use crate::node::NodeView;
 use crate::syntax::{NodeId, SyntaxIndex};
 use crate::token_buffer::TokenBuffer;
 use crate::token_range::TokenIndex;
-use erl_tokenize::Token;
 
 /// The full result of a parse: input tokens, syntax nodes, and
 /// accumulated diagnostics.
@@ -60,7 +59,7 @@ impl SyntaxTree {
     /// still names the same token after later feeds. Index a single
     /// token with [`TokenIndex::get`]; slice a span with
     /// [`TokenRange::as_range`](crate::TokenRange::as_range).
-    pub fn tokens(&self) -> &[Token] {
+    pub fn tokens(&self) -> &[erl_tokenize::Token] {
         self.tokens.as_slice()
     }
 

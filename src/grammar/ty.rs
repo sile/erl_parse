@@ -20,8 +20,6 @@
 //! Integer arithmetic operators reuse the expression-side
 //! `infix_binding_power` table.
 
-use erl_tokenize::{Keyword, Symbol, TokenKind};
-
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::operator;
 use crate::grammar::util::{
@@ -90,7 +88,7 @@ fn parse_type_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
 
     while let Some((_, token)) = p.peek_lexical(0) {
         // Union `|` (Left 170).
-        if is_symbol(token, Symbol::VerticalBar) && UNION_LBP > min_bp {
+        if is_symbol(token, erl_tokenize::Symbol::VerticalBar) && UNION_LBP > min_bp {
             let m = lhs.precede(p);
             p.consume_lexical();
             parse_type_bp(p, UNION_RBP);
@@ -100,7 +98,7 @@ fn parse_type_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
         }
 
         // Range `..` (Nonassoc 200).
-        if is_symbol(token, Symbol::DoubleDot) && RANGE_LBP > min_bp {
+        if is_symbol(token, erl_tokenize::Symbol::DoubleDot) && RANGE_LBP > min_bp {
             if last_nonassoc_bp == Some(RANGE_LBP) {
                 p.push_diagnostic(Diagnostic::new(
                     DiagnosticKind::UnexpectedToken,
@@ -118,7 +116,7 @@ fn parse_type_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
         }
 
         // Annotation `::` (Right 150) — bind when the caller allows it.
-        if is_symbol(token, Symbol::DoubleColon) && ANNOTATION_LBP > min_bp {
+        if is_symbol(token, erl_tokenize::Symbol::DoubleColon) && ANNOTATION_LBP > min_bp {
             let m = lhs.precede(p);
             p.consume_lexical();
             parse_type_bp(p, ANNOTATION_RBP);
@@ -135,16 +133,20 @@ fn parse_type_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
         if let Some(bp) = operator::infix_binding_power(token) {
             let is_integer_op = matches!(
                 token.kind(),
-                TokenKind::Symbol(Symbol::Plus | Symbol::Hyphen | Symbol::Multiply | Symbol::Slash)
-                    | TokenKind::Keyword(
-                        Keyword::Div
-                            | Keyword::Rem
-                            | Keyword::Band
-                            | Keyword::Bor
-                            | Keyword::Bxor
-                            | Keyword::Bsl
-                            | Keyword::Bsr,
-                    )
+                erl_tokenize::TokenKind::Symbol(
+                    erl_tokenize::Symbol::Plus
+                        | erl_tokenize::Symbol::Hyphen
+                        | erl_tokenize::Symbol::Multiply
+                        | erl_tokenize::Symbol::Slash
+                ) | erl_tokenize::TokenKind::Keyword(
+                    erl_tokenize::Keyword::Div
+                        | erl_tokenize::Keyword::Rem
+                        | erl_tokenize::Keyword::Band
+                        | erl_tokenize::Keyword::Bor
+                        | erl_tokenize::Keyword::Bxor
+                        | erl_tokenize::Keyword::Bsl
+                        | erl_tokenize::Keyword::Bsr,
+                )
             );
             if is_integer_op && bp.lbp > min_bp {
                 let m = lhs.precede(p);
@@ -178,7 +180,10 @@ fn parse_type_max(p: &mut Parser) -> CompletedMarker {
 
     // Prefix integer operator (`+ - bnot not`).
     if operator::prefix_binding_power(token).is_some()
-        && !matches!(token.kind(), TokenKind::Keyword(Keyword::Catch))
+        && !matches!(
+            token.kind(),
+            erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Catch)
+        )
     {
         p.consume_lexical();
         parse_type_max(p);
@@ -187,18 +192,20 @@ fn parse_type_max(p: &mut Parser) -> CompletedMarker {
 
     match token.kind() {
         // atom or type call (`name` / `name()` / `name(T)` / `mod:name(T)`).
-        TokenKind::Atom => parse_atom_head(p, m),
-        TokenKind::Variable => atomic(p, m, SyntaxKind::VarExpr),
-        TokenKind::Integer => atomic(p, m, SyntaxKind::IntegerExpr),
-        TokenKind::Float => atomic(p, m, SyntaxKind::FloatExpr),
-        TokenKind::Char => atomic(p, m, SyntaxKind::CharExpr),
-        TokenKind::String => atomic(p, m, SyntaxKind::StringExpr),
-        TokenKind::Symbol(Symbol::OpenParen) => parse_paren_type(p, m),
-        TokenKind::Symbol(Symbol::OpenBrace) => parse_tuple_type(p, m),
-        TokenKind::Symbol(Symbol::OpenSquare) => parse_list_type(p, m),
-        TokenKind::Symbol(Symbol::Sharp) => parse_hash_type(p, m),
-        TokenKind::Symbol(Symbol::DoubleLeftAngle) => parse_bitstring_type(p, m),
-        TokenKind::Keyword(Keyword::Fun) => parse_fun_type(p, m),
+        erl_tokenize::TokenKind::Atom => parse_atom_head(p, m),
+        erl_tokenize::TokenKind::Variable => atomic(p, m, SyntaxKind::VarExpr),
+        erl_tokenize::TokenKind::Integer => atomic(p, m, SyntaxKind::IntegerExpr),
+        erl_tokenize::TokenKind::Float => atomic(p, m, SyntaxKind::FloatExpr),
+        erl_tokenize::TokenKind::Char => atomic(p, m, SyntaxKind::CharExpr),
+        erl_tokenize::TokenKind::String => atomic(p, m, SyntaxKind::StringExpr),
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenParen) => parse_paren_type(p, m),
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenBrace) => parse_tuple_type(p, m),
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenSquare) => parse_list_type(p, m),
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Sharp) => parse_hash_type(p, m),
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::DoubleLeftAngle) => {
+            parse_bitstring_type(p, m)
+        }
+        erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Fun) => parse_fun_type(p, m),
         _ => {
             let _ = token;
             // Abandon the outer marker so the recovery site's Error
@@ -219,15 +226,15 @@ fn atomic(p: &mut Parser, m: Marker, kind: SyntaxKind) -> CompletedMarker {
 fn parse_atom_head(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // atom
     // Remote qualifier `Mod:Name` (must be followed by another atom).
-    if at_symbol(p, Symbol::Colon)
+    if at_symbol(p, erl_tokenize::Symbol::Colon)
         && matches!(
             p.peek_lexical(1).map(|(_, t)| t.kind()),
-            Some(TokenKind::Atom)
+            Some(erl_tokenize::TokenKind::Atom)
         )
     {
         p.consume_lexical(); // `:`
         p.consume_lexical(); // second atom
-        if at_symbol(p, Symbol::OpenParen) {
+        if at_symbol(p, erl_tokenize::Symbol::OpenParen) {
             parse_type_argument_list(p);
             return m.complete(p, SyntaxKind::TypeCall);
         }
@@ -235,7 +242,7 @@ fn parse_atom_head(p: &mut Parser, m: Marker) -> CompletedMarker {
         return m.complete(p, SyntaxKind::RemoteType);
     }
     // Local type call `name(...)`.
-    if at_symbol(p, Symbol::OpenParen) {
+    if at_symbol(p, erl_tokenize::Symbol::OpenParen) {
         parse_type_argument_list(p);
         return m.complete(p, SyntaxKind::TypeCall);
     }
@@ -246,34 +253,46 @@ fn parse_atom_head(p: &mut Parser, m: Marker) -> CompletedMarker {
 fn parse_paren_type(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `(`
     parse_top_type(p);
-    expect_symbol(p, Symbol::CloseParen, "`)` to close parenthesized type");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::CloseParen,
+        "`)` to close parenthesized type",
+    );
     m.complete(p, SyntaxKind::ParenExpr)
 }
 
 fn parse_tuple_type(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `{`
-    if at_symbol(p, Symbol::CloseBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::CloseBrace) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::TupleType);
     }
-    parse_top_types_comma(p, Symbol::CloseBrace);
-    expect_symbol(p, Symbol::CloseBrace, "`}` to close tuple type");
+    parse_top_types_comma(p, erl_tokenize::Symbol::CloseBrace);
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::CloseBrace,
+        "`}` to close tuple type",
+    );
     m.complete(p, SyntaxKind::TupleType)
 }
 
 /// `[]` / `[T]` / `[T, ...]`.
 fn parse_list_type(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `[`
-    if at_symbol(p, Symbol::CloseSquare) {
+    if at_symbol(p, erl_tokenize::Symbol::CloseSquare) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::ListType);
     }
     parse_top_type(p);
-    if at_symbol(p, Symbol::Comma) {
+    if at_symbol(p, erl_tokenize::Symbol::Comma) {
         p.consume_lexical();
-        if at_symbol(p, Symbol::TripleDot) {
+        if at_symbol(p, erl_tokenize::Symbol::TripleDot) {
             p.consume_lexical();
-            expect_symbol(p, Symbol::CloseSquare, "`]` to close non-empty list type");
+            expect_symbol(
+                p,
+                erl_tokenize::Symbol::CloseSquare,
+                "`]` to close non-empty list type",
+            );
             return m.complete(p, SyntaxKind::NonemptyListType);
         }
         // A comma without a trailing `...` is not part of the yrl list-
@@ -287,60 +306,74 @@ fn parse_list_type(p: &mut Parser, m: Marker) -> CompletedMarker {
         ));
         parse_top_type(p);
     }
-    expect_symbol(p, Symbol::CloseSquare, "`]` to close list type");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::CloseSquare,
+        "`]` to close list type",
+    );
     m.complete(p, SyntaxKind::ListType)
 }
 
 /// Dispatch for `#`: `#{...}` map type / `#Name{...}` record type.
 fn parse_hash_type(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `#`
-    if at_symbol(p, Symbol::OpenBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::OpenBrace) {
         parse_map_type_body(p);
         return m.complete(p, SyntaxKind::MapType);
     }
     // `#Name` — record type. Consume the name, then optionally the
     // `:remote` qualifier per the yrl's `#atom ':' record_name`.
     consume_atom_or_var(p, "record type name");
-    if at_symbol(p, Symbol::Colon)
+    if at_symbol(p, erl_tokenize::Symbol::Colon)
         && matches!(
             p.peek_lexical(1).map(|(_, t)| t.kind()),
-            Some(TokenKind::Atom)
+            Some(erl_tokenize::TokenKind::Atom)
         )
     {
         p.consume_lexical(); // `:`
         p.consume_lexical(); // second atom (record_name)
     }
-    expect_symbol(p, Symbol::OpenBrace, "`{` after record type name");
-    if at_symbol(p, Symbol::CloseBrace) {
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::OpenBrace,
+        "`{` after record type name",
+    );
+    if at_symbol(p, erl_tokenize::Symbol::CloseBrace) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::RecordType);
     }
     parse_record_type_fields(p);
-    expect_symbol(p, Symbol::CloseBrace, "`}` to close record type");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::CloseBrace,
+        "`}` to close record type",
+    );
     m.complete(p, SyntaxKind::RecordType)
 }
 
 /// `{ [MapTypeField, MapTypeField, ...] }` — assumes `{` is next.
 fn parse_map_type_body(p: &mut Parser) {
     p.consume_lexical(); // `{`
-    if at_symbol(p, Symbol::CloseBrace) {
+    if at_symbol(p, erl_tokenize::Symbol::CloseBrace) {
         p.consume_lexical();
         return;
     }
     loop {
         parse_map_type_field(p);
-        if !at_symbol(p, Symbol::Comma) {
+        if !at_symbol(p, erl_tokenize::Symbol::Comma) {
             break;
         }
         p.consume_lexical();
     }
-    expect_symbol(p, Symbol::CloseBrace, "`}` to close map type");
+    expect_symbol(p, erl_tokenize::Symbol::CloseBrace, "`}` to close map type");
 }
 
 fn parse_map_type_field(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     parse_top_type(p);
-    if at_symbol(p, Symbol::DoubleRightArrow) || at_symbol(p, Symbol::MapMatch) {
+    if at_symbol(p, erl_tokenize::Symbol::DoubleRightArrow)
+        || at_symbol(p, erl_tokenize::Symbol::MapMatch)
+    {
         p.consume_lexical();
         parse_top_type(p);
     } else {
@@ -362,7 +395,7 @@ fn parse_map_type_field(p: &mut Parser) -> CompletedMarker {
 fn parse_record_type_fields(p: &mut Parser) {
     loop {
         parse_record_type_field(p);
-        if !at_symbol(p, Symbol::Comma) {
+        if !at_symbol(p, erl_tokenize::Symbol::Comma) {
             break;
         }
         p.consume_lexical();
@@ -372,7 +405,11 @@ fn parse_record_type_fields(p: &mut Parser) {
 fn parse_record_type_field(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     consume_atom_or_var(p, "record type field name");
-    expect_symbol(p, Symbol::DoubleColon, "`::` in record type field");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::DoubleColon,
+        "`::` in record type field",
+    );
     parse_top_type(p);
     m.complete(p, SyntaxKind::RecordTypeField)
 }
@@ -384,18 +421,22 @@ fn parse_record_type_field(p: &mut Parser) -> CompletedMarker {
 /// exact yrl combinations.
 fn parse_bitstring_type(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `<<`
-    if at_symbol(p, Symbol::DoubleRightAngle) {
+    if at_symbol(p, erl_tokenize::Symbol::DoubleRightAngle) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::BitstringType);
     }
     loop {
         parse_bitstring_type_segment(p);
-        if !at_symbol(p, Symbol::Comma) {
+        if !at_symbol(p, erl_tokenize::Symbol::Comma) {
             break;
         }
         p.consume_lexical();
     }
-    expect_symbol(p, Symbol::DoubleRightAngle, "`>>` to close bitstring type");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::DoubleRightAngle,
+        "`>>` to close bitstring type",
+    );
     m.complete(p, SyntaxKind::BitstringType)
 }
 
@@ -405,11 +446,11 @@ fn parse_bitstring_type_segment(p: &mut Parser) -> CompletedMarker {
     // literal, or a type. Accept any type_max so the grammar mirrors
     // the yrl's build_bin_type helper.
     parse_type_max(p);
-    if at_symbol(p, Symbol::Colon) {
+    if at_symbol(p, erl_tokenize::Symbol::Colon) {
         p.consume_lexical();
         parse_type_max(p);
     }
-    if at_symbol(p, Symbol::Multiply) {
+    if at_symbol(p, erl_tokenize::Symbol::Multiply) {
         p.consume_lexical();
         parse_type_max(p);
     }
@@ -421,32 +462,44 @@ fn parse_bitstring_type_segment(p: &mut Parser) -> CompletedMarker {
 /// `fun ( ( T, T ) -> Return )` — explicit-args form.
 fn parse_fun_type(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `fun`
-    expect_symbol(p, Symbol::OpenParen, "`(` after `fun` in function type");
-    if at_symbol(p, Symbol::CloseParen) {
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::OpenParen,
+        "`(` after `fun` in function type",
+    );
+    if at_symbol(p, erl_tokenize::Symbol::CloseParen) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::FunctionType);
     }
     parse_fun_type_signature(p);
-    expect_symbol(p, Symbol::CloseParen, "`)` to close `fun` type");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::CloseParen,
+        "`)` to close `fun` type",
+    );
     m.complete(p, SyntaxKind::FunctionType)
 }
 
 fn parse_fun_type_signature(p: &mut Parser) {
     let params = p.start();
-    expect_symbol(p, Symbol::OpenParen, "`(` to open function type parameters");
-    if at_symbol(p, Symbol::TripleDot) {
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::OpenParen,
+        "`(` to open function type parameters",
+    );
+    if at_symbol(p, erl_tokenize::Symbol::TripleDot) {
         p.consume_lexical();
-    } else if !at_symbol(p, Symbol::CloseParen) {
-        parse_top_types_comma(p, Symbol::CloseParen);
+    } else if !at_symbol(p, erl_tokenize::Symbol::CloseParen) {
+        parse_top_types_comma(p, erl_tokenize::Symbol::CloseParen);
     }
     expect_symbol(
         p,
-        Symbol::CloseParen,
+        erl_tokenize::Symbol::CloseParen,
         "`)` to close function type parameters",
     );
     params.complete(p, SyntaxKind::FunctionTypeParams);
 
-    expect_symbol(p, Symbol::RightArrow, "`->` in function type");
+    expect_symbol(p, erl_tokenize::Symbol::RightArrow, "`->` in function type");
 
     let ret = p.start();
     parse_top_type(p);
@@ -457,13 +510,21 @@ fn parse_fun_type_signature(p: &mut Parser) {
 /// type calls; consumes the parentheses.
 fn parse_type_argument_list(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
-    expect_symbol(p, Symbol::OpenParen, "`(` to open type argument list");
-    if at_symbol(p, Symbol::CloseParen) {
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::OpenParen,
+        "`(` to open type argument list",
+    );
+    if at_symbol(p, erl_tokenize::Symbol::CloseParen) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::TypeArgumentList);
     }
-    parse_top_types_comma(p, Symbol::CloseParen);
-    expect_symbol(p, Symbol::CloseParen, "`)` to close type argument list");
+    parse_top_types_comma(p, erl_tokenize::Symbol::CloseParen);
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::CloseParen,
+        "`)` to close type argument list",
+    );
     m.complete(p, SyntaxKind::TypeArgumentList)
 }
 
@@ -475,21 +536,21 @@ fn parse_type_argument_list(p: &mut Parser) -> CompletedMarker {
 /// [`SyntaxKind::Error`] node with a matching
 /// [`crate::diagnostic::DiagnosticKind::SkippedToken`] diagnostic so the
 /// list can continue.
-fn parse_top_types_comma(p: &mut Parser, close: Symbol) {
+fn parse_top_types_comma(p: &mut Parser, close: erl_tokenize::Symbol) {
     parse_top_type(p);
     loop {
-        if !at_symbol(p, Symbol::Comma) && !at_symbol(p, close) {
+        if !at_symbol(p, erl_tokenize::Symbol::Comma) && !at_symbol(p, close) {
             let _ = crate::grammar::recovery::skip_until_sync(
                 p,
                 crate::parser::RecoveryContext::Type,
                 |t| {
-                    crate::grammar::util::is_symbol(t, Symbol::Comma)
+                    crate::grammar::util::is_symbol(t, erl_tokenize::Symbol::Comma)
                         || crate::grammar::util::is_symbol(t, close)
                 },
                 "`,` or closing delimiter in type list",
             );
         }
-        if !at_symbol(p, Symbol::Comma) {
+        if !at_symbol(p, erl_tokenize::Symbol::Comma) {
             break;
         }
         p.consume_lexical();
@@ -518,9 +579,13 @@ fn parse_top_types_comma(p: &mut Parser, close: Symbol) {
 )]
 pub(crate) fn parse_type_guard(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
-    expect_keyword(p, Keyword::When, "`when` at start of type guard");
+    expect_keyword(
+        p,
+        erl_tokenize::Keyword::When,
+        "`when` at start of type guard",
+    );
     parse_type_constraint(p);
-    while at_symbol(p, Symbol::Comma) {
+    while at_symbol(p, erl_tokenize::Symbol::Comma) {
         p.consume_lexical();
         parse_type_constraint(p);
     }
@@ -530,10 +595,10 @@ pub(crate) fn parse_type_guard(p: &mut Parser) -> CompletedMarker {
 fn parse_type_constraint(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     consume_atom_or_var(p, "constraint variable or class");
-    if at_symbol(p, Symbol::DoubleColon) {
+    if at_symbol(p, erl_tokenize::Symbol::DoubleColon) {
         p.consume_lexical();
         parse_top_type(p);
-    } else if at_symbol(p, Symbol::OpenParen) {
+    } else if at_symbol(p, erl_tokenize::Symbol::OpenParen) {
         parse_type_argument_list(p);
     } else {
         let found = p.peek_lexical(0).map(|(_, t)| t);
@@ -554,15 +619,14 @@ fn parse_type_constraint(p: &mut Parser) -> CompletedMarker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::assert_matches;
     use crate::syntax::{NodeId, SyntaxKind};
     use crate::{ParseMode, Parser};
-    use erl_tokenize::{Position, Token, scan_token};
+    use core::assert_matches;
 
-    fn scan_all(source: &str) -> Vec<Token> {
+    fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
         let mut out = Vec::new();
-        let mut pos = Position::new();
-        while let Some(t) = scan_token(source, pos).expect("valid source") {
+        let mut pos = erl_tokenize::Position::new();
+        while let Some(t) = erl_tokenize::scan_token(source, pos).expect("valid source") {
             out.push(t);
             pos = t.end();
         }

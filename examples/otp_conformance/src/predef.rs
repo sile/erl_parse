@@ -601,12 +601,11 @@ fn is_bare_atom(name: &str) -> bool {
 mod tests {
     use super::*;
     use crate::{Stage, accepted, parse_text};
-    use erl_parse::ParseMode;
     use std::path::PathBuf;
 
     fn parse_ok(src: &str) {
         let run = parse_text(
-            ParseMode::Module,
+            erl_parse::ParseMode::Module,
             "t.erl",
             src.to_string(),
             &[],
@@ -679,7 +678,7 @@ mod tests {
     #[test]
     fn unknown_macro_is_a_preprocess_error() {
         let run = parse_text(
-            ParseMode::Module,
+            erl_parse::ParseMode::Module,
             "t.erl",
             "-module(demo).\nf() -> ?NOT_A_REAL_MACRO.\n".to_string(),
             &[],
@@ -699,7 +698,7 @@ mod tests {
     #[test]
     fn module_before_attribute_is_a_preprocess_error() {
         let run = parse_text(
-            ParseMode::Module,
+            erl_parse::ParseMode::Module,
             "t.erl",
             "f() -> ?MODULE.\n".to_string(),
             &[],
@@ -717,7 +716,7 @@ mod tests {
             return;
         }
         let run = parse_text(
-            ParseMode::Module,
+            erl_parse::ParseMode::Module,
             "t.erl",
             "-module(demo).\n-include(\"logger.hrl\").\nf() -> ?LOG_INFO(\"x\").\n".to_string(),
             &[include],

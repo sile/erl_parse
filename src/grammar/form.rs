@@ -13,8 +13,6 @@
 //! bad token; the driver runs the shared unexpected-token loop
 //! afterwards, so the form still terminates at the next `.`.
 
-use erl_tokenize::{Symbol, TokenKind};
-
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::attribute::parse_attribute;
 use crate::grammar::function::parse_function_decl;
@@ -25,8 +23,8 @@ use crate::token_range::TokenRange;
 /// Parses one module-mode form starting at the current cursor.
 pub(crate) fn parse_form(p: &mut Parser) -> CompletedMarker {
     match p.peek_lexical(0).map(|(_, t)| t.kind()) {
-        Some(TokenKind::Symbol(Symbol::Hyphen)) => parse_attribute(p),
-        Some(TokenKind::Atom) => parse_function_decl(p),
+        Some(erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Hyphen)) => parse_attribute(p),
+        Some(erl_tokenize::TokenKind::Atom) => parse_function_decl(p),
         Some(_) => {
             let m = p.start();
             let found = p.peek_lexical(0).map(|(_, t)| t);

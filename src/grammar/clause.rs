@@ -14,8 +14,6 @@
 //! forms (calls, blocks, and other general expressions) are rejected
 //! in pattern position while sharing the same node shape.
 
-use erl_tokenize::{Keyword, Symbol, TokenKind};
-
 use crate::grammar::expr::{parse_comma_separated_exprs, parse_expr, parse_expr_max};
 use crate::grammar::pattern::parse_pattern;
 use crate::grammar::util::{at_keyword, at_symbol, consume_atom_or_var, expect_symbol};
@@ -33,7 +31,11 @@ pub(crate) fn parse_body(p: &mut Parser) -> CompletedMarker {
 /// Parses a `-> Body` sequence: consumes the arrow, then parses a
 /// body. Used by every clause form.
 pub(crate) fn parse_arrow_body(p: &mut Parser) -> CompletedMarker {
-    expect_symbol(p, Symbol::RightArrow, "`->` before clause body");
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::RightArrow,
+        "`->` before clause body",
+    );
     parse_body(p)
 }
 
@@ -50,7 +52,7 @@ pub(crate) fn parse_guard(p: &mut Parser) -> CompletedMarker {
 pub(crate) fn parse_guard_sequence(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     parse_guard(p);
-    while at_symbol(p, Symbol::Semicolon) {
+    while at_symbol(p, erl_tokenize::Symbol::Semicolon) {
         p.consume_lexical();
         parse_guard(p);
     }
@@ -59,7 +61,7 @@ pub(crate) fn parse_guard_sequence(p: &mut Parser) -> CompletedMarker {
 
 /// Parses `[when GuardSequence]`, or nothing when `when` is not next.
 pub(crate) fn parse_clause_guard_opt(p: &mut Parser) {
-    if at_keyword(p, Keyword::When) {
+    if at_keyword(p, erl_tokenize::Keyword::When) {
         p.consume_lexical();
         parse_guard_sequence(p);
     }
@@ -110,12 +112,12 @@ pub(crate) fn parse_try_clause(p: &mut Parser) -> CompletedMarker {
         p.consume_lexical(); // `:`
         let prev = p.set_context(crate::parser::ParseContext::Pattern);
         parse_expr_max(p);
-        while at_symbol(p, Symbol::Match) {
+        while at_symbol(p, erl_tokenize::Symbol::Match) {
             p.consume_lexical();
             parse_expr_max(p);
         }
         p.set_context(prev);
-        if at_symbol(p, Symbol::Colon) {
+        if at_symbol(p, erl_tokenize::Symbol::Colon) {
             p.consume_lexical();
             consume_atom_or_var(p, "stack-trace variable");
         }
@@ -133,10 +135,10 @@ pub(crate) fn parse_try_clause(p: &mut Parser) -> CompletedMarker {
 fn is_class_qualified_try_clause_head(p: &Parser) -> bool {
     matches!(
         p.peek_lexical(0).map(|(_, t)| t.kind()),
-        Some(TokenKind::Atom | TokenKind::Variable)
+        Some(erl_tokenize::TokenKind::Atom | erl_tokenize::TokenKind::Variable)
     ) && matches!(
         p.peek_lexical(1).map(|(_, t)| t.kind()),
-        Some(TokenKind::Symbol(Symbol::Colon))
+        Some(erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Colon))
     )
 }
 
@@ -157,7 +159,7 @@ where
 {
     production(p);
     loop {
-        if !at_symbol(p, Symbol::Semicolon) && !at_clause_boundary(p) {
+        if !at_symbol(p, erl_tokenize::Symbol::Semicolon) && !at_clause_boundary(p) {
             let _ = crate::grammar::recovery::skip_until_sync(
                 p,
                 crate::parser::RecoveryContext::Clause,
@@ -165,7 +167,7 @@ where
                 "`;` or block terminator",
             );
         }
-        if !at_symbol(p, Symbol::Semicolon) {
+        if !at_symbol(p, erl_tokenize::Symbol::Semicolon) {
             break;
         }
         p.consume_lexical();
@@ -174,20 +176,18 @@ where
 }
 
 fn at_clause_boundary(p: &Parser) -> bool {
-    p.peek_lexical(0)
-        .is_none_or(|(_, t)| is_clause_boundary(t))
+    p.peek_lexical(0).is_none_or(|(_, t)| is_clause_boundary(t))
 }
 
 fn is_clause_boundary(token: erl_tokenize::Token) -> bool {
-    use erl_tokenize::{Keyword, Symbol, TokenKind};
     matches!(
         token.kind(),
-        TokenKind::Symbol(Symbol::Semicolon)
-            | TokenKind::Symbol(Symbol::Dot)
-            | TokenKind::Keyword(Keyword::End)
-            | TokenKind::Keyword(Keyword::After)
-            | TokenKind::Keyword(Keyword::Catch)
-            | TokenKind::Keyword(Keyword::Else)
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Semicolon)
+            | erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Dot)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::End)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::After)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Catch)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Else)
     )
 }
 
@@ -197,19 +197,27 @@ fn is_clause_boundary(token: erl_tokenize::Token) -> bool {
 /// reused by function declarations in the form / module grammar.
 pub(crate) fn parse_argument_list(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
-    expect_symbol(p, Symbol::OpenParen, "`(` to open argument list");
-    if at_symbol(p, Symbol::CloseParen) {
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::OpenParen,
+        "`(` to open argument list",
+    );
+    if at_symbol(p, erl_tokenize::Symbol::CloseParen) {
         p.consume_lexical();
         return m.complete(p, SyntaxKind::ArgumentList);
     }
-    parse_comma_separated_exprs(p, Symbol::CloseParen);
-    expect_symbol(p, Symbol::CloseParen, "`)` to close argument list");
+    parse_comma_separated_exprs(p, erl_tokenize::Symbol::CloseParen);
+    expect_symbol(
+        p,
+        erl_tokenize::Symbol::CloseParen,
+        "`)` to close argument list",
+    );
     m.complete(p, SyntaxKind::ArgumentList)
 }
 
 fn parse_exprs_comma(p: &mut Parser) {
     parse_expr(p);
-    while at_symbol(p, Symbol::Comma) {
+    while at_symbol(p, erl_tokenize::Symbol::Comma) {
         p.consume_lexical();
         parse_expr(p);
     }

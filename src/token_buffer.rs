@@ -4,8 +4,6 @@
 //! append-only: a [`TokenIndex`] obtained earlier still names the same
 //! token after later feeds.
 
-use erl_tokenize::Token;
-
 use crate::token_range::{TokenIndex, TokenRange};
 
 /// Append-only buffer of tokens the caller fed.
@@ -18,7 +16,7 @@ use crate::token_range::{TokenIndex, TokenRange};
 /// finished tree.
 #[derive(Debug, Clone)]
 pub(crate) struct TokenBuffer {
-    tokens: Vec<Token>,
+    tokens: Vec<erl_tokenize::Token>,
 }
 
 impl TokenBuffer {
@@ -28,12 +26,12 @@ impl TokenBuffer {
     }
 
     /// Returns the token at `index`, or `None` if the index is out of range.
-    pub(crate) fn get(&self, index: TokenIndex) -> Option<Token> {
+    pub(crate) fn get(&self, index: TokenIndex) -> Option<erl_tokenize::Token> {
         self.tokens.get(index.get()).copied()
     }
 
     /// Borrows the buffer as a slice.
-    pub(crate) fn as_slice(&self) -> &[Token] {
+    pub(crate) fn as_slice(&self) -> &[erl_tokenize::Token] {
         &self.tokens
     }
 
@@ -48,7 +46,7 @@ impl TokenBuffer {
     pub(crate) fn iter_range(
         &self,
         range: TokenRange,
-    ) -> impl Iterator<Item = (TokenIndex, Token)> {
+    ) -> impl Iterator<Item = (TokenIndex, erl_tokenize::Token)> {
         BufferRange {
             tokens: &self.tokens,
             cursor: range.start().get(),
@@ -61,7 +59,7 @@ impl TokenBuffer {
     /// can be passed to [`Self::get`] to recover the same token.
     // `pub(crate)`: only the parser core and in-crate tests call this.
     // External callers feed tokens through `Parser::feed_token`.
-    pub(crate) fn push(&mut self, token: Token) -> TokenIndex {
+    pub(crate) fn push(&mut self, token: erl_tokenize::Token) -> TokenIndex {
         let index = TokenIndex::new(self.tokens.len());
         self.tokens.push(token);
         index
@@ -69,13 +67,13 @@ impl TokenBuffer {
 }
 
 struct BufferRange<'a> {
-    tokens: &'a [Token],
+    tokens: &'a [erl_tokenize::Token],
     cursor: usize,
     end: usize,
 }
 
 impl Iterator for BufferRange<'_> {
-    type Item = (TokenIndex, Token);
+    type Item = (TokenIndex, erl_tokenize::Token);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.cursor >= self.end {
@@ -91,12 +89,12 @@ impl Iterator for BufferRange<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erl_tokenize::{Position, scan_token};
 
-    fn scan_all(source: &str) -> Vec<Token> {
+    fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
         let mut tokens = Vec::new();
-        let mut pos = Position::new();
-        while let Some(token) = scan_token(source, pos).expect("valid Erlang source") {
+        let mut pos = erl_tokenize::Position::new();
+        while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid Erlang source")
+        {
             tokens.push(token);
             pos = token.end();
         }
@@ -168,7 +166,7 @@ mod tests {
             buffer.push(*token);
         }
 
-        let collected: Vec<Token> = buffer
+        let collected: Vec<erl_tokenize::Token> = buffer
             .iter_range(TokenRange::new(TokenIndex::new(0), buffer.end_index()))
             .map(|(_idx, tok)| tok)
             .collect();

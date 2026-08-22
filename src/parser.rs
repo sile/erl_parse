@@ -16,8 +16,6 @@
 //! [`CompletedMarker`]; the parser drains completed top-level units into
 //! the syntax index at boundaries.
 
-use erl_tokenize::Token;
-
 use crate::cursor::{CursorCheckpoint, TokenCursor};
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::event::Event;
@@ -212,7 +210,7 @@ impl Parser {
     /// The return value can be discarded when the caller does not need
     /// to associate the token with any external metadata; the method is
     /// intentionally not marked `#[must_use]`.
-    pub fn feed_token(&mut self, token: Token) -> TokenIndex {
+    pub fn feed_token(&mut self, token: erl_tokenize::Token) -> TokenIndex {
         let index = self.tree.tokens_mut().push(token);
         self.advance_grammar();
         index
@@ -332,7 +330,7 @@ impl Parser {
     /// Peeks the nth lexical token from the cursor position (0-based),
     /// skipping hidden tokens. Returns `None` when the requested lookahead
     /// is beyond the tokens that have been pushed so far.
-    pub(crate) fn peek_lexical(&self, offset: usize) -> Option<(TokenIndex, Token)> {
+    pub(crate) fn peek_lexical(&self, offset: usize) -> Option<(TokenIndex, erl_tokenize::Token)> {
         TokenCursor::new(self.tree.token_buffer(), self.at).peek_lexical(offset)
     }
 
@@ -442,7 +440,10 @@ impl Parser {
     /// callers use [`Self::feed_token`], which triggers grammar
     /// dispatch as tokens arrive.
     #[cfg(test)]
-    pub(crate) fn feed_token_without_grammar_for_test(&mut self, token: Token) -> TokenIndex {
+    pub(crate) fn feed_token_without_grammar_for_test(
+        &mut self,
+        token: erl_tokenize::Token,
+    ) -> TokenIndex {
         self.tree.tokens_mut().push(token)
     }
 
@@ -646,14 +647,14 @@ impl Parser {
     }
 }
 
-fn is_dot(token: Token) -> bool {
+fn is_dot(token: erl_tokenize::Token) -> bool {
     matches!(
         token.kind(),
         erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Dot)
     )
 }
 
-fn prev_lexical(tokens: &TokenBuffer, index: usize) -> Option<(usize, Token)> {
+fn prev_lexical(tokens: &TokenBuffer, index: usize) -> Option<(usize, erl_tokenize::Token)> {
     let mut i = index;
     while i > 0 {
         i -= 1;
@@ -921,12 +922,11 @@ fn finalize_unit(events: &[Event], index: &mut SyntaxIndex) -> Option<NodeId> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erl_tokenize::{Position, scan_token};
 
-    fn scan_all(source: &str) -> Vec<Token> {
+    fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
         let mut out = Vec::new();
-        let mut pos = Position::new();
-        while let Some(t) = scan_token(source, pos).expect("valid source") {
+        let mut pos = erl_tokenize::Position::new();
+        while let Some(t) = erl_tokenize::scan_token(source, pos).expect("valid source") {
             out.push(t);
             pos = t.end();
         }

@@ -1,6 +1,8 @@
 //! Shared tokenize / preprocess / parse driver for OTP conformance binaries.
 //!
 //! Skip lists and include-path assembly follow `erl_pp`'s OTP smoke example.
+#![warn(missing_docs)]
+#![forbid(unsafe_code)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -692,7 +694,7 @@ mod tests {
             &[] as &[PathBuf],
             Some(29),
         );
-        let tree = run.tree.as_ref().unwrap();
+        let tree = run.tree.as_ref().expect("parse_text succeeded");
         assert_eq!(run.roots.len(), 3);
         assert!(is_epp_consumed_feature_attribute(
             tree,
