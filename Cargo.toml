@@ -13,7 +13,6 @@ rust-version = "1.88"
 
 [workspace]
 members = ["examples/otp_conformance"]
-resolver = "3"
 
 [dependencies]
 erl_tokenize = "0.11"
