@@ -1,12 +1,10 @@
 //! Lightweight navigation over a [`SyntaxIndex`] borrowed together with its
 //! [`TokenBuffer`].
 //!
-//! [`Cursor`] is the whole forest; [`NodeView`] is one node. Neither is
-//! a zipper. Construct them from
-//! [`SyntaxTree::cursor`](crate::SyntaxTree::cursor) /
-//! [`SyntaxTree::view`](crate::SyntaxTree::view). See
-//! [`docs::navigation`](crate::docs::navigation) for a caller-facing
-//! walkthrough.
+//! Forest-level questions (`roots`, `innermost_containing`) live on
+//! [`SyntaxTree`](crate::SyntaxTree). [`NodeView`] is one node. Neither
+//! is a zipper. See [`docs::navigation`](crate::docs::navigation) for a
+//! caller-facing walkthrough.
 //!
 //! [`NodeView`] is provided as a plain struct rather than a trait, so
 //! navigation is a concrete value type rather than an abstraction. All
@@ -22,8 +20,8 @@ use crate::token_range::{TokenIndex, TokenRange};
 ///
 /// Kind, range, children, descendants, ancestors, and the tokens in
 /// this span. Build one with [`SyntaxTree::view`](crate::SyntaxTree::view),
-/// or take one from a [`Cursor`] / existing view. See
-/// [`docs::navigation`](crate::docs::navigation).
+/// or take one from [`SyntaxTree::roots`](crate::SyntaxTree::roots) /
+/// an existing view. See [`docs::navigation`](crate::docs::navigation).
 #[derive(Debug, Clone, Copy)]
 pub struct NodeView<'a> {
     tokens: &'a TokenBuffer,
@@ -220,71 +218,52 @@ impl<'a> Iterator for Ancestors<'a> {
     }
 }
 
-/// Whole-index traversal helper.
-///
-/// Provides operations that a [`NodeView`] cannot express by itself, such
-/// as listing root units or finding the innermost node containing a
-/// specific [`TokenIndex`]. There is no current node: this is not a
-/// zipper. Construct with [`SyntaxTree::cursor`](crate::SyntaxTree::cursor).
-/// See [`docs::navigation`](crate::docs::navigation).
-#[derive(Debug, Clone, Copy)]
-pub struct Cursor<'a> {
+/// Iterator over root-level nodes of `tokens` / `index`.
+pub(crate) fn root_views<'a>(
     tokens: &'a TokenBuffer,
     index: &'a SyntaxIndex,
+) -> impl Iterator<Item = NodeView<'a>> {
+    Roots {
+        tokens,
+        index,
+        at: 0,
+    }
 }
 
-impl<'a> Cursor<'a> {
-    /// Creates a cursor from a token buffer and a syntax index.
-    // `pub(crate)`: pairing a buffer with an index is easy to get
-    // wrong across trees. External callers use `SyntaxTree::cursor`.
-    pub(crate) fn new(tokens: &'a TokenBuffer, index: &'a SyntaxIndex) -> Self {
-        Self { tokens, index }
-    }
-
-    /// Returns an iterator over root-level nodes (topmost entries in the
-    /// preorder array).
-    pub fn roots(self) -> impl Iterator<Item = NodeView<'a>> {
-        Roots {
-            tokens: self.tokens,
-            index: self.index,
-            cursor: 0,
+/// Innermost node whose non-empty range contains `target`.
+pub(crate) fn innermost_containing<'a>(
+    tokens: &'a TokenBuffer,
+    index: &'a SyntaxIndex,
+    target: TokenIndex,
+) -> Option<NodeView<'a>> {
+    let entries = index.entries();
+    let mut deepest: Option<NodeId> = None;
+    let mut i = 0;
+    while i < entries.len() {
+        let entry = entries[i];
+        let range = entry.range();
+        let contains = !range.is_empty()
+            && range.start().get() <= target.get()
+            && target.get() < range.end().get();
+        if contains {
+            deepest = Some(NodeId::new(i));
+            i += 1;
+        } else {
+            // This subtree does not contain the target; skip past it.
+            i = entry.subtree_end().get();
         }
     }
-
-    /// Returns the innermost node that contains `target`.
-    ///
-    /// A non-empty range `[start, end)` contains `target` when
-    /// `start <= target < end`. Empty ranges never contain any position.
-    pub fn innermost_containing(self, target: TokenIndex) -> Option<NodeView<'a>> {
-        let entries = self.index.entries();
-        let mut deepest: Option<NodeId> = None;
-        let mut i = 0;
-        while i < entries.len() {
-            let entry = entries[i];
-            let range = entry.range();
-            let contains = !range.is_empty()
-                && range.start().get() <= target.get()
-                && target.get() < range.end().get();
-            if contains {
-                deepest = Some(NodeId::new(i));
-                i += 1;
-            } else {
-                // This subtree does not contain the target; skip past it.
-                i = entry.subtree_end().get();
-            }
-        }
-        deepest.map(|node_id| NodeView {
-            tokens: self.tokens,
-            index: self.index,
-            node_id,
-        })
-    }
+    deepest.map(|node_id| NodeView {
+        tokens,
+        index,
+        node_id,
+    })
 }
 
 struct Roots<'a> {
     tokens: &'a TokenBuffer,
     index: &'a SyntaxIndex,
-    cursor: usize,
+    at: usize,
 }
 
 impl<'a> Iterator for Roots<'a> {
@@ -292,12 +271,12 @@ impl<'a> Iterator for Roots<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let entries = self.index.entries();
-        if self.cursor >= entries.len() {
+        if self.at >= entries.len() {
             return None;
         }
-        let node = NodeId::new(self.cursor);
-        let entry = entries[self.cursor];
-        self.cursor = entry.subtree_end().get();
+        let node = NodeId::new(self.at);
+        let entry = entries[self.at];
+        self.at = entry.subtree_end().get();
         Some(NodeView {
             tokens: self.tokens,
             index: self.index,
@@ -403,24 +382,20 @@ mod tests {
     }
 
     #[test]
-    fn cursor_innermost_containing_prefers_deepest() {
+    fn innermost_containing_prefers_deepest() {
         let (tokens, index) = build_sample();
-        let cursor = Cursor::new(&tokens, &index);
-        let found = cursor
-            .innermost_containing(TokenIndex::new(0))
+        let found = innermost_containing(&tokens, &index, TokenIndex::new(0))
             .expect("target lies inside an entry");
         assert_eq!(found.node_id(), NodeId::new(1));
-        let found2 = cursor
-            .innermost_containing(TokenIndex::new(2))
+        let found2 = innermost_containing(&tokens, &index, TokenIndex::new(2))
             .expect("target lies inside an entry");
         assert_eq!(found2.node_id(), NodeId::new(2));
     }
 
     #[test]
-    fn cursor_innermost_containing_returns_none_for_out_of_range() {
+    fn innermost_containing_returns_none_for_out_of_range() {
         let (tokens, index) = build_sample();
-        let cursor = Cursor::new(&tokens, &index);
-        assert!(cursor.innermost_containing(TokenIndex::new(3)).is_none());
+        assert!(innermost_containing(&tokens, &index, TokenIndex::new(3)).is_none());
     }
 
     #[test]
@@ -461,7 +436,6 @@ mod tests {
 
         // `innermost_containing(1)` selects neither the zero-width child
         // (empty range) nor the parent (range 0..1 does not contain 1).
-        let cursor = Cursor::new(&tokens, &index);
-        assert!(cursor.innermost_containing(TokenIndex::new(1)).is_none());
+        assert!(innermost_containing(&tokens, &index, TokenIndex::new(1)).is_none());
     }
 }

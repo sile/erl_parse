@@ -16,8 +16,9 @@ renders as
 [`docs::diagnostics`](https://docs.rs/erl_parse/erl_parse/docs/diagnostics/index.html)
 on docs.rs.
 
-Walking a finished tree uses `Cursor` and `NodeView`: the cursor
-is the whole forest, a view is one node, and neither is a zipper. See
+Walking a finished tree uses `SyntaxTree` for forest-level
+questions (`roots`, `innermost_containing`) and `NodeView` for one
+node. Neither is a zipper. See
 [Walking a syntax tree](docs/navigation.md); the same page renders as
 [`docs::navigation`](https://docs.rs/erl_parse/erl_parse/docs/navigation/index.html)
 on docs.rs.

@@ -42,7 +42,7 @@ fn expression_mode_finish_flushes_input_without_trailing_dot() {
     let tree = parser.finish();
     assert!(tree.diagnostics().is_empty());
     assert!(!tree.syntax().is_empty());
-    let root = tree.cursor().roots().next().expect("finish flushed a unit");
+    let root = tree.roots().next().expect("finish flushed a unit");
     assert_eq!(root.kind(), erl_parse::SyntaxKind::CallExpr);
 }
 

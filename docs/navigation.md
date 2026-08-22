@@ -3,19 +3,21 @@
 A finished [`SyntaxTree`](crate::SyntaxTree) is a
 [`TokenBuffer`](crate::TokenBuffer) plus a flat preorder
 [`SyntaxIndex`](crate::SyntaxIndex). Nothing in that pair is a
-"current position". The two public handles split the work:
+"current position". Forest-level questions live on the tree;
+[`NodeView`](crate::NodeView) answers questions about **one node**.
 
-- [`Cursor`](crate::Cursor) answers questions about the **whole
-  forest**: which `.`-terminated units are roots, and which node is
-  innermost around a given token.
-- [`NodeView`](crate::NodeView) answers questions about **one
-  node**: its [`SyntaxKind`](crate::SyntaxKind) and
+- [`SyntaxTree::roots`](crate::SyntaxTree::roots) lists the
+  `.`-terminated units. [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing)
+  finds the tightest node around a token.
+  [`SyntaxTree::view`](crate::SyntaxTree::view) wraps a
+  [`NodeId`](crate::NodeId).
+- [`NodeView`](crate::NodeView) is one node: its
+  [`SyntaxKind`](crate::SyntaxKind) and
   [`TokenRange`](crate::TokenRange), its children, its descendants,
   its ancestors, and the tokens that sit in its range.
 
-Neither is a zipper. You do not park a cursor on a node and then
-`goto_first_child` / `goto_next_sibling`. You take a `Cursor` from
-the tree ([`SyntaxTree::cursor`](crate::SyntaxTree::cursor)), then
+This is not a zipper. You do not park a cursor on a node and then
+`goto_first_child` / `goto_next_sibling`. You ask the tree, then
 you get `NodeView` values back. `NodeView` is `Copy`, so walking is
 "hand me another view", not "mutate this one".
 
@@ -50,9 +52,7 @@ root, you do not pull them one by one.
 
 ## After `finish`
 
-[`SyntaxTree::cursor`](crate::SyntaxTree::cursor) borrows this
-tree's buffer and index together. From there, roots are
-`NodeView`s.
+Roots are `NodeView`s borrowed from the tree.
 
 ```rust
 let source = "{1, 2}.";
@@ -64,8 +64,7 @@ while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid sour
 }
 let tree = parser.finish();
 
-let cursor = tree.cursor();
-let root = cursor.roots().next().expect("one expression unit");
+let root = tree.roots().next().expect("one expression unit");
 assert_eq!(root.kind(), erl_parse::SyntaxKind::TupleExpr);
 
 let children: Vec<erl_parse::SyntaxKind> = root.children().map(|c| c.kind()).collect();
@@ -86,23 +85,24 @@ let one = tree
     .position(|t| t.kind() == erl_tokenize::TokenKind::Integer)
     .map(erl_parse::TokenIndex::new)
     .expect("integer token");
-let hit = cursor
+let hit = tree
     .innermost_containing(one)
     .expect("non-empty range contains the token");
 assert_eq!(hit.kind(), erl_parse::SyntaxKind::IntegerExpr);
 ```
 
 A [`NodeId`](crate::NodeId) or [`TokenIndex`](crate::TokenIndex) from
-another tree is still the caller's problem: `cursor` / `view` only
-keep this tree's buffer and index paired.
+another tree is still the caller's problem: `roots` / `view` /
+`innermost_containing` only keep this tree's buffer and index paired.
 
 ## During a pull parse
 
 [`Parser::next_node`](crate::Parser::next_node) yields the same
-root ids that [`Cursor::roots`](crate::Cursor::roots) will yield
-after [`Parser::finish`](crate::Parser::finish). Wrap each id with
-[`SyntaxTree::view`](crate::SyntaxTree::view) while the parser is
-still alive, or collect the ids and wrap them on the finished tree.
+root ids that [`SyntaxTree::roots`](crate::SyntaxTree::roots) will
+yield after [`Parser::finish`](crate::Parser::finish). Wrap each id
+with [`SyntaxTree::view`](crate::SyntaxTree::view) while the parser
+is still alive, or collect the ids and wrap them on the finished
+tree.
 
 ```rust
 let source = "{1}. {2}.";
@@ -125,12 +125,8 @@ let first = tree
     .expect("id came from next_node");
 assert_eq!(first.kind(), erl_parse::SyntaxKind::TupleExpr);
 
-let via_cursor: Vec<erl_parse::NodeId> = tree
-    .cursor()
-    .roots()
-    .map(|v| v.node_id())
-    .collect();
-assert_eq!(via_cursor, root_ids);
+let via_roots: Vec<erl_parse::NodeId> = tree.roots().map(|v| v.node_id()).collect();
+assert_eq!(via_roots, root_ids);
 ```
 
 [`SyntaxTree::view`](crate::SyntaxTree::view) returns `None` when
@@ -141,12 +137,12 @@ same tree are always in range.
 
 | I want | Use |
 | --- | --- |
-| Each `.`-terminated unit | [`Cursor::roots`](crate::Cursor::roots) |
+| Each `.`-terminated unit | [`SyntaxTree::roots`](crate::SyntaxTree::roots) |
 | Direct children of one node | [`NodeView::children`](crate::NodeView::children) |
 | Every nested node, preorder, excluding self | [`NodeView::descendants`](crate::NodeView::descendants) |
 | Enclosing nodes, **outermost first** (root toward the parent) | [`NodeView::ancestors`](crate::NodeView::ancestors) |
 | Tokens in this span, including whitespace and comments | [`NodeView::tokens_in_range`](crate::NodeView::tokens_in_range) |
-| Tightest node whose non-empty range contains this token | [`Cursor::innermost_containing`](crate::Cursor::innermost_containing) |
+| Tightest node whose non-empty range contains this token | [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing) |
 
 A formatter or linter typically starts at `roots`, then
 `children` / `descendants` filtered by `kind()`. A hover or
@@ -164,7 +160,7 @@ in the sequence.
 A zero-width node is a real index entry: `children` can yield it,
 and you can wrap its [`NodeId`](crate::NodeId). It yields no
 tokens through `tokens_in_range`.
-[`Cursor::innermost_containing`](crate::Cursor::innermost_containing)
+[`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing)
 never selects it, because an empty `[start, start)` does not
 contain any [`TokenIndex`](crate::TokenIndex). Missing-token
 recovery uses that shape; see
@@ -176,8 +172,7 @@ recovery uses that shape; see
 - Iterator-returning methods hand back opaque `impl Iterator`
   values. Name them with `for` / `.map` / `.collect`, not a
   concrete struct.
-- There is no "current node" on [`Cursor`](crate::Cursor). If you
-  already have a [`NodeId`](crate::NodeId), start with
+- If you already have a [`NodeId`](crate::NodeId), start with
   [`SyntaxTree::view`](crate::SyntaxTree::view).
 - Kind and range alone do not need a view:
   [`SyntaxIndex::entry`](crate::SyntaxIndex::entry) is enough.

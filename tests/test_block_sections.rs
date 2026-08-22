@@ -1,6 +1,6 @@
 //! Integration tests for the section-node shape of `receive`, `try`,
 //! and `maybe` block expressions. Every check goes through the public
-//! `erl_parse::NodeView` / `erl_parse::Cursor` navigation surface so it matches what
+//! `erl_parse::NodeView` / `erl_parse::SyntaxTree` navigation surface so it matches what
 //! external consumers see.
 
 fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
@@ -25,10 +25,7 @@ fn parse_expr(source: &str) -> erl_parse::SyntaxTree {
 
 /// Returns a `erl_parse::NodeView` for the tree's first root node.
 fn root_view(tree: &erl_parse::SyntaxTree) -> erl_parse::NodeView<'_> {
-    tree.cursor()
-        .roots()
-        .next()
-        .expect("at least one root node")
+    tree.roots().next().expect("at least one root node")
 }
 
 fn child_kinds(view: erl_parse::NodeView<'_>) -> Vec<erl_parse::SyntaxKind> {

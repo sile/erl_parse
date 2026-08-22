@@ -376,8 +376,8 @@ pub struct NodeId(usize);
 impl NodeId {
     /// Constructs a `NodeId` from a raw index.
     // `pub(crate)`: a raw slot is a preorder fence, not a caller-facing
-    // handle. External ids come from `Parser::next_node`, `Cursor::roots`,
-    // and `NodeView` iterators.
+    // handle. External ids come from `Parser::next_node`,
+    // `SyntaxTree::roots`, and `NodeView` iterators.
     pub(crate) const fn new(index: usize) -> Self {
         Self(index)
     }

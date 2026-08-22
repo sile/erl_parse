@@ -4,10 +4,11 @@
 //! the parser goes away: the [`TokenBuffer`], the flat preorder
 //! [`SyntaxIndex`], and the accumulated [`Diagnostic`]s. All three parts
 //! reference each other through [`TokenIndex`](crate::TokenIndex) and
-//! [`NodeId`](crate::NodeId), so [`Cursor`](crate::Cursor) and
-//! [`NodeView`](crate::NodeView) work on a `SyntaxTree` in the same
-//! way they do against a live [`Parser`](crate::Parser). Construct
-//! them with [`SyntaxTree::cursor`] and [`SyntaxTree::view`]. See
+//! [`NodeId`](crate::NodeId), so [`NodeView`](crate::NodeView) works on
+//! a `SyntaxTree` in the same way it does against a live
+//! [`Parser`](crate::Parser). Forest-level walks
+//! ([`SyntaxTree::roots`], [`SyntaxTree::innermost_containing`]) and
+//! [`SyntaxTree::view`] keep the buffer and index paired. See
 //! [`docs::navigation`](crate::docs::navigation).
 //!
 //! `SyntaxTree` is `Clone` (all sub-components are `Clone`), so callers
@@ -16,9 +17,10 @@
 //! if they want to decouple the snapshot from the running parser.
 
 use crate::diagnostic::Diagnostic;
-use crate::node::{Cursor, NodeView};
+use crate::node::NodeView;
 use crate::syntax::{NodeId, SyntaxIndex};
 use crate::token_buffer::TokenBuffer;
+use crate::token_range::TokenIndex;
 
 /// The full result of a parse: input tokens, flat syntax index, and
 /// accumulated diagnostics.
@@ -61,22 +63,28 @@ impl SyntaxTree {
         &self.syntax
     }
 
-    /// Returns a [`Cursor`] over this tree's token buffer and syntax
-    /// index.
+    /// Returns an iterator over root-level nodes (each `.`-terminated
+    /// unit in the preorder array).
+    pub fn roots(&self) -> impl Iterator<Item = NodeView<'_>> {
+        crate::node::root_views(&self.tokens, &self.syntax)
+    }
+
+    /// Returns the innermost node whose non-empty range contains
+    /// `target`.
     ///
-    /// This is the public constructor for [`Cursor`]: the buffer and
-    /// index always belong to the same tree.
-    pub fn cursor(&self) -> Cursor<'_> {
-        Cursor::new(&self.tokens, &self.syntax)
+    /// A non-empty range `[start, end)` contains `target` when
+    /// `start <= target < end`. Empty ranges never contain any position.
+    pub fn innermost_containing(&self, target: TokenIndex) -> Option<NodeView<'_>> {
+        crate::node::innermost_containing(&self.tokens, &self.syntax, target)
     }
 
     /// Returns a [`NodeView`] for `node_id` in this tree, or `None`
     /// when the id does not refer to an existing entry.
     ///
     /// This is the public constructor for [`NodeView`] from a
-    /// [`NodeId`]. Views obtained from [`Cursor`] or from another
-    /// view's child / descendant / ancestor iterators are already
-    /// bound to a tree.
+    /// [`NodeId`]. Views obtained from [`SyntaxTree::roots`] or from
+    /// another view's child / descendant / ancestor iterators are
+    /// already bound to a tree.
     pub fn view(&self, node_id: NodeId) -> Option<NodeView<'_>> {
         NodeView::new(&self.tokens, &self.syntax, node_id)
     }

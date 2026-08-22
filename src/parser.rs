@@ -220,7 +220,7 @@ impl Parser {
     /// unit, or `None` when no new unit has completed since the last
     /// call. Nested nodes stay in the syntax index; wrap this id with
     /// [`SyntaxTree::view`](crate::SyntaxTree::view), or collect the
-    /// same roots later via [`Cursor::roots`](crate::Cursor::roots).
+    /// same roots later via [`SyntaxTree::roots`](crate::SyntaxTree::roots).
     /// See [`docs::navigation`](crate::docs::navigation).
     pub fn next_node(&mut self) -> Option<NodeId> {
         // Attempt to make grammar progress in case the previous feed_token

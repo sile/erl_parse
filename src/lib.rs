@@ -31,12 +31,12 @@
 //! - [`SyntaxIndex`] is a flat preorder array of [`SyntaxEntry`], addressed
 //!   by [`NodeId`]. [`SyntaxKind`] tags each entry with a grammar-level
 //!   nonterminal kind.
-//! - [`NodeView`] and [`Cursor`] navigate the syntax index and token buffer
-//!   together. [`Cursor`] is the whole forest; [`NodeView`] is one node.
-//!   Construct them from [`SyntaxTree::cursor`] / [`SyntaxTree::view`] so
-//!   the buffer and index always belong to the same tree. See
-//!   [`docs::navigation`]. Their iterator-returning methods hand back
-//!   opaque `impl Iterator` values.
+//! - [`NodeView`] walks one node together with the token buffer.
+//!   Forest-level questions (`roots`, `innermost_containing`) and
+//!   [`SyntaxTree::view`] live on [`SyntaxTree`] so the buffer and
+//!   index always belong to the same tree. See [`docs::navigation`].
+//!   Iterator-returning methods hand back opaque `impl Iterator`
+//!   values.
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 
@@ -52,7 +52,7 @@ mod token_buffer;
 mod token_range;
 
 pub use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
-pub use crate::node::{Cursor, NodeView};
+pub use crate::node::NodeView;
 pub use crate::parser::{ParseMode, Parser};
 pub use crate::syntax::{NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 pub use crate::syntax_tree::SyntaxTree;
