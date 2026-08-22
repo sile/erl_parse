@@ -16,15 +16,6 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use erl_parse::ParseMode;
-use nojson::{RawJson, RawJsonValue};
-use otp_conformance::{
-    AuxKind, Stage, build_include_paths, collect_app_include_dirs, first_error_line,
-    form_categories, later_forms_after_error, named_divergence, otp_release_from_env,
-    otp_root_from_path, otp_tag_from_env, parse_aux, parse_mode_from_str, parse_text,
-    roots_for_otp_parse_compare, tree_shape,
-};
-
 fn main() -> noargs::Result<ExitCode> {
     let mut args = noargs::raw_args();
     args.metadata_mut().app_name = "otp_diff";
@@ -53,7 +44,7 @@ fn main() -> noargs::Result<ExitCode> {
         if line.trim().is_empty() {
             continue;
         }
-        let raw = match RawJson::parse(line) {
+        let raw = match nojson::RawJson::parse(line) {
             Ok(j) => j,
             Err(e) => {
                 eprintln!("{}:{}: json parse: {e}", fixture_path.display(), lineno + 1);
@@ -101,7 +92,7 @@ enum Compare {
 }
 
 struct FormRec {
-    parse: Stage,
+    parse: otp_conformance::Stage,
     category: String,
     line: Option<usize>,
     /// OTP `epp` injects `-file`; not present in Rust preprocessor output.
@@ -119,9 +110,9 @@ fn fixture_forms_for_compare(forms: Vec<FormRec>) -> Vec<FormRec> {
     forms.into_iter().filter(|f| !f.is_epp_injected()).collect()
 }
 
-fn check_meta(v: RawJsonValue<'_, '_>) -> Result<(), String> {
+fn check_meta(v: nojson::RawJsonValue<'_, '_>) -> Result<(), String> {
     let fixture_tag = req_str(v, "otp_tag")?;
-    match otp_tag_from_env() {
+    match otp_conformance::otp_tag_from_env() {
         None => Err("OTP_TAG is unset; not verifying fixture otp_tag".into()),
         Some(env_tag) if env_tag == fixture_tag => Ok(()),
         Some(env_tag) => Err(format!(
@@ -130,12 +121,12 @@ fn check_meta(v: RawJsonValue<'_, '_>) -> Result<(), String> {
     }
 }
 
-fn compare_record(v: RawJsonValue<'_, '_>) -> Compare {
+fn compare_record(v: nojson::RawJsonValue<'_, '_>) -> Compare {
     let id = match req_str(v, "id") {
         Ok(s) => s,
         Err(e) => return Compare::Error(e),
     };
-    if let Some(reason) = named_divergence(&id) {
+    if let Some(reason) = otp_conformance::named_divergence(&id) {
         eprintln!("SKIP {id}: {reason}");
         return Compare::Skip;
     }
@@ -143,9 +134,9 @@ fn compare_record(v: RawJsonValue<'_, '_>) -> Compare {
         Ok(s) => s,
         Err(e) => return Compare::Error(format!("{id}: {e}")),
     };
-    let mode = match req_str(v, "mode")
-        .and_then(|s| parse_mode_from_str(&s).ok_or_else(|| format!("unknown mode {s}")))
-    {
+    let mode = match req_str(v, "mode").and_then(|s| {
+        otp_conformance::parse_mode_from_str(&s).ok_or_else(|| format!("unknown mode {s}"))
+    }) {
         Ok(m) => m,
         Err(e) => return Compare::Error(format!("{id}: {e}")),
     };
@@ -163,25 +154,25 @@ fn compare_record(v: RawJsonValue<'_, '_>) -> Compare {
         Err(e) => return Compare::Error(format!("{id}: {e}")),
     };
 
-    let run = parse_text(
+    let run = otp_conformance::parse_text(
         mode,
         &display,
         text,
         &include_paths,
         &erl_libs,
-        otp_release_from_env(),
+        otp_conformance::otp_release_from_env(),
     );
 
     if let Some(c) = xor_stage(&id, "tokenize", exp_tok, run.tokenize) {
         return c;
     }
-    if exp_tok == Stage::Err {
+    if exp_tok == otp_conformance::Stage::Err {
         return Compare::Skip;
     }
     if let Some(c) = xor_stage(&id, "preprocess", exp_pp, run.preprocess) {
         return c;
     }
-    if exp_pp == Stage::Err {
+    if exp_pp == otp_conformance::Stage::Err {
         return Compare::Skip;
     }
 
@@ -189,7 +180,7 @@ fn compare_record(v: RawJsonValue<'_, '_>) -> Compare {
 }
 
 fn load_input(
-    v: RawJsonValue<'_, '_>,
+    v: nojson::RawJsonValue<'_, '_>,
     kind: &str,
 ) -> Result<(String, String, Vec<PathBuf>, Vec<PathBuf>), String> {
     if kind == "otp_file" {
@@ -197,10 +188,10 @@ fn load_input(
         let text =
             fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
         let display = path.to_string_lossy().into_owned();
-        let root = otp_root_from_path(&path)
+        let root = otp_conformance::otp_root_from_path(&path)
             .ok_or_else(|| format!("cannot infer OTP root from {}", path.display()))?;
-        let globals = collect_app_include_dirs(&root);
-        let include_paths = build_include_paths(&path, &root, &globals, &[]);
+        let globals = otp_conformance::collect_app_include_dirs(&root);
+        let include_paths = otp_conformance::build_include_paths(&path, &root, &globals, &[]);
         let erl_libs = vec![root.join("lib")];
         Ok((text, display, include_paths, erl_libs))
     } else {
@@ -209,7 +200,12 @@ fn load_input(
     }
 }
 
-fn xor_stage(id: &str, stage: &str, expected: Stage, actual: Stage) -> Option<Compare> {
+fn xor_stage(
+    id: &str,
+    stage: &str,
+    expected: otp_conformance::Stage,
+    actual: otp_conformance::Stage,
+) -> Option<Compare> {
     if expected == actual {
         None
     } else {
@@ -223,9 +219,9 @@ fn xor_stage(id: &str, stage: &str, expected: Stage, actual: Stage) -> Option<Co
 
 fn compare_parse(
     id: &str,
-    v: RawJsonValue<'_, '_>,
+    v: nojson::RawJsonValue<'_, '_>,
     kind: &str,
-    mode: ParseMode,
+    mode: erl_parse::ParseMode,
     run: &otp_conformance::ParseRun,
 ) -> Compare {
     let Some(tree) = run.tree.as_ref() else {
@@ -253,21 +249,28 @@ fn compare_parse(
         return compare_one_parse(id, v, mode, run, tree, exp);
     }
 
-    if run.parse == Stage::Ok && forms.iter().any(|f| f.parse == Stage::Err) {
+    if run.parse == otp_conformance::Stage::Ok
+        && forms.iter().any(|f| f.parse == otp_conformance::Stage::Err)
+    {
         return Compare::Error(format!(
             "{id}: parse XOR (otp has a rejected form, rust accepted the file)"
         ));
     }
-    if run.parse == Stage::Err && forms.iter().all(|f| f.parse == Stage::Ok) {
+    if run.parse == otp_conformance::Stage::Err
+        && forms.iter().all(|f| f.parse == otp_conformance::Stage::Ok)
+    {
         return Compare::Error(format!(
             "{id}: parse XOR (otp accepted all forms, rust rejected the file)"
         ));
     }
-    if run.parse == Stage::Err {
-        if let Some(exp_line) = forms
-            .iter()
-            .find_map(|f| if f.parse == Stage::Err { f.line } else { None })
-            && let Some(act_line) = first_error_line(tree)
+    if run.parse == otp_conformance::Stage::Err {
+        if let Some(exp_line) = forms.iter().find_map(|f| {
+            if f.parse == otp_conformance::Stage::Err {
+                f.line
+            } else {
+                None
+            }
+        }) && let Some(act_line) = otp_conformance::first_error_line(tree)
             && act_line != exp_line
         {
             return Compare::Error(format!("{id}: error line otp {exp_line} rust {act_line}"));
@@ -275,7 +278,8 @@ fn compare_parse(
         return Compare::Ok;
     }
 
-    let rust_roots = roots_for_otp_parse_compare(tree, &run.token_sources, &run.roots);
+    let rust_roots =
+        otp_conformance::roots_for_otp_parse_compare(tree, &run.token_sources, &run.roots);
     if rust_roots.len() != forms.len() {
         return Compare::Error(format!(
             "{id}: form count otp {} rust {}",
@@ -283,8 +287,8 @@ fn compare_parse(
             rust_roots.len()
         ));
     }
-    if mode == ParseMode::Module {
-        let cats = form_categories(tree, &rust_roots);
+    if mode == erl_parse::ParseMode::Module {
+        let cats = otp_conformance::form_categories(tree, &rust_roots);
         for (i, (got, exp)) in cats.iter().zip(forms.iter()).enumerate() {
             if *got != exp.category.as_str() {
                 return Compare::Error(format!(
@@ -299,11 +303,11 @@ fn compare_parse(
 
 fn compare_one_parse(
     id: &str,
-    v: RawJsonValue<'_, '_>,
-    mode: ParseMode,
+    v: nojson::RawJsonValue<'_, '_>,
+    mode: erl_parse::ParseMode,
     run: &otp_conformance::ParseRun,
     tree: &erl_parse::SyntaxTree,
-    exp: Stage,
+    exp: otp_conformance::Stage,
 ) -> Compare {
     if exp != run.parse {
         return Compare::Error(format!(
@@ -312,8 +316,11 @@ fn compare_one_parse(
             run.parse.as_str()
         ));
     }
-    if exp == Stage::Err {
-        match (opt_usize(v, "error_line"), first_error_line(tree)) {
+    if exp == otp_conformance::Stage::Err {
+        match (
+            opt_usize(v, "error_line"),
+            otp_conformance::first_error_line(tree),
+        ) {
             (Ok(Some(exp_line)), Some(act_line)) if exp_line != act_line => {
                 return Compare::Error(format!("{id}: error line otp {exp_line} rust {act_line}"));
             }
@@ -326,8 +333,8 @@ fn compare_one_parse(
 
 fn compare_aux_and_tree(
     id: &str,
-    v: RawJsonValue<'_, '_>,
-    mode: ParseMode,
+    v: nojson::RawJsonValue<'_, '_>,
+    mode: erl_parse::ParseMode,
     run: &otp_conformance::ParseRun,
     tree: &erl_parse::SyntaxTree,
 ) -> Compare {
@@ -338,7 +345,7 @@ fn compare_aux_and_tree(
         let Some(root) = run.roots.first().copied() else {
             return Compare::Error(format!("{id}: no root for tree comparison"));
         };
-        let Some(actual) = tree_shape(tree, &run.source, root) else {
+        let Some(actual) = otp_conformance::tree_shape(tree, &run.source, root) else {
             return Compare::Error(format!("{id}: failed to reconstruct tree shape"));
         };
         if actual != expected_tree {
@@ -351,7 +358,7 @@ fn compare_aux_and_tree(
         Err(e) => return Compare::Error(format!("{id}: {e}")),
     };
     if let Some(kind_s) = aux_kind {
-        let Some(aux_kind) = AuxKind::parse(&kind_s) else {
+        let Some(aux_kind) = otp_conformance::AuxKind::parse(&kind_s) else {
             return Compare::Error(format!("{id}: unknown aux_kind {kind_s}"));
         };
         let path = match req_str(v, "extract_path") {
@@ -360,14 +367,18 @@ fn compare_aux_and_tree(
         };
         let exp = match opt_stage(v, "aux_parse") {
             Ok(Some(s)) => s,
-            Ok(None) => Stage::Ok,
+            Ok(None) => otp_conformance::Stage::Ok,
             Err(e) => return Compare::Error(format!("{id}: {e}")),
         };
-        let ok = match parse_aux(mode, tree.tokens().as_slice(), aux_kind, &path) {
+        let ok = match otp_conformance::parse_aux(mode, tree.tokens().as_slice(), aux_kind, &path) {
             Ok(b) => b,
             Err(e) => return Compare::Error(format!("{id}: aux {e}")),
         };
-        let actual = if ok { Stage::Ok } else { Stage::Err };
+        let actual = if ok {
+            otp_conformance::Stage::Ok
+        } else {
+            otp_conformance::Stage::Err
+        };
         if actual != exp {
             return Compare::Error(format!(
                 "{id}: aux_parse XOR (otp {}, rust {})",
@@ -381,7 +392,7 @@ fn compare_aux_and_tree(
 
 fn compare_recovery(
     id: &str,
-    v: RawJsonValue<'_, '_>,
+    v: nojson::RawJsonValue<'_, '_>,
     tree: &erl_parse::SyntaxTree,
     roots: &[erl_parse::NodeId],
 ) -> Compare {
@@ -392,7 +403,7 @@ fn compare_recovery(
         }
         Err(e) => return Compare::Error(format!("{id}: {e}")),
     };
-    let got = later_forms_after_error(tree, roots);
+    let got = otp_conformance::later_forms_after_error(tree, roots);
     if got < expect {
         Compare::Error(format!(
             "{id}: recovery later forms {got} < expected {expect}"
@@ -402,7 +413,7 @@ fn compare_recovery(
     }
 }
 
-fn parse_forms(v: RawJsonValue<'_, '_>) -> Result<Vec<FormRec>, String> {
+fn parse_forms(v: nojson::RawJsonValue<'_, '_>) -> Result<Vec<FormRec>, String> {
     let Some(arr) = v.to_member("forms").map_err(|e| e.to_string())?.optional() else {
         return Ok(Vec::new());
     };
@@ -422,14 +433,14 @@ fn parse_forms(v: RawJsonValue<'_, '_>) -> Result<Vec<FormRec>, String> {
     Ok(out)
 }
 
-fn opt_tree(v: RawJsonValue<'_, '_>) -> Result<Option<String>, String> {
+fn opt_tree(v: nojson::RawJsonValue<'_, '_>) -> Result<Option<String>, String> {
     match v.to_member("tree").map_err(|e| e.to_string())?.optional() {
         None => Ok(None),
         Some(t) => Ok(Some(compact_json(t)?)),
     }
 }
 
-fn compact_json(v: RawJsonValue<'_, '_>) -> Result<String, String> {
+fn compact_json(v: nojson::RawJsonValue<'_, '_>) -> Result<String, String> {
     if let Ok(arr) = v.to_array() {
         let mut parts = Vec::new();
         for item in arr {
@@ -455,7 +466,7 @@ fn json_escape(s: &str) -> String {
     out
 }
 
-fn req_str(v: RawJsonValue<'_, '_>, name: &str) -> Result<String, String> {
+fn req_str(v: nojson::RawJsonValue<'_, '_>, name: &str) -> Result<String, String> {
     let m = v
         .to_member(name)
         .map_err(|e| e.to_string())?
@@ -466,7 +477,7 @@ fn req_str(v: RawJsonValue<'_, '_>, name: &str) -> Result<String, String> {
         .into_owned())
 }
 
-fn opt_str(v: RawJsonValue<'_, '_>, name: &str) -> Result<Option<String>, String> {
+fn opt_str(v: nojson::RawJsonValue<'_, '_>, name: &str) -> Result<Option<String>, String> {
     match v.to_member(name).map_err(|e| e.to_string())?.optional() {
         None => Ok(None),
         Some(x) => Ok(Some(
@@ -477,21 +488,27 @@ fn opt_str(v: RawJsonValue<'_, '_>, name: &str) -> Result<Option<String>, String
     }
 }
 
-fn req_stage(v: RawJsonValue<'_, '_>, name: &str) -> Result<Stage, String> {
+fn req_stage(
+    v: nojson::RawJsonValue<'_, '_>,
+    name: &str,
+) -> Result<otp_conformance::Stage, String> {
     let s = req_str(v, name)?;
-    Stage::parse(&s).ok_or_else(|| format!("{name} must be \"ok\" or \"err\""))
+    otp_conformance::Stage::parse(&s).ok_or_else(|| format!("{name} must be \"ok\" or \"err\""))
 }
 
-fn opt_stage(v: RawJsonValue<'_, '_>, name: &str) -> Result<Option<Stage>, String> {
+fn opt_stage(
+    v: nojson::RawJsonValue<'_, '_>,
+    name: &str,
+) -> Result<Option<otp_conformance::Stage>, String> {
     match opt_str(v, name)? {
         None => Ok(None),
-        Some(s) => Stage::parse(&s)
+        Some(s) => otp_conformance::Stage::parse(&s)
             .map(Some)
             .ok_or_else(|| format!("{name} must be \"ok\" or \"err\"")),
     }
 }
 
-fn opt_usize(v: RawJsonValue<'_, '_>, name: &str) -> Result<Option<usize>, String> {
+fn opt_usize(v: nojson::RawJsonValue<'_, '_>, name: &str) -> Result<Option<usize>, String> {
     match v.to_member(name).map_err(|e| e.to_string())?.optional() {
         None => Ok(None),
         Some(x) => {

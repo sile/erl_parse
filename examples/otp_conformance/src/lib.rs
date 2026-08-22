@@ -8,11 +8,6 @@ use std::sync::Arc;
 
 mod predef;
 
-use erl_parse::{
-    NodeId, NodeView, ParseMode, Parser, SyntaxKind, SyntaxTree, TokenIndex, TokenRange,
-};
-use erl_tokenize::{Token, TokenKind};
-
 pub use predef::{otp_release_from_env, otp_release_from_tag};
 
 /// Outcome of one pipeline stage.
@@ -43,18 +38,18 @@ impl Stage {
     }
 }
 
-/// Which auxiliary `Parser::parse_*_range` entry point to run.
+/// Which auxiliary `erl_parse::Parser::parse_*_range` entry point to run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuxKind {
-    /// `Parser::parse_pattern_range`.
+    /// `erl_parse::Parser::parse_pattern_range`.
     Pattern,
-    /// `Parser::parse_guard_range`.
+    /// `erl_parse::Parser::parse_guard_range`.
     Guard,
-    /// `Parser::parse_type_range`.
+    /// `erl_parse::Parser::parse_type_range`.
     Type,
-    /// `Parser::parse_term_range`.
+    /// `erl_parse::Parser::parse_term_range`.
     Term,
-    /// `Parser::parse_expression_range`.
+    /// `erl_parse::Parser::parse_expression_range`.
     Expression,
 }
 
@@ -81,9 +76,9 @@ pub struct ParseRun {
     /// Parse stage. [`Stage::Err`] if an earlier stage failed.
     pub parse: Stage,
     /// Finished tree. `None` when tokenize failed.
-    pub tree: Option<SyntaxTree>,
+    pub tree: Option<erl_parse::SyntaxTree>,
     /// Top-level units returned by `next_top_node`.
-    pub roots: Vec<NodeId>,
+    pub roots: Vec<erl_parse::NodeId>,
     /// Lexical token count (hidden tokens excluded).
     pub token_count: usize,
     /// `Event::Diagnostic` warnings.
@@ -101,7 +96,7 @@ pub struct ParseRun {
 }
 
 /// Scans `text` to EOF.
-pub fn scan_source(text: &str) -> Result<Vec<Token>, String> {
+pub fn scan_source(text: &str) -> Result<Vec<erl_tokenize::Token>, String> {
     let mut tokens = Vec::new();
     let mut pos = erl_tokenize::Position::new();
     loop {
@@ -120,7 +115,7 @@ pub fn scan_source(text: &str) -> Result<Vec<Token>, String> {
 ///
 /// `otp_release` is the integer `?OTP_RELEASE` expands to (from `OTP_TAG`).
 pub fn parse_text(
-    mode: ParseMode,
+    mode: erl_parse::ParseMode,
     display: &str,
     text: String,
     include_paths: &[PathBuf],
@@ -148,7 +143,7 @@ pub fn parse_text(
     };
     let source = erl_pp::Source::new(display.to_string(), text.clone(), tokens);
     let mut pp = erl_pp::Preprocessor::new([source]);
-    let mut parser = Parser::new(mode);
+    let mut parser = erl_parse::Parser::new(mode);
     let mut predef = predef::PredefContext::new(otp_release);
     let mut roots = Vec::new();
     let mut token_sources = Vec::new();
@@ -266,30 +261,33 @@ pub fn parse_text(
     }
 }
 
-/// True when the error list is empty and the tree has no `SyntaxKind::Error` node.
-pub fn accepted(tree: &SyntaxTree) -> bool {
+/// True when the error list is empty and the tree has no `erl_parse::SyntaxKind::Error` node.
+pub fn accepted(tree: &erl_parse::SyntaxTree) -> bool {
     tree.errors().is_empty() && !has_error_node(tree)
 }
 
-fn has_error_node(tree: &SyntaxTree) -> bool {
+fn has_error_node(tree: &erl_parse::SyntaxTree) -> bool {
     tree.syntax()
         .entries()
         .iter()
-        .any(|e| e.kind() == SyntaxKind::Error)
+        .any(|e| e.kind() == erl_parse::SyntaxKind::Error)
 }
 
 /// Maps a module-mode root to OTP's attribute / function / error classification.
-pub fn form_category(kind: SyntaxKind) -> &'static str {
+pub fn form_category(kind: erl_parse::SyntaxKind) -> &'static str {
     match kind {
-        SyntaxKind::Attribute => "attribute",
-        SyntaxKind::FunctionDecl => "function",
-        SyntaxKind::Error => "error",
+        erl_parse::SyntaxKind::Attribute => "attribute",
+        erl_parse::SyntaxKind::FunctionDecl => "function",
+        erl_parse::SyntaxKind::Error => "error",
         _ => "other",
     }
 }
 
 /// Classifies each root in `roots`.
-pub fn form_categories(tree: &SyntaxTree, roots: &[NodeId]) -> Vec<&'static str> {
+pub fn form_categories(
+    tree: &erl_parse::SyntaxTree,
+    roots: &[erl_parse::NodeId],
+) -> Vec<&'static str> {
     roots
         .iter()
         .filter_map(|id| tree.syntax().entry(*id).map(|e| form_category(e.kind())))
@@ -298,20 +296,20 @@ pub fn form_categories(tree: &SyntaxTree, roots: &[NodeId]) -> Vec<&'static str>
 
 /// True when `id` is a `-feature(...)` attribute consumed by OTP `epp` before `erl_parse`.
 pub fn is_epp_consumed_feature_attribute(
-    tree: &SyntaxTree,
+    tree: &erl_parse::SyntaxTree,
     token_sources: &[Arc<erl_pp::Source>],
-    id: NodeId,
+    id: erl_parse::NodeId,
 ) -> bool {
     let Some(entry) = tree.syntax().entry(id) else {
         return false;
     };
-    if entry.kind() != SyntaxKind::Attribute {
+    if entry.kind() != erl_parse::SyntaxKind::Attribute {
         return false;
     }
-    let Some(view) = NodeView::new(tree.tokens(), tree.syntax(), id) else {
+    let Some(view) = erl_parse::NodeView::new(tree.tokens(), tree.syntax(), id) else {
         return false;
     };
-    let Some(name_node) = child_of_kind(view, SyntaxKind::AttributeName) else {
+    let Some(name_node) = child_of_kind(view, erl_parse::SyntaxKind::AttributeName) else {
         return false;
     };
     for (idx, t) in tree.tokens().iter_range(name_node.range()) {
@@ -326,10 +324,10 @@ pub fn is_epp_consumed_feature_attribute(
 
 /// Roots aligned with OTP `erl_parse` per-form fixture lists (drops epp-consumed `-feature`).
 pub fn roots_for_otp_parse_compare(
-    tree: &SyntaxTree,
+    tree: &erl_parse::SyntaxTree,
     token_sources: &[Arc<erl_pp::Source>],
-    roots: &[NodeId],
-) -> Vec<NodeId> {
+    roots: &[erl_parse::NodeId],
+) -> Vec<erl_parse::NodeId> {
     roots
         .iter()
         .copied()
@@ -338,9 +336,9 @@ pub fn roots_for_otp_parse_compare(
 }
 
 fn token_text<'a>(
-    tree: &SyntaxTree,
+    tree: &erl_parse::SyntaxTree,
     token_sources: &'a [Arc<erl_pp::Source>],
-    index: TokenIndex,
+    index: erl_parse::TokenIndex,
 ) -> Option<&'a str> {
     let token = tree.tokens().get(index)?;
     let source = token_sources.get(index.get())?;
@@ -348,13 +346,13 @@ fn token_text<'a>(
 }
 
 /// 1-based line of a `ParseError` range start.
-pub fn error_line(tree: &SyntaxTree, range: TokenRange) -> usize {
+pub fn error_line(tree: &erl_parse::SyntaxTree, range: erl_parse::TokenRange) -> usize {
     let idx = range.start();
     if let Some(t) = tree.tokens().get(idx) {
         return t.start().line().get();
     }
     if idx.get() > 0
-        && let Some(t) = tree.tokens().get(TokenIndex::new(idx.get() - 1))
+        && let Some(t) = tree.tokens().get(erl_parse::TokenIndex::new(idx.get() - 1))
     {
         return t.start().line().get();
     }
@@ -362,7 +360,7 @@ pub fn error_line(tree: &SyntaxTree, range: TokenRange) -> usize {
 }
 
 /// Line of the first `ParseError`, if any.
-pub fn first_error_line(tree: &SyntaxTree) -> Option<usize> {
+pub fn first_error_line(tree: &erl_parse::SyntaxTree) -> Option<usize> {
     tree.errors().first().map(|e| error_line(tree, e.range()))
 }
 
@@ -554,14 +552,18 @@ pub fn is_skipped(path: &Path) -> bool {
 ///
 /// For `-spec` types, a trailing `after_arrow` takes the tokens after the
 /// first `->` in the current range (the payload is `f() -> Type`, not `Type`).
-pub fn extract_range(tree: &SyntaxTree, roots: &[NodeId], path: &str) -> Option<TokenRange> {
+pub fn extract_range(
+    tree: &erl_parse::SyntaxTree,
+    roots: &[erl_parse::NodeId],
+    path: &str,
+) -> Option<erl_parse::TokenRange> {
     let mut segs = path.split('.');
     let first = segs.next()?;
     let i = parse_indexed("form", first)?;
     let mut node = roots
         .get(i)
         .copied()
-        .and_then(|id| NodeView::new(tree.tokens(), tree.syntax(), id))?;
+        .and_then(|id| erl_parse::NodeView::new(tree.tokens(), tree.syntax(), id))?;
     let mut range = node.range();
     for seg in segs {
         if seg == "after_arrow" {
@@ -580,67 +582,76 @@ fn parse_indexed(prefix: &str, seg: &str) -> Option<usize> {
     inside.parse().ok()
 }
 
-fn step_path<'a>(node: NodeView<'a>, seg: &str) -> Option<NodeView<'a>> {
+fn step_path<'a>(node: erl_parse::NodeView<'a>, seg: &str) -> Option<erl_parse::NodeView<'a>> {
     if let Some(i) = parse_indexed("clause", seg) {
-        return children_of_kind(node, SyntaxKind::FunctionClause).nth(i);
+        return children_of_kind(node, erl_parse::SyntaxKind::FunctionClause).nth(i);
     }
     if let Some(i) = parse_indexed("argument_list", seg) {
-        let list = child_of_kind(node, SyntaxKind::ArgumentList)?;
+        let list = child_of_kind(node, erl_parse::SyntaxKind::ArgumentList)?;
         return list.children().nth(i);
     }
     match seg {
         "function_decl" => {
-            if node.kind() == SyntaxKind::FunctionDecl {
+            if node.kind() == erl_parse::SyntaxKind::FunctionDecl {
                 Some(node)
             } else {
-                child_of_kind(node, SyntaxKind::FunctionDecl)
+                child_of_kind(node, erl_parse::SyntaxKind::FunctionDecl)
             }
         }
-        "argument_list" => child_of_kind(node, SyntaxKind::ArgumentList),
-        "guard_sequence" => child_of_kind(node, SyntaxKind::GuardSequence),
+        "argument_list" => child_of_kind(node, erl_parse::SyntaxKind::ArgumentList),
+        "guard_sequence" => child_of_kind(node, erl_parse::SyntaxKind::GuardSequence),
         "attribute" => {
-            if node.kind() == SyntaxKind::Attribute {
+            if node.kind() == erl_parse::SyntaxKind::Attribute {
                 Some(node)
             } else {
-                child_of_kind(node, SyntaxKind::Attribute)
+                child_of_kind(node, erl_parse::SyntaxKind::Attribute)
             }
         }
-        "payload" => child_of_kind(node, SyntaxKind::AttributePayload),
+        "payload" => child_of_kind(node, erl_parse::SyntaxKind::AttributePayload),
         _ => None,
     }
 }
 
-fn children_of_kind(node: NodeView<'_>, kind: SyntaxKind) -> impl Iterator<Item = NodeView<'_>> {
+fn children_of_kind(
+    node: erl_parse::NodeView<'_>,
+    kind: erl_parse::SyntaxKind,
+) -> impl Iterator<Item = erl_parse::NodeView<'_>> {
     node.children().filter(move |c| c.kind() == kind)
 }
 
-fn child_of_kind(node: NodeView<'_>, kind: SyntaxKind) -> Option<NodeView<'_>> {
+fn child_of_kind(
+    node: erl_parse::NodeView<'_>,
+    kind: erl_parse::SyntaxKind,
+) -> Option<erl_parse::NodeView<'_>> {
     node.children().find(|c| c.kind() == kind)
 }
 
-fn range_after_arrow(tree: &SyntaxTree, payload: TokenRange) -> Option<TokenRange> {
+fn range_after_arrow(
+    tree: &erl_parse::SyntaxTree,
+    payload: erl_parse::TokenRange,
+) -> Option<erl_parse::TokenRange> {
     let mut arrow = None;
     for (idx, t) in tree.tokens().iter_range(payload) {
-        if t.kind() == TokenKind::Symbol(erl_tokenize::Symbol::RightArrow) {
+        if t.kind() == erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::RightArrow) {
             arrow = Some(idx);
             break;
         }
     }
-    let start = TokenIndex::new(arrow?.get() + 1);
+    let start = erl_parse::TokenIndex::new(arrow?.get() + 1);
     if start.get() >= payload.end().get() {
         return None;
     }
-    Some(TokenRange::new(start, payload.end()))
+    Some(erl_parse::TokenRange::new(start, payload.end()))
 }
 
 /// Re-parses `tokens` and runs an auxiliary entry point. `true` if it adds no errors.
 pub fn parse_aux(
-    mode: ParseMode,
-    tokens: &[Token],
+    mode: erl_parse::ParseMode,
+    tokens: &[erl_tokenize::Token],
     aux_kind: AuxKind,
     extract_path: &str,
 ) -> Result<bool, String> {
-    let mut parser = Parser::new(mode);
+    let mut parser = erl_parse::Parser::new(mode);
     for t in tokens {
         parser.push_token(*t);
     }
@@ -664,19 +675,19 @@ pub fn parse_aux(
     let error_node = tree
         .syntax()
         .entry(id)
-        .is_some_and(|e| e.kind() == SyntaxKind::Error);
+        .is_some_and(|e| e.kind() == erl_parse::SyntaxKind::Error);
     Ok(!extra_errors && !error_node)
 }
 
-/// Number of non-`Error` roots after the first `SyntaxKind::Error` root.
-pub fn later_forms_after_error(tree: &SyntaxTree, roots: &[NodeId]) -> usize {
+/// Number of non-`Error` roots after the first `erl_parse::SyntaxKind::Error` root.
+pub fn later_forms_after_error(tree: &erl_parse::SyntaxTree, roots: &[erl_parse::NodeId]) -> usize {
     let mut seen_error = false;
     let mut later = 0usize;
     for id in roots {
         let Some(entry) = tree.syntax().entry(*id) else {
             continue;
         };
-        if entry.kind() == SyntaxKind::Error {
+        if entry.kind() == erl_parse::SyntaxKind::Error {
             seen_error = true;
             continue;
         }
@@ -688,14 +699,18 @@ pub fn later_forms_after_error(tree: &SyntaxTree, roots: &[NodeId]) -> usize {
 }
 
 /// Nested JSON array used to compare operator precedence (not pretty-print).
-pub fn tree_shape(tree: &SyntaxTree, source: &str, id: NodeId) -> Option<String> {
-    let view = NodeView::new(tree.tokens(), tree.syntax(), id)?;
+pub fn tree_shape(
+    tree: &erl_parse::SyntaxTree,
+    source: &str,
+    id: erl_parse::NodeId,
+) -> Option<String> {
+    let view = erl_parse::NodeView::new(tree.tokens(), tree.syntax(), id)?;
     Some(shape_node(tree, source, view))
 }
 
-fn unwrap_paren(node: NodeView<'_>) -> NodeView<'_> {
+fn unwrap_paren(node: erl_parse::NodeView<'_>) -> erl_parse::NodeView<'_> {
     let mut cur = node;
-    while cur.kind() == SyntaxKind::ParenExpr
+    while cur.kind() == erl_parse::SyntaxKind::ParenExpr
         && let Some(child) = cur.first_child()
     {
         cur = child;
@@ -703,13 +718,13 @@ fn unwrap_paren(node: NodeView<'_>) -> NodeView<'_> {
     cur
 }
 
-fn shape_node(tree: &SyntaxTree, source: &str, node: NodeView<'_>) -> String {
+fn shape_node(tree: &erl_parse::SyntaxTree, source: &str, node: erl_parse::NodeView<'_>) -> String {
     let node = unwrap_paren(node);
     match node.kind() {
-        SyntaxKind::BinaryOpExpr
-        | SyntaxKind::MatchExpr
-        | SyntaxKind::SendExpr
-        | SyntaxKind::MaybeMatchExpr => {
+        erl_parse::SyntaxKind::BinaryOpExpr
+        | erl_parse::SyntaxKind::MatchExpr
+        | erl_parse::SyntaxKind::SendExpr
+        | erl_parse::SyntaxKind::MaybeMatchExpr => {
             let mut kids = node.children();
             let Some(left) = kids.next() else {
                 return "[]".to_string();
@@ -726,7 +741,7 @@ fn shape_node(tree: &SyntaxTree, source: &str, node: NodeView<'_>) -> String {
                 shape_node(tree, source, right)
             )
         }
-        SyntaxKind::UnaryOpExpr | SyntaxKind::CatchExpr => {
+        erl_parse::SyntaxKind::UnaryOpExpr | erl_parse::SyntaxKind::CatchExpr => {
             let Some(child) = node.first_child() else {
                 return "[]".to_string();
             };
@@ -738,26 +753,29 @@ fn shape_node(tree: &SyntaxTree, source: &str, node: NodeView<'_>) -> String {
                 shape_node(tree, source, child)
             )
         }
-        SyntaxKind::IntegerExpr => "[\"integer\"]".to_string(),
-        SyntaxKind::AtomExpr => "[\"atom\"]".to_string(),
-        SyntaxKind::VarExpr => "[\"var\"]".to_string(),
-        SyntaxKind::FloatExpr => "[\"float\"]".to_string(),
-        SyntaxKind::CharExpr => "[\"char\"]".to_string(),
+        erl_parse::SyntaxKind::IntegerExpr => "[\"integer\"]".to_string(),
+        erl_parse::SyntaxKind::AtomExpr => "[\"atom\"]".to_string(),
+        erl_parse::SyntaxKind::VarExpr => "[\"var\"]".to_string(),
+        erl_parse::SyntaxKind::FloatExpr => "[\"float\"]".to_string(),
+        erl_parse::SyntaxKind::CharExpr => "[\"char\"]".to_string(),
         other => format!("[\"{other:?}\"]"),
     }
 }
 
 fn operator_between(
-    tree: &SyntaxTree,
+    tree: &erl_parse::SyntaxTree,
     source: &str,
-    start: TokenIndex,
-    end: TokenIndex,
+    start: erl_parse::TokenIndex,
+    end: erl_parse::TokenIndex,
 ) -> Option<String> {
     if start.get() >= end.get() {
         return None;
     }
     let mut ops = Vec::new();
-    for (_, t) in tree.tokens().iter_range(TokenRange::new(start, end)) {
+    for (_, t) in tree
+        .tokens()
+        .iter_range(erl_parse::TokenRange::new(start, end))
+    {
         if t.kind().is_lexical() {
             ops.push(t.text(source).to_string());
         }
@@ -808,11 +826,11 @@ pub fn named_divergence(id: &str) -> Option<&'static str> {
 }
 
 /// Parses a fixture `mode` string.
-pub fn parse_mode_from_str(s: &str) -> Option<ParseMode> {
+pub fn parse_mode_from_str(s: &str) -> Option<erl_parse::ParseMode> {
     match s {
-        "module" => Some(ParseMode::Module),
-        "term_list" => Some(ParseMode::TermList),
-        "expression" => Some(ParseMode::Expression),
+        "module" => Some(erl_parse::ParseMode::Module),
+        "term_list" => Some(erl_parse::ParseMode::TermList),
+        "expression" => Some(erl_parse::ParseMode::Expression),
         _ => None,
     }
 }
@@ -843,13 +861,12 @@ pub fn otp_root_from_path(path: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erl_parse::ParseMode;
 
     #[test]
     fn roots_for_otp_parse_compare_drops_feature_attribute() {
         let src = "-module(m).\n-feature(maybe_expr, enable).\n-export([f/0]).\n";
         let run = parse_text(
-            ParseMode::Module,
+            erl_parse::ParseMode::Module,
             "t",
             src.to_string(),
             &[],

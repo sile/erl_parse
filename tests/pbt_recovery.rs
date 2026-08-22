@@ -1,17 +1,11 @@
 //! Property-based tests for the parser's error-recovery
-//! contracts: `SkippedToken` range equals its `SyntaxKind::Error`
-//! node's `TokenRange`; `MissingToken` is zero-width and never
-//! fabricates a `Token`; adjacent-dedupe holds; the depth cap
+//! contracts: `SkippedToken` range equals its `erl_parse::SyntaxKind::Error`
+//! node's `erl_parse::TokenRange`; `MissingToken` is zero-width and never
+//! fabricates a `erl_tokenize::Token`; adjacent-dedupe holds; the depth cap
 //! surfaces as `NestingDepthExceeded` without stack-overflowing.
 
 #[expect(dead_code, reason = "shared harness; this binary uses only a subset")]
 mod pbt_harness;
-
-use erl_parse::{ParseErrorKind, ParseMode, Parser, SyntaxKind, TokenIndex};
-use pbt_harness::{
-    CASES, Counter, Flag, SEED_ENV, parse_full, sample_deep_paren_source, sample_module_source,
-    scan_all, validate_tree,
-};
 
 /// Randomly deletes lexical tokens from a valid source's scan
 /// result — a cheap way to reach the recovery paths without hand-
@@ -62,14 +56,14 @@ fn mutate_duplicate(
 /// all pass on recovery-path outputs.
 #[test]
 fn tree_invariants_hold_for_mutated_input() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(SEED_ENV)?;
-    let saw_errors = Counter::new();
-    let saw_skipped = Flag::new();
-    let saw_missing = Flag::new();
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
+    let saw_errors = pbt_harness::Counter::new();
+    let saw_skipped = pbt_harness::Flag::new();
+    let saw_missing = pbt_harness::Flag::new();
     let mut runner = noprop::Runner::new(seed);
-    runner.run(CASES, |ctx| {
-        let src = sample_module_source(ctx);
-        let Some(scanned) = scan_all(&src) else {
+    runner.run(pbt_harness::CASES, |ctx| {
+        let src = pbt_harness::sample_module_source(ctx);
+        let Some(scanned) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
         let mutated = match noprop::sample_weighted_index(ctx, &[3, 2, 1]) {
@@ -77,8 +71,8 @@ fn tree_invariants_hold_for_mutated_input() -> noprop::TestResult {
             1 => mutate_duplicate(ctx, &scanned, 2),
             _ => scanned.clone(),
         };
-        let tree = parse_full(ParseMode::Module, &mutated);
-        if let Err(violations) = validate_tree(&tree) {
+        let tree = pbt_harness::parse_full(erl_parse::ParseMode::Module, &mutated);
+        if let Err(violations) = pbt_harness::validate_tree(&tree) {
             panic!(
                 "invariant violations for source {src:?} mutated to {n} tokens: {violations:?}",
                 n = mutated.len()
@@ -87,10 +81,10 @@ fn tree_invariants_hold_for_mutated_input() -> noprop::TestResult {
         if !tree.errors().is_empty() {
             saw_errors.bump();
             for e in tree.errors() {
-                if e.kind() == ParseErrorKind::SkippedToken {
+                if e.kind() == erl_parse::ParseErrorKind::SkippedToken {
                     saw_skipped.set();
                 }
-                if e.kind() == ParseErrorKind::MissingToken {
+                if e.kind() == erl_parse::ParseErrorKind::MissingToken {
                     saw_missing.set();
                 }
             }
@@ -113,31 +107,31 @@ fn tree_invariants_hold_for_mutated_input() -> noprop::TestResult {
 }
 
 /// `SkippedToken` diagnostics always have a matching
-/// `SyntaxKind::Error` node with the same `TokenRange`. This is a
-/// re-statement of one clause in `validate_tree`, kept as a
+/// `erl_parse::SyntaxKind::Error` node with the same `erl_parse::TokenRange`. This is a
+/// re-statement of one clause in `pbt_harness::validate_tree`, kept as a
 /// standalone test so the failing property message points at this
 /// specific invariant directly.
 #[test]
 fn skipped_token_range_matches_error_node_range() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(SEED_ENV)?;
-    let saw = Counter::new();
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
+    let saw = pbt_harness::Counter::new();
     let mut runner = noprop::Runner::new(seed);
-    runner.run(CASES, |ctx| {
-        let src = sample_module_source(ctx);
-        let Some(scanned) = scan_all(&src) else {
+    runner.run(pbt_harness::CASES, |ctx| {
+        let src = pbt_harness::sample_module_source(ctx);
+        let Some(scanned) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
         let mutated = mutate_delete(ctx, &scanned, 3);
-        let tree = parse_full(ParseMode::Module, &mutated);
+        let tree = pbt_harness::parse_full(erl_parse::ParseMode::Module, &mutated);
         for err in tree.errors() {
-            if err.kind() != ParseErrorKind::SkippedToken {
+            if err.kind() != erl_parse::ParseErrorKind::SkippedToken {
                 continue;
             }
             let matched = tree
                 .syntax()
                 .entries()
                 .iter()
-                .any(|e| e.kind() == SyntaxKind::Error && e.range() == err.range());
+                .any(|e| e.kind() == erl_parse::SyntaxKind::Error && e.range() == err.range());
             assert!(
                 matched,
                 "SkippedToken with range {:?} has no matching Error node in tree for {src:?}",
@@ -159,17 +153,17 @@ fn skipped_token_range_matches_error_node_range() -> noprop::TestResult {
 /// `tree.tokens().len()`.
 #[test]
 fn missing_token_does_not_fabricate_tokens() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(SEED_ENV)?;
-    let saw = Counter::new();
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
+    let saw = pbt_harness::Counter::new();
     let mut runner = noprop::Runner::new(seed);
-    runner.run(CASES, |ctx| {
-        let src = sample_module_source(ctx);
-        let Some(scanned) = scan_all(&src) else {
+    runner.run(pbt_harness::CASES, |ctx| {
+        let src = pbt_harness::sample_module_source(ctx);
+        let Some(scanned) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
         let mutated = mutate_delete(ctx, &scanned, 3);
         let pushed = mutated.len();
-        let tree = parse_full(ParseMode::Module, &mutated);
+        let tree = pbt_harness::parse_full(erl_parse::ParseMode::Module, &mutated);
         assert_eq!(
             tree.tokens().len(),
             pushed,
@@ -177,7 +171,7 @@ fn missing_token_does_not_fabricate_tokens() -> noprop::TestResult {
             tree.tokens().len(),
         );
         for e in tree.errors() {
-            if e.kind() == ParseErrorKind::MissingToken {
+            if e.kind() == erl_parse::ParseErrorKind::MissingToken {
                 assert!(
                     e.range().is_empty(),
                     "MissingToken has non-empty range {:?} in {src:?}",
@@ -195,21 +189,21 @@ fn missing_token_does_not_fabricate_tokens() -> noprop::TestResult {
     Ok(())
 }
 
-/// Consecutive `ParseError`s never share `(kind, range().start())`.
+/// Consecutive `erl_parse::ParseError`s never share `(kind, range().start())`.
 /// Non-consecutive repetition is legal — this is the adjacent
 /// dedupe contract of `push_unique_at_cursor`.
 #[test]
 fn adjacent_dedupe_holds_across_mutations() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(SEED_ENV)?;
-    let saw_errors = Counter::new();
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
+    let saw_errors = pbt_harness::Counter::new();
     let mut runner = noprop::Runner::new(seed);
-    runner.run(CASES, |ctx| {
-        let src = sample_module_source(ctx);
-        let Some(scanned) = scan_all(&src) else {
+    runner.run(pbt_harness::CASES, |ctx| {
+        let src = pbt_harness::sample_module_source(ctx);
+        let Some(scanned) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
         let mutated = mutate_delete(ctx, &scanned, 3);
-        let tree = parse_full(ParseMode::Module, &mutated);
+        let tree = pbt_harness::parse_full(erl_parse::ParseMode::Module, &mutated);
         let errs = tree.errors();
         for (i, pair) in errs.windows(2).enumerate() {
             let a = pair[0];
@@ -231,34 +225,34 @@ fn adjacent_dedupe_holds_across_mutations() -> noprop::TestResult {
     Ok(())
 }
 
-/// Inputs whose nesting exceeds `Parser::MAX_NESTING_DEPTH` produce
+/// Inputs whose nesting exceeds `erl_parse::Parser::MAX_NESTING_DEPTH` produce
 /// a `NestingDepthExceeded` diagnostic instead of overflowing the
 /// stack.
 #[test]
 fn depth_cap_surfaces_as_structured_error() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(SEED_ENV)?;
-    let hits = Counter::new();
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
+    let hits = pbt_harness::Counter::new();
     let mut runner = noprop::Runner::new(seed);
     // Reduce case count since the deep-paren generator produces
     // large inputs; still enough to trigger the cap reliably.
     runner.run(32, |ctx| {
-        let src = sample_deep_paren_source(ctx);
-        let Some(tokens) = scan_all(&src) else {
+        let src = pbt_harness::sample_deep_paren_source(ctx);
+        let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
-        let tree = parse_full(ParseMode::Expression, &tokens);
+        let tree = pbt_harness::parse_full(erl_parse::ParseMode::Expression, &tokens);
         assert!(
             tree.errors()
                 .iter()
-                .any(|e| e.kind() == ParseErrorKind::NestingDepthExceeded),
+                .any(|e| e.kind() == erl_parse::ParseErrorKind::NestingDepthExceeded),
             "deep-paren source of length {} produced no NestingDepthExceeded",
             src.len()
         );
         hits.bump();
-        // Sanity: the diagnostic anchors at a valid TokenIndex.
+        // Sanity: the diagnostic anchors at a valid erl_parse::TokenIndex.
         for e in tree.errors() {
-            if e.kind() == ParseErrorKind::NestingDepthExceeded {
-                let end: TokenIndex = tree.tokens().end_index();
+            if e.kind() == erl_parse::ParseErrorKind::NestingDepthExceeded {
+                let end: erl_parse::TokenIndex = tree.tokens().end_index();
                 assert!(e.range().start().get() <= end.get());
             }
         }
@@ -269,6 +263,6 @@ fn depth_cap_surfaces_as_structured_error() -> noprop::TestResult {
         "no case ran the depth-cap generator\n{runner}"
     );
     // The public contract is a fixed value at test time.
-    assert_eq!(Parser::MAX_NESTING_DEPTH, 256);
+    assert_eq!(erl_parse::Parser::MAX_NESTING_DEPTH, 256);
     Ok(())
 }

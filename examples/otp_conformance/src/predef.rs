@@ -8,9 +8,6 @@
 
 use std::collections::HashSet;
 
-use erl_pp::SourceToken;
-use erl_tokenize::{Keyword, Symbol, TokenKind, TokenValue};
-
 /// OTP 29 `erl_features:all/0` names that `?FEATURE_AVAILABLE` reports.
 const AVAILABLE_FEATURES: &[&str] = &["maybe_expr", "compr_assign"];
 
@@ -104,7 +101,7 @@ impl PredefContext {
     }
 
     /// Feeds one lexical preprocessor token into the form scanner.
-    pub fn on_token(&mut self, token: &SourceToken) {
+    pub fn on_token(&mut self, token: &erl_pp::SourceToken) {
         self.scan
             .feed(token, &mut self.module, &mut self.enabled_features);
         match &self.scan.fun {
@@ -138,7 +135,7 @@ impl PredefContext {
     /// Evaluates a macro-expanded `-if` / `-elif` condition when it is a
     /// simple atom-or-variable comparison. Returns `None` when the shape
     /// is not recognised (caller should pick a conservative branch).
-    pub fn if_branch(&self, tokens: &[SourceToken]) -> Option<erl_pp::Branch> {
+    pub fn if_branch(&self, tokens: &[erl_pp::SourceToken]) -> Option<erl_pp::Branch> {
         evaluate_condition(tokens).map(|v| {
             if v {
                 erl_pp::Branch::Then
@@ -206,7 +203,7 @@ fn feature_arg(call: &erl_pp::MacroCall) -> Result<String, String> {
             continue;
         }
         return match t.value() {
-            TokenValue::Atom(a) => Ok(a.into_owned()),
+            erl_tokenize::TokenValue::Atom(a) => Ok(a.into_owned()),
             _ => Err("feature macro argument is not an atom".to_string()),
         };
     }
@@ -216,7 +213,7 @@ fn feature_arg(call: &erl_pp::MacroCall) -> Result<String, String> {
 impl FormScan {
     fn feed(
         &mut self,
-        token: &SourceToken,
+        token: &erl_pp::SourceToken,
         module: &mut Option<String>,
         enabled: &mut HashSet<String>,
     ) {
@@ -224,15 +221,15 @@ impl FormScan {
         if self.after_fun {
             self.after_fun = false;
             match kind {
-                TokenKind::Symbol(Symbol::OpenParen) => {
+                erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenParen) => {
                     self.open_group();
                     return;
                 }
-                TokenKind::Atom | TokenKind::Variable => {
+                erl_tokenize::TokenKind::Atom | erl_tokenize::TokenKind::Variable => {
                     self.after_fun_name = true;
                     return;
                 }
-                TokenKind::Symbol(Symbol::Colon) => {
+                erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Colon) => {
                     self.after_fun_name = true;
                     return;
                 }
@@ -242,16 +239,16 @@ impl FormScan {
         if self.after_fun_name {
             self.after_fun_name = false;
             match kind {
-                TokenKind::Symbol(Symbol::Slash) => return,
-                TokenKind::Symbol(Symbol::OpenParen) => {
+                erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Slash) => return,
+                erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenParen) => {
                     self.open_group();
                     return;
                 }
-                TokenKind::Symbol(Symbol::Colon) => {
+                erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Colon) => {
                     self.after_fun_name = true;
                     return;
                 }
-                TokenKind::Atom | TokenKind::Variable => {
+                erl_tokenize::TokenKind::Atom | erl_tokenize::TokenKind::Variable => {
                     self.after_fun_name = true;
                     return;
                 }
@@ -260,10 +257,10 @@ impl FormScan {
         }
 
         match kind {
-            TokenKind::Symbol(Symbol::OpenParen)
-            | TokenKind::Symbol(Symbol::OpenSquare)
-            | TokenKind::Symbol(Symbol::OpenBrace)
-            | TokenKind::Symbol(Symbol::DoubleLeftAngle) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenParen)
+            | erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenSquare)
+            | erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::OpenBrace)
+            | erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::DoubleLeftAngle) => {
                 // The `(` that opens a function's argument list is not
                 // itself an argument; counting it as nonempty makes
                 // `f()` look like arity 1.
@@ -275,33 +272,35 @@ impl FormScan {
                 }
                 self.hash = HashState::Off;
             }
-            TokenKind::Symbol(Symbol::CloseParen)
-            | TokenKind::Symbol(Symbol::CloseSquare)
-            | TokenKind::Symbol(Symbol::CloseBrace)
-            | TokenKind::Symbol(Symbol::DoubleRightAngle) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::CloseParen)
+            | erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::CloseSquare)
+            | erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::CloseBrace)
+            | erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::DoubleRightAngle) => {
                 self.close_group();
                 self.finish_arity_if_closed();
                 self.hash = HashState::Off;
             }
-            TokenKind::Symbol(Symbol::Comma) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Comma) => {
                 self.on_arity_comma();
                 self.hash = HashState::Off;
                 self.advance_attr_comma();
             }
-            TokenKind::Symbol(Symbol::Hyphen) if self.at_form_start && self.nest == 0 => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Hyphen)
+                if self.at_form_start && self.nest == 0 =>
+            {
                 self.at_form_start = false;
                 self.attr = AttrScan::AfterHyphen;
                 self.hash = HashState::Off;
             }
-            TokenKind::Symbol(Symbol::Sharp) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Sharp) => {
                 self.hash = HashState::SawHash;
                 self.on_arity_token(true);
             }
-            TokenKind::Symbol(Symbol::WildcardRecord) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::WildcardRecord) => {
                 self.hash = HashState::SawWildcard;
                 self.on_arity_token(true);
             }
-            TokenKind::Symbol(Symbol::Dot) => {
+            erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Dot) => {
                 if self.is_record_field_dot() {
                     self.hash = HashState::Off;
                     self.on_arity_token(true);
@@ -311,32 +310,32 @@ impl FormScan {
                     self.hash = HashState::Off;
                 }
             }
-            TokenKind::Keyword(Keyword::Begin)
-            | TokenKind::Keyword(Keyword::Case)
-            | TokenKind::Keyword(Keyword::If)
-            | TokenKind::Keyword(Keyword::Receive)
-            | TokenKind::Keyword(Keyword::Try)
-            | TokenKind::Keyword(Keyword::Maybe)
-            | TokenKind::Keyword(Keyword::Cond) => {
+            erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Begin)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Case)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::If)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Receive)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Try)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Maybe)
+            | erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Cond) => {
                 self.nest += 1;
                 self.hash = HashState::Off;
                 self.on_arity_token(true);
             }
-            TokenKind::Keyword(Keyword::Fun) => {
+            erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::Fun) => {
                 self.after_fun = true;
                 self.hash = HashState::Off;
                 self.on_arity_token(true);
             }
-            TokenKind::Keyword(Keyword::End) => {
+            erl_tokenize::TokenKind::Keyword(erl_tokenize::Keyword::End) => {
                 self.nest = self.nest.saturating_sub(1);
                 self.hash = HashState::Off;
             }
-            TokenKind::Atom => {
-                if let TokenValue::Atom(a) = token.value() {
+            erl_tokenize::TokenKind::Atom => {
+                if let erl_tokenize::TokenValue::Atom(a) = token.value() {
                     self.on_atom(a.as_ref(), module, enabled);
                 }
             }
-            TokenKind::Variable => {
+            erl_tokenize::TokenKind::Variable => {
                 if self.hash == HashState::SawHash {
                     self.hash = HashState::SawHashName;
                 } else {
@@ -566,8 +565,8 @@ fn emit_bool(v: bool) -> String {
     if v { "true" } else { "false" }.to_string()
 }
 
-fn evaluate_condition(tokens: &[SourceToken]) -> Option<bool> {
-    let lex: Vec<&SourceToken> = tokens
+fn evaluate_condition(tokens: &[erl_pp::SourceToken]) -> Option<bool> {
+    let lex: Vec<&erl_pp::SourceToken> = tokens
         .iter()
         .filter(|t| t.token().kind().is_lexical())
         .collect();
@@ -577,19 +576,21 @@ fn evaluate_condition(tokens: &[SourceToken]) -> Option<bool> {
     let left = token_name(lex[0])?;
     let right = token_name(lex[2])?;
     let equal = match lex[1].token().kind() {
-        TokenKind::Symbol(Symbol::Eq) | TokenKind::Symbol(Symbol::ExactEq) => true,
-        TokenKind::Symbol(Symbol::NotEq) | TokenKind::Symbol(Symbol::ExactNotEq) => false,
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Eq)
+        | erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::ExactEq) => true,
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::NotEq)
+        | erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::ExactNotEq) => false,
         _ => return None,
     };
     let matches = left == right;
     Some(if equal { matches } else { !matches })
 }
 
-fn token_name(token: &SourceToken) -> Option<String> {
+fn token_name(token: &erl_pp::SourceToken) -> Option<String> {
     match token.token().kind() {
-        TokenKind::Atom | TokenKind::Variable => match token.value() {
-            TokenValue::Atom(a) => Some(a.into_owned()),
-            TokenValue::Variable(v) => Some(v.to_string()),
+        erl_tokenize::TokenKind::Atom | erl_tokenize::TokenKind::Variable => match token.value() {
+            erl_tokenize::TokenValue::Atom(a) => Some(a.into_owned()),
+            erl_tokenize::TokenValue::Variable(v) => Some(v.to_string()),
             _ => None,
         },
         _ => None,
@@ -603,7 +604,7 @@ fn is_bare_atom(name: &str) -> bool {
     };
     first.is_ascii_lowercase()
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-        && Keyword::from_text(name).is_none()
+        && erl_tokenize::Keyword::from_text(name).is_none()
 }
 
 #[cfg(test)]

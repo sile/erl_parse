@@ -12,12 +12,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use erl_parse::ParseMode;
-use otp_conformance::{
-    Stage, build_include_paths, collect_app_include_dirs, collect_erl_files, first_error_line,
-    is_skipped, is_target, otp_release_from_env, parse_text,
-};
-
 fn main() -> noargs::Result<ExitCode> {
     let mut args = noargs::raw_args();
     args.metadata_mut().app_name = "check_otp_parse";
@@ -46,15 +40,15 @@ fn main() -> noargs::Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
 
-    let otp_release = otp_release_from_env();
+    let otp_release = otp_conformance::otp_release_from_env();
 
     let mut files = Vec::new();
-    collect_erl_files(&root, &mut files);
-    files.retain(|p| is_target(p) && !is_skipped(p));
+    otp_conformance::collect_erl_files(&root, &mut files);
+    files.retain(|p| otp_conformance::is_target(p) && !otp_conformance::is_skipped(p));
     files.sort();
 
     let erl_libs = vec![root.join("lib")];
-    let global_include_dirs = collect_app_include_dirs(&root);
+    let global_include_dirs = otp_conformance::collect_app_include_dirs(&root);
     let mut tokenize_err_files = 0usize;
     let mut preprocess_err_files = 0usize;
     let mut parse_err_files = 0usize;
@@ -77,9 +71,14 @@ fn main() -> noargs::Result<ExitCode> {
                 continue;
             }
         };
-        let include_paths = build_include_paths(path, &root, &global_include_dirs, &extra_includes);
-        let run = parse_text(
-            ParseMode::Module,
+        let include_paths = otp_conformance::build_include_paths(
+            path,
+            &root,
+            &global_include_dirs,
+            &extra_includes,
+        );
+        let run = otp_conformance::parse_text(
+            erl_parse::ParseMode::Module,
             &display,
             text,
             &include_paths,
@@ -90,28 +89,28 @@ fn main() -> noargs::Result<ExitCode> {
         warning_total += run.preprocess_warnings;
         diag_error_total += run.preprocess_diagnostics_error;
 
-        if run.tokenize == Stage::Err {
+        if run.tokenize == otp_conformance::Stage::Err {
             tokenize_err_files += 1;
             if let Some(reason) = &run.tokenize_reason {
                 eprintln!("WARN {display}: tokenize: {reason}");
             }
             continue;
         }
-        if run.preprocess == Stage::Err {
+        if run.preprocess == otp_conformance::Stage::Err {
             preprocess_err_files += 1;
             if let Some(reason) = &run.preprocess_reason {
                 eprintln!("WARN {display}: {reason}");
             }
             continue;
         }
-        if run.parse == Stage::Err {
+        if run.parse == otp_conformance::Stage::Err {
             parse_err_files += 1;
             let detail = run
                 .tree
                 .as_ref()
                 .and_then(|tree| {
                     let err = tree.errors().first()?;
-                    let line = first_error_line(tree)?;
+                    let line = otp_conformance::first_error_line(tree)?;
                     Some(format!(
                         "{:?} at line {line}, expected {:?}, found {:?}",
                         err.kind(),

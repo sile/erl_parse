@@ -1,32 +1,29 @@
-//! Integration tests for `ParseMode::TermList`. Exercises the
+//! Integration tests for `erl_parse::ParseMode::TermList`. Exercises the
 //! `file:consult/1`-style term sequence grammar as external consumers
 //! see it.
 
-use erl_parse::{NodeId, ParseMode, Parser, SyntaxKind, SyntaxTree};
-use erl_tokenize::{Position, Token, scan_token};
-
-fn scan_all(source: &str) -> Vec<Token> {
+fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     let mut out = Vec::new();
-    let mut pos = Position::new();
-    while let Some(t) = scan_token(source, pos).expect("valid source") {
+    let mut pos = erl_tokenize::Position::new();
+    while let Some(t) = erl_tokenize::scan_token(source, pos).expect("valid source") {
         out.push(t);
         pos = t.end();
     }
     out
 }
 
-fn push_all(parser: &mut Parser, source: &str) {
+fn push_all(parser: &mut erl_parse::Parser, source: &str) {
     for t in scan_all(source) {
         parser.push_token(t);
     }
 }
 
-fn kind_of(tree: &SyntaxTree, id: NodeId) -> SyntaxKind {
+fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
     tree.syntax().entry(id).expect("entry exists").kind()
 }
 
-fn drive(source: &str) -> (SyntaxTree, Vec<NodeId>) {
-    let mut p = Parser::new(ParseMode::TermList);
+fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
+    let mut p = erl_parse::Parser::new(erl_parse::ParseMode::TermList);
     push_all(&mut p, source);
     let mut roots = Vec::new();
     while let Some(id) = p.next_top_node() {
@@ -49,9 +46,9 @@ fn sequence_of_literal_terms_yields_one_unit_per_term() {
     // terms.
     let (tree, roots) = drive("{ok, 1}.\n{error, notfound}.\n[a, b, c].\n");
     assert_eq!(roots.len(), 3);
-    assert_eq!(kind_of(&tree, roots[0]), SyntaxKind::TupleExpr);
-    assert_eq!(kind_of(&tree, roots[1]), SyntaxKind::TupleExpr);
-    assert_eq!(kind_of(&tree, roots[2]), SyntaxKind::ListExpr);
+    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::TupleExpr);
+    assert_eq!(kind_of(&tree, roots[1]), erl_parse::SyntaxKind::TupleExpr);
+    assert_eq!(kind_of(&tree, roots[2]), erl_parse::SyntaxKind::ListExpr);
     assert!(tree.errors().is_empty());
 }
 

@@ -11,12 +11,6 @@
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
 
-use erl_parse::{
-    EntryIndex, NodeId, ParseError, ParseErrorKind, ParseMode, Parser, SyntaxKind, SyntaxTree,
-    TokenBuffer, TokenIndex, TokenRange,
-};
-use erl_tokenize::{Position, Token, scan_token};
-
 /// Environment variable read by `noprop::seed_from_env_or_time` to
 /// reproduce a failing case: `ERL_PARSE_PBT_SEED=<seed>`.
 pub const SEED_ENV: &str = "ERL_PARSE_PBT_SEED";
@@ -32,7 +26,7 @@ pub const MAX_SOURCE_LEN: usize = 256;
 /// Kept low so ordinary cases finish quickly (a naive depth of 6
 /// with a branching factor near 3 explodes into thousands of
 /// tokens per case); a dedicated deep-nesting generator exceeds
-/// `Parser::MAX_NESTING_DEPTH` on purpose for the cap-check test.
+/// `erl_parse::Parser::MAX_NESTING_DEPTH` on purpose for the cap-check test.
 pub const MAX_GEN_DEPTH: usize = 3;
 
 /// Upper bound on comma-separated child count inside a compound
@@ -279,10 +273,10 @@ fn sample_form(ctx: &mut noprop::TestCaseContext) -> String {
 }
 
 /// Draws a deeply nested paren expression that intentionally exceeds
-/// `Parser::MAX_NESTING_DEPTH` so the depth-cap path is exercised.
+/// `erl_parse::Parser::MAX_NESTING_DEPTH` so the depth-cap path is exercised.
 pub fn sample_deep_paren_source(ctx: &mut noprop::TestCaseContext) -> String {
     let extra = noprop::sample_usize_in(ctx, 8..=64);
-    let depth = Parser::MAX_NESTING_DEPTH + extra;
+    let depth = erl_parse::Parser::MAX_NESTING_DEPTH + extra;
     let mut s = String::with_capacity(depth * 2 + 4);
     for _ in 0..depth {
         s.push('(');
@@ -296,17 +290,17 @@ pub fn sample_deep_paren_source(ctx: &mut noprop::TestCaseContext) -> String {
 }
 
 // -----------------------------------------------------------------
-// Token utilities.
+// erl_tokenize::Token utilities.
 // -----------------------------------------------------------------
 
 /// Runs `erl_tokenize::scan_token` end-to-end over `source`.
 /// Returns `None` when the scanner rejects the input; the caller
 /// then reject the case or picks another sample.
-pub fn scan_all(source: &str) -> Option<Vec<Token>> {
+pub fn scan_all(source: &str) -> Option<Vec<erl_tokenize::Token>> {
     let mut out = Vec::new();
-    let mut pos = Position::new();
+    let mut pos = erl_tokenize::Position::new();
     loop {
-        match scan_token(source, pos) {
+        match erl_tokenize::scan_token(source, pos) {
             Ok(Some(t)) => {
                 let end = t.end();
                 out.push(t);
@@ -319,9 +313,12 @@ pub fn scan_all(source: &str) -> Option<Vec<Token>> {
 }
 
 /// Drives a parser end-to-end with the supplied tokens in the given
-/// mode. Returns the finished `SyntaxTree`.
-pub fn parse_full(mode: ParseMode, tokens: &[Token]) -> SyntaxTree {
-    let mut p = Parser::new(mode);
+/// mode. Returns the finished `erl_parse::SyntaxTree`.
+pub fn parse_full(
+    mode: erl_parse::ParseMode,
+    tokens: &[erl_tokenize::Token],
+) -> erl_parse::SyntaxTree {
+    let mut p = erl_parse::Parser::new(mode);
     for t in tokens {
         p.push_token(*t);
     }
@@ -329,7 +326,7 @@ pub fn parse_full(mode: ParseMode, tokens: &[Token]) -> SyntaxTree {
 }
 
 // -----------------------------------------------------------------
-// Validation helpers. Every helper takes `&SyntaxTree` (the public
+// Validation helpers. Every helper takes `&erl_parse::SyntaxTree` (the public
 // API) and inspects the borrow-only accessors — no test-only crate
 // visibility.
 // -----------------------------------------------------------------
@@ -339,58 +336,64 @@ pub fn parse_full(mode: ParseMode, tokens: &[Token]) -> SyntaxTree {
 /// specific enough to bisect a broken generator or parser change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InvariantViolation {
-    /// A `TokenRange` extended past the token buffer's end.
+    /// A `erl_parse::TokenRange` extended past the token buffer's end.
     RangeBeyondTokens {
-        node: NodeId,
-        end: TokenIndex,
+        node: erl_parse::NodeId,
+        end: erl_parse::TokenIndex,
         buffer_len: usize,
     },
-    /// A non-empty `TokenRange` had `start > end`.
+    /// A non-empty `erl_parse::TokenRange` had `start > end`.
     RangeInverted {
-        node: NodeId,
-        start: TokenIndex,
-        end: TokenIndex,
+        node: erl_parse::NodeId,
+        start: erl_parse::TokenIndex,
+        end: erl_parse::TokenIndex,
     },
     /// An entry's `subtree_end` fell outside `self_index+1..=entries.len()`.
     SubtreeEndOutOfRange {
-        node: NodeId,
-        subtree_end: EntryIndex,
+        node: erl_parse::NodeId,
+        subtree_end: erl_parse::EntryIndex,
         self_index: usize,
         entries_len: usize,
     },
     /// A child subtree ended past its parent's `subtree_end`.
     ChildOverflowsParent {
-        parent: NodeId,
-        parent_subtree_end: EntryIndex,
-        child: NodeId,
-        child_subtree_end: EntryIndex,
+        parent: erl_parse::NodeId,
+        parent_subtree_end: erl_parse::EntryIndex,
+        child: erl_parse::NodeId,
+        child_subtree_end: erl_parse::EntryIndex,
     },
-    /// A child's `TokenRange` was not contained in the parent's.
+    /// A child's `erl_parse::TokenRange` was not contained in the parent's.
     ChildRangeOutsideParent {
-        parent: NodeId,
-        parent_range: TokenRange,
-        child: NodeId,
-        child_range: TokenRange,
+        parent: erl_parse::NodeId,
+        parent_range: erl_parse::TokenRange,
+        child: erl_parse::NodeId,
+        child_range: erl_parse::TokenRange,
     },
     /// Two adjacent errors with the same `(kind, start)` appear in
     /// `errors()` — the `push_unique_at_cursor` adjacent-dedupe
     /// contract was violated.
     AdjacentDuplicateError {
         first_idx: usize,
-        kind: ParseErrorKind,
-        start: TokenIndex,
+        kind: erl_parse::ParseErrorKind,
+        start: erl_parse::TokenIndex,
     },
     /// A `SkippedToken` diagnostic did not have a matching
-    /// `SyntaxKind::Error` node with the same `TokenRange`.
-    SkippedTokenWithoutMatchingErrorNode { error_idx: usize, range: TokenRange },
+    /// `erl_parse::SyntaxKind::Error` node with the same `erl_parse::TokenRange`.
+    SkippedTokenWithoutMatchingErrorNode {
+        error_idx: usize,
+        range: erl_parse::TokenRange,
+    },
     /// A `MissingToken` diagnostic carried a non-empty range.
-    MissingTokenNotZeroWidth { error_idx: usize, range: TokenRange },
+    MissingTokenNotZeroWidth {
+        error_idx: usize,
+        range: erl_parse::TokenRange,
+    },
 }
 
 /// Runs every whole-tree invariant against `tree`. Returns
 /// `Err(list)` on the first tree that violates at least one
 /// invariant; `Ok(())` when the tree is clean.
-pub fn validate_tree(tree: &SyntaxTree) -> Result<(), Vec<InvariantViolation>> {
+pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantViolation>> {
     let mut violations = Vec::new();
     let syntax = tree.syntax();
     let tokens = tree.tokens();
@@ -398,7 +401,7 @@ pub fn validate_tree(tree: &SyntaxTree) -> Result<(), Vec<InvariantViolation>> {
 
     // Range boundaries + subtree_end structural check.
     for i in 0..syntax.len() {
-        let id = NodeId::new(i);
+        let id = erl_parse::NodeId::new(i);
         let entry = syntax.entry(id).expect("id in bounds");
         let range = entry.range();
         if range.end().get() > buffer_len {
@@ -428,12 +431,12 @@ pub fn validate_tree(tree: &SyntaxTree) -> Result<(), Vec<InvariantViolation>> {
 
     // Preorder containment: iterate parent + children.
     for i in 0..syntax.len() {
-        let parent_id = NodeId::new(i);
+        let parent_id = erl_parse::NodeId::new(i);
         let parent = syntax.entry(parent_id).expect("id in bounds");
         let parent_end = parent.subtree_end().get();
         let mut j = i + 1;
         while j < parent_end {
-            let child_id = NodeId::new(j);
+            let child_id = erl_parse::NodeId::new(j);
             let child = syntax.entry(child_id).expect("child in bounds");
             let child_end = child.subtree_end();
             if child_end.get() > parent_end {
@@ -477,11 +480,11 @@ pub fn validate_tree(tree: &SyntaxTree) -> Result<(), Vec<InvariantViolation>> {
     // SkippedToken / MissingToken contracts.
     for (idx, err) in errs.iter().enumerate() {
         match err.kind() {
-            ParseErrorKind::SkippedToken => {
+            erl_parse::ParseErrorKind::SkippedToken => {
                 let matches_node = syntax
                     .entries()
                     .iter()
-                    .any(|e| e.kind() == SyntaxKind::Error && e.range() == err.range());
+                    .any(|e| e.kind() == erl_parse::SyntaxKind::Error && e.range() == err.range());
                 if !matches_node {
                     violations.push(InvariantViolation::SkippedTokenWithoutMatchingErrorNode {
                         error_idx: idx,
@@ -489,7 +492,7 @@ pub fn validate_tree(tree: &SyntaxTree) -> Result<(), Vec<InvariantViolation>> {
                     });
                 }
             }
-            ParseErrorKind::MissingToken if !err.range().is_empty() => {
+            erl_parse::ParseErrorKind::MissingToken if !err.range().is_empty() => {
                 violations.push(InvariantViolation::MissingTokenNotZeroWidth {
                     error_idx: idx,
                     range: err.range(),
@@ -508,14 +511,16 @@ pub fn validate_tree(tree: &SyntaxTree) -> Result<(), Vec<InvariantViolation>> {
 
 /// Confirms that `tree.tokens()` byte-for-byte equals `expected`.
 /// The parser must never add, remove, or reorder input tokens.
-pub fn assert_tokens_unchanged(tokens: &TokenBuffer, expected: &[Token]) {
+pub fn assert_tokens_unchanged(tokens: &erl_parse::TokenBuffer, expected: &[erl_tokenize::Token]) {
     assert_eq!(
         tokens.len(),
         expected.len(),
         "parser modified token buffer length"
     );
     for (i, exp) in expected.iter().enumerate() {
-        let got = tokens.get(TokenIndex::new(i)).expect("index in range");
+        let got = tokens
+            .get(erl_parse::TokenIndex::new(i))
+            .expect("index in range");
         assert_eq!(got, *exp, "parser modified token at index {i}");
     }
 }
@@ -531,7 +536,7 @@ pub fn assert_tokens_unchanged(tokens: &TokenBuffer, expected: &[Token]) {
 
 /// Runs the adjacent-dedupe invariant on a synthetic error list to
 /// confirm the helper's logic rejects a broken input.
-pub fn adjacent_dedupe_check(errors: &[ParseError]) -> Result<(), usize> {
+pub fn adjacent_dedupe_check(errors: &[erl_parse::ParseError]) -> Result<(), usize> {
     for (i, pair) in errors.windows(2).enumerate() {
         if pair[0].kind() == pair[1].kind() && pair[0].range().start() == pair[1].range().start() {
             return Err(i);
@@ -543,8 +548,8 @@ pub fn adjacent_dedupe_check(errors: &[ParseError]) -> Result<(), usize> {
 /// Runs the `MissingToken` zero-width invariant on a synthetic
 /// error to confirm the helper rejects a non-empty range under
 /// `MissingToken` kind.
-pub fn missing_zero_width_check(err: ParseError) -> Result<(), TokenRange> {
-    if err.kind() == ParseErrorKind::MissingToken && !err.range().is_empty() {
+pub fn missing_zero_width_check(err: erl_parse::ParseError) -> Result<(), erl_parse::TokenRange> {
+    if err.kind() == erl_parse::ParseErrorKind::MissingToken && !err.range().is_empty() {
         return Err(err.range());
     }
     Ok(())
@@ -554,7 +559,7 @@ pub fn missing_zero_width_check(err: ParseError) -> Result<(), TokenRange> {
 // Negative tests: verify the validation helpers actually reject a
 // broken input. `SyntaxIndex` cannot be corrupted from an
 // integration test (its `push` is `pub(crate)`), so we probe only
-// the small helpers here on hand-crafted `ParseError`s. `validate_tree`
+// the small helpers here on hand-crafted `erl_parse::ParseError`s. `validate_tree`
 // itself is exercised on real parser output by the `pbt_syntax_index`
 // tests — if the helper missed a real bug, those tests would let
 // the bug through.
@@ -562,18 +567,18 @@ pub fn missing_zero_width_check(err: ParseError) -> Result<(), TokenRange> {
 
 #[test]
 fn adjacent_dedupe_check_rejects_adjacent_pair_with_same_kind_and_start() {
-    let at = TokenIndex::new(3);
-    let mk = |k: ParseErrorKind| {
-        ParseError::new(
+    let at = erl_parse::TokenIndex::new(3);
+    let mk = |k: erl_parse::ParseErrorKind| {
+        erl_parse::ParseError::new(
             k,
-            TokenRange::empty_at(at),
+            erl_parse::TokenRange::empty_at(at),
             erl_parse::Expected::Unspecified,
             None,
         )
     };
     let bad = [
-        mk(ParseErrorKind::MissingToken),
-        mk(ParseErrorKind::MissingToken),
+        mk(erl_parse::ParseErrorKind::MissingToken),
+        mk(erl_parse::ParseErrorKind::MissingToken),
     ];
     let result = adjacent_dedupe_check(&bad);
     assert_eq!(
@@ -585,30 +590,30 @@ fn adjacent_dedupe_check_rejects_adjacent_pair_with_same_kind_and_start() {
 
 #[test]
 fn adjacent_dedupe_check_accepts_different_kinds_at_same_start() {
-    let at = TokenIndex::new(3);
-    let mk = |k: ParseErrorKind| {
-        ParseError::new(
+    let at = erl_parse::TokenIndex::new(3);
+    let mk = |k: erl_parse::ParseErrorKind| {
+        erl_parse::ParseError::new(
             k,
-            TokenRange::empty_at(at),
+            erl_parse::TokenRange::empty_at(at),
             erl_parse::Expected::Unspecified,
             None,
         )
     };
     let ok = [
-        mk(ParseErrorKind::MissingToken),
-        mk(ParseErrorKind::UnexpectedToken),
+        mk(erl_parse::ParseErrorKind::MissingToken),
+        mk(erl_parse::ParseErrorKind::UnexpectedToken),
     ];
     assert_eq!(adjacent_dedupe_check(&ok), Ok(()));
 }
 
 #[test]
 fn adjacent_dedupe_check_accepts_non_adjacent_duplicates() {
-    let at = TokenIndex::new(3);
-    let other = TokenIndex::new(9);
-    let mk = |k: ParseErrorKind, i: TokenIndex| {
-        ParseError::new(
+    let at = erl_parse::TokenIndex::new(3);
+    let other = erl_parse::TokenIndex::new(9);
+    let mk = |k: erl_parse::ParseErrorKind, i: erl_parse::TokenIndex| {
+        erl_parse::ParseError::new(
             k,
-            TokenRange::empty_at(i),
+            erl_parse::TokenRange::empty_at(i),
             erl_parse::Expected::Unspecified,
             None,
         )
@@ -616,20 +621,20 @@ fn adjacent_dedupe_check_accepts_non_adjacent_duplicates() {
     // Same (kind, start) at positions 0 and 2 with a different
     // error at position 1 — non-adjacent, so the invariant holds.
     let ok = [
-        mk(ParseErrorKind::MissingToken, at),
-        mk(ParseErrorKind::UnexpectedToken, other),
-        mk(ParseErrorKind::MissingToken, at),
+        mk(erl_parse::ParseErrorKind::MissingToken, at),
+        mk(erl_parse::ParseErrorKind::UnexpectedToken, other),
+        mk(erl_parse::ParseErrorKind::MissingToken, at),
     ];
     assert_eq!(adjacent_dedupe_check(&ok), Ok(()));
 }
 
 #[test]
 fn missing_zero_width_check_rejects_non_empty_missing_range() {
-    let start = TokenIndex::new(1);
-    let end = TokenIndex::new(4);
-    let bad_range = TokenRange::new(start, end);
-    let bad = ParseError::new(
-        ParseErrorKind::MissingToken,
+    let start = erl_parse::TokenIndex::new(1);
+    let end = erl_parse::TokenIndex::new(4);
+    let bad_range = erl_parse::TokenRange::new(start, end);
+    let bad = erl_parse::ParseError::new(
+        erl_parse::ParseErrorKind::MissingToken,
         bad_range,
         erl_parse::Expected::Unspecified,
         None,
@@ -639,10 +644,10 @@ fn missing_zero_width_check_rejects_non_empty_missing_range() {
 
 #[test]
 fn missing_zero_width_check_accepts_zero_width_missing() {
-    let at = TokenIndex::new(2);
-    let ok = ParseError::new(
-        ParseErrorKind::MissingToken,
-        TokenRange::empty_at(at),
+    let at = erl_parse::TokenIndex::new(2);
+    let ok = erl_parse::ParseError::new(
+        erl_parse::ParseErrorKind::MissingToken,
+        erl_parse::TokenRange::empty_at(at),
         erl_parse::Expected::Unspecified,
         None,
     );
@@ -653,9 +658,10 @@ fn missing_zero_width_check_accepts_zero_width_missing() {
 fn missing_zero_width_check_ignores_other_kinds() {
     // A non-empty range under a different kind is not a
     // MissingToken violation.
-    let bad_range = TokenRange::new(TokenIndex::new(1), TokenIndex::new(3));
-    let other = ParseError::new(
-        ParseErrorKind::SkippedToken,
+    let bad_range =
+        erl_parse::TokenRange::new(erl_parse::TokenIndex::new(1), erl_parse::TokenIndex::new(3));
+    let other = erl_parse::ParseError::new(
+        erl_parse::ParseErrorKind::SkippedToken,
         bad_range,
         erl_parse::Expected::Unspecified,
         None,

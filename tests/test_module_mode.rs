@@ -1,32 +1,29 @@
-//! Integration tests for `ParseMode::Module`. Exercises the module-
+//! Integration tests for `erl_parse::ParseMode::Module`. Exercises the module-
 //! mode top-level driver and the form / attribute / function
 //! declaration grammar as external consumers see them.
 
-use erl_parse::{FormKind, NodeId, ParseMode, Parser, SyntaxKind, SyntaxTree};
-use erl_tokenize::{Position, Token, scan_token};
-
-fn scan_all(source: &str) -> Vec<Token> {
+fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     let mut out = Vec::new();
-    let mut pos = Position::new();
-    while let Some(t) = scan_token(source, pos).expect("valid source") {
+    let mut pos = erl_tokenize::Position::new();
+    while let Some(t) = erl_tokenize::scan_token(source, pos).expect("valid source") {
         out.push(t);
         pos = t.end();
     }
     out
 }
 
-fn push_all(parser: &mut Parser, source: &str) {
+fn push_all(parser: &mut erl_parse::Parser, source: &str) {
     for t in scan_all(source) {
         parser.push_token(t);
     }
 }
 
-fn kind_of(tree: &SyntaxTree, id: NodeId) -> SyntaxKind {
+fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
     tree.syntax().entry(id).expect("entry exists").kind()
 }
 
-fn drive(source: &str) -> (SyntaxTree, Vec<NodeId>) {
-    let mut p = Parser::new(ParseMode::Module);
+fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
+    let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Module);
     push_all(&mut p, source);
     let mut roots = Vec::new();
     while let Some(id) = p.next_top_node() {
@@ -35,7 +32,10 @@ fn drive(source: &str) -> (SyntaxTree, Vec<NodeId>) {
     (p.finish(), roots)
 }
 
-fn direct_children(tree: &SyntaxTree, root: NodeId) -> Vec<NodeId> {
+fn direct_children(
+    tree: &erl_parse::SyntaxTree,
+    root: erl_parse::NodeId,
+) -> Vec<erl_parse::NodeId> {
     let end = tree
         .syntax()
         .entry(root)
@@ -45,7 +45,7 @@ fn direct_children(tree: &SyntaxTree, root: NodeId) -> Vec<NodeId> {
     let mut children = Vec::new();
     let mut i = root.get() + 1;
     while i < end {
-        let child_id = NodeId::new(i);
+        let child_id = erl_parse::NodeId::new(i);
         children.push(child_id);
         i = tree
             .syntax()
@@ -77,12 +77,15 @@ fn hidden_only_module_stores_tokens_but_emits_no_units() {
 fn single_bare_attribute_form() {
     let (tree, roots) = drive("-something.");
     assert_eq!(roots.len(), 1);
-    assert_eq!(kind_of(&tree, roots[0]), SyntaxKind::Attribute);
+    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::Attribute);
     let children = direct_children(&tree, roots[0]);
     let child_kinds: Vec<_> = children.iter().map(|&c| kind_of(&tree, c)).collect();
     assert_eq!(
         child_kinds,
-        vec![SyntaxKind::AttributeName, SyntaxKind::AttributePayload]
+        vec![
+            erl_parse::SyntaxKind::AttributeName,
+            erl_parse::SyntaxKind::AttributePayload
+        ]
     );
     // The payload node is zero-width because the form has no `(...)`
     // section.
@@ -101,10 +104,13 @@ fn parenthesized_attribute_records_name_and_payload_ranges() {
             .iter()
             .map(|&c| kind_of(&tree, c))
             .collect::<Vec<_>>(),
-        vec![SyntaxKind::AttributeName, SyntaxKind::AttributePayload]
+        vec![
+            erl_parse::SyntaxKind::AttributeName,
+            erl_parse::SyntaxKind::AttributePayload
+        ]
     );
     // Callers pull the attribute name from the token buffer using the
-    // AttributeName child's range; the parser does not interpret
+    // erl_parse::AttributeName child's range; the parser does not interpret
     // `module`.
     let name_entry = tree.syntax().entry(children[0]).expect("name");
     let payload_entry = tree.syntax().entry(children[1]).expect("payload");
@@ -129,7 +135,7 @@ fn spec_type_record_and_export_are_uniform_attributes() {
         assert_eq!(roots.len(), 1, "source: {source}");
         assert_eq!(
             kind_of(&tree, roots[0]),
-            SyntaxKind::Attribute,
+            erl_parse::SyntaxKind::Attribute,
             "source: {source}"
         );
         assert!(
@@ -155,7 +161,7 @@ fn record_field_dot_does_not_end_the_form_mid_push() {
         assert_eq!(roots.len(), 1, "source: {source}");
         assert_eq!(
             kind_of(&tree, roots[0]),
-            SyntaxKind::FunctionDecl,
+            erl_parse::SyntaxKind::FunctionDecl,
             "source: {source}"
         );
         assert!(
@@ -182,7 +188,7 @@ fn unpreprocessed_directives_are_kept_as_unknown_attributes() {
         assert_eq!(roots.len(), 1, "source: {source}");
         assert_eq!(
             kind_of(&tree, roots[0]),
-            SyntaxKind::Attribute,
+            erl_parse::SyntaxKind::Attribute,
             "source: {source}"
         );
         assert!(tree.errors().is_empty(), "source: {source}");
@@ -196,7 +202,7 @@ fn file_attribute_is_treated_as_ordinary_attribute() {
     // attribute whose payload is preserved.
     let (tree, roots) = drive("-file(\"other.erl\", 42).");
     assert_eq!(roots.len(), 1);
-    assert_eq!(kind_of(&tree, roots[0]), SyntaxKind::Attribute);
+    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::Attribute);
     assert!(tree.errors().is_empty());
 }
 
@@ -204,10 +210,16 @@ fn file_attribute_is_treated_as_ordinary_attribute() {
 fn function_declaration_single_clause() {
     let (tree, roots) = drive("foo() -> ok.");
     assert_eq!(roots.len(), 1);
-    assert_eq!(kind_of(&tree, roots[0]), SyntaxKind::FunctionDecl);
+    assert_eq!(
+        kind_of(&tree, roots[0]),
+        erl_parse::SyntaxKind::FunctionDecl
+    );
     let clauses = direct_children(&tree, roots[0]);
     assert_eq!(clauses.len(), 1);
-    assert_eq!(kind_of(&tree, clauses[0]), SyntaxKind::FunctionClause);
+    assert_eq!(
+        kind_of(&tree, clauses[0]),
+        erl_parse::SyntaxKind::FunctionClause
+    );
     assert!(tree.errors().is_empty());
 }
 
@@ -215,11 +227,14 @@ fn function_declaration_single_clause() {
 fn function_declaration_multiple_clauses_separated_by_semicolon() {
     let (tree, roots) = drive("foo(1) -> one; foo(2) -> two; foo(_) -> other.");
     assert_eq!(roots.len(), 1);
-    assert_eq!(kind_of(&tree, roots[0]), SyntaxKind::FunctionDecl);
+    assert_eq!(
+        kind_of(&tree, roots[0]),
+        erl_parse::SyntaxKind::FunctionDecl
+    );
     let clauses = direct_children(&tree, roots[0]);
     assert_eq!(clauses.len(), 3);
     for c in &clauses {
-        assert_eq!(kind_of(&tree, *c), SyntaxKind::FunctionClause);
+        assert_eq!(kind_of(&tree, *c), erl_parse::SyntaxKind::FunctionClause);
     }
     assert!(tree.errors().is_empty());
 }
@@ -229,7 +244,10 @@ fn function_declaration_with_guard_and_body() {
     let (tree, roots) = drive("abs(X) when X < 0 -> -X; abs(X) -> X.");
     assert_eq!(roots.len(), 1);
     assert!(tree.errors().is_empty());
-    assert_eq!(kind_of(&tree, roots[0]), SyntaxKind::FunctionDecl);
+    assert_eq!(
+        kind_of(&tree, roots[0]),
+        erl_parse::SyntaxKind::FunctionDecl
+    );
 }
 
 #[test]
@@ -250,9 +268,9 @@ fn multiple_forms_yield_one_top_level_unit_per_form() {
     assert_eq!(
         kinds,
         vec![
-            SyntaxKind::Attribute,
-            SyntaxKind::Attribute,
-            SyntaxKind::FunctionDecl
+            erl_parse::SyntaxKind::Attribute,
+            erl_parse::SyntaxKind::Attribute,
+            erl_parse::SyntaxKind::FunctionDecl
         ]
     );
     assert!(tree.errors().is_empty());
@@ -274,10 +292,10 @@ fn hidden_tokens_between_forms_are_preserved_in_buffer() {
 #[test]
 fn malformed_attribute_missing_close_paren_emits_error() {
     // Missing `)`: attribute payload takes tokens up to the terminating
-    // `.` and the missing close-paren surfaces as a ParseError.
+    // `.` and the missing close-paren surfaces as a erl_parse::ParseError.
     let (tree, roots) = drive("-module(mymod.");
     assert_eq!(roots.len(), 1);
-    assert_eq!(kind_of(&tree, roots[0]), SyntaxKind::Attribute);
+    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::Attribute);
     assert!(!tree.errors().is_empty());
 }
 
@@ -294,7 +312,7 @@ fn missing_form_terminating_dot_flushes_via_finish() {
     // during push; `finish` force-parses the trailing input as one
     // final unit whose contents include the parsed attribute plus
     // whatever the mode's grammar can extract.
-    let mut p = Parser::new(ParseMode::Module);
+    let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Module);
     push_all(&mut p, "-module(m)");
     assert!(p.next_top_node().is_none());
     let tree = p.finish();
@@ -317,9 +335,9 @@ fn in_progress_state_is_default_before_between_and_after_forms() {
     // a single `push_token` call (the one that added the terminating
     // `.`), so `state()` is only observable at form boundaries.
     // Between and outside forms all form-level fields read back as
-    // their default (`None`), and no `Position` value is exposed on
+    // their default (`None`), and no `erl_tokenize::Position` value is exposed on
     // any range field.
-    let mut p = Parser::new(ParseMode::Module);
+    let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Module);
     let expect_default = |s: erl_parse::InProgressState| {
         assert_eq!(s.form_kind, None);
         assert_eq!(s.attribute_name, None);
@@ -340,17 +358,20 @@ fn in_progress_state_is_default_before_between_and_after_forms() {
 
 #[test]
 fn in_progress_state_exposes_form_kind_variants() {
-    // Compile-time surface check: the public `FormKind` variants and
-    // `InProgressState` fields are reachable through the crate root
+    // Compile-time surface check: the public `erl_parse::FormKind` variants and
+    // `erl_parse::InProgressState` fields are reachable through the crate root
     // and are shaped as the API design requires. A caller that adds
     // its own grammar (or a future recovery pass) reads these fields
-    // through `Parser::state()` — the field types are what matter
+    // through `erl_parse::Parser::state()` — the field types are what matter
     // here, not the runtime values.
     let sample = erl_parse::InProgressState::default();
-    let _: Option<FormKind> = sample.form_kind;
+    let _: Option<erl_parse::FormKind> = sample.form_kind;
     let _: Option<erl_parse::TokenRange> = sample.attribute_name;
     let _: Option<erl_parse::TokenRange> = sample.function_name;
     let _: Option<usize> = sample.function_arity;
     let _: Option<usize> = sample.current_clause;
-    let _ = (FormKind::Attribute, FormKind::FunctionDecl);
+    let _ = (
+        erl_parse::FormKind::Attribute,
+        erl_parse::FormKind::FunctionDecl,
+    );
 }

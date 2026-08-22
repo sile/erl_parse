@@ -6,29 +6,23 @@
 #[expect(dead_code, reason = "shared harness; this binary uses only a subset")]
 mod pbt_harness;
 
-use erl_parse::ParseMode;
-use pbt_harness::{
-    CASES, Counter, Flag, LabelSet, SEED_ENV, assert_tokens_unchanged, parse_full,
-    sample_expression_unit, sample_module_source, sample_term_list_source, scan_all, validate_tree,
-};
-
 /// For every valid expression source we generate, the resulting
-/// `SyntaxTree` satisfies every structural invariant `validate_tree`
+/// `erl_parse::SyntaxTree` satisfies every structural invariant `pbt_harness::validate_tree`
 /// checks (range boundaries, preorder containment, subtree boundary,
 /// SkippedToken/MissingToken contracts).
 #[test]
 fn expression_mode_tree_invariants_hold() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(SEED_ENV)?;
-    let non_empty = Counter::new();
-    let nested = Flag::new();
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
+    let non_empty = pbt_harness::Counter::new();
+    let nested = pbt_harness::Flag::new();
     let mut runner = noprop::Runner::new(seed);
-    runner.run(CASES, |ctx| {
-        let src = sample_expression_unit(ctx);
-        let Some(tokens) = scan_all(&src) else {
+    runner.run(pbt_harness::CASES, |ctx| {
+        let src = pbt_harness::sample_expression_unit(ctx);
+        let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
-        let tree = parse_full(ParseMode::Expression, &tokens);
-        if let Err(violations) = validate_tree(&tree) {
+        let tree = pbt_harness::parse_full(erl_parse::ParseMode::Expression, &tokens);
+        if let Err(violations) = pbt_harness::validate_tree(&tree) {
             panic!("invariant violations for source {src:?}: {violations:?}");
         }
         if tree.syntax().len() > 1 {
@@ -54,16 +48,16 @@ fn expression_mode_tree_invariants_hold() -> noprop::TestResult {
 /// function declarations mixed).
 #[test]
 fn module_mode_tree_invariants_hold() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(SEED_ENV)?;
-    let saw_form = Counter::new();
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
+    let saw_form = pbt_harness::Counter::new();
     let mut runner = noprop::Runner::new(seed);
-    runner.run(CASES, |ctx| {
-        let src = sample_module_source(ctx);
-        let Some(tokens) = scan_all(&src) else {
+    runner.run(pbt_harness::CASES, |ctx| {
+        let src = pbt_harness::sample_module_source(ctx);
+        let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
-        let tree = parse_full(ParseMode::Module, &tokens);
-        if let Err(violations) = validate_tree(&tree) {
+        let tree = pbt_harness::parse_full(erl_parse::ParseMode::Module, &tokens);
+        if let Err(violations) = pbt_harness::validate_tree(&tree) {
             panic!("invariant violations for source {src:?}: {violations:?}");
         }
         if !tree.syntax().is_empty() {
@@ -81,16 +75,16 @@ fn module_mode_tree_invariants_hold() -> noprop::TestResult {
 /// Same invariants hold for term-list-mode sources.
 #[test]
 fn term_list_mode_tree_invariants_hold() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(SEED_ENV)?;
-    let saw_term = Counter::new();
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
+    let saw_term = pbt_harness::Counter::new();
     let mut runner = noprop::Runner::new(seed);
-    runner.run(CASES, |ctx| {
-        let src = sample_term_list_source(ctx);
-        let Some(tokens) = scan_all(&src) else {
+    runner.run(pbt_harness::CASES, |ctx| {
+        let src = pbt_harness::sample_term_list_source(ctx);
+        let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
-        let tree = parse_full(ParseMode::TermList, &tokens);
-        if let Err(violations) = validate_tree(&tree) {
+        let tree = pbt_harness::parse_full(erl_parse::ParseMode::TermList, &tokens);
+        if let Err(violations) = pbt_harness::validate_tree(&tree) {
             panic!("invariant violations for source {src:?}: {violations:?}");
         }
         if !tree.syntax().is_empty() {
@@ -110,30 +104,30 @@ fn term_list_mode_tree_invariants_hold() -> noprop::TestResult {
 /// same positions.
 #[test]
 fn parser_never_modifies_the_input_token_buffer() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(SEED_ENV)?;
+    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
     let mut runner = noprop::Runner::new(seed);
     let modes = &[
-        ParseMode::Expression,
-        ParseMode::Module,
-        ParseMode::TermList,
+        erl_parse::ParseMode::Expression,
+        erl_parse::ParseMode::Module,
+        erl_parse::ParseMode::TermList,
     ];
-    let saw_each_mode = LabelSet::new();
-    runner.run(CASES, |ctx| {
+    let saw_each_mode = pbt_harness::LabelSet::new();
+    runner.run(pbt_harness::CASES, |ctx| {
         let mode = noprop::sample_choice(ctx, modes);
         let src = match mode {
-            ParseMode::Expression => sample_expression_unit(ctx),
-            ParseMode::Module => sample_module_source(ctx),
-            ParseMode::TermList => sample_term_list_source(ctx),
+            erl_parse::ParseMode::Expression => pbt_harness::sample_expression_unit(ctx),
+            erl_parse::ParseMode::Module => pbt_harness::sample_module_source(ctx),
+            erl_parse::ParseMode::TermList => pbt_harness::sample_term_list_source(ctx),
         };
-        let Some(tokens) = scan_all(&src) else {
+        let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
-        let tree = parse_full(mode, &tokens);
-        assert_tokens_unchanged(tree.tokens(), &tokens);
+        let tree = pbt_harness::parse_full(mode, &tokens);
+        pbt_harness::assert_tokens_unchanged(tree.tokens(), &tokens);
         saw_each_mode.insert(match mode {
-            ParseMode::Expression => "expression",
-            ParseMode::Module => "module",
-            ParseMode::TermList => "term-list",
+            erl_parse::ParseMode::Expression => "expression",
+            erl_parse::ParseMode::Module => "module",
+            erl_parse::ParseMode::TermList => "term-list",
         });
         Ok(())
     })?;
