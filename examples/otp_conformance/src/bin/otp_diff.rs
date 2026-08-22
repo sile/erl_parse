@@ -101,6 +101,19 @@ struct FormRec {
     parse: Stage,
     category: String,
     line: Option<usize>,
+    /// OTP `epp` injects `-file`; not present in Rust preprocessor output.
+    epp: Option<String>,
+}
+
+impl FormRec {
+    fn is_epp_injected(&self) -> bool {
+        self.epp.is_some()
+    }
+}
+
+/// Fixture forms that participate in parse comparison (drops OTP-only `epp` forms).
+fn fixture_forms_for_compare(forms: Vec<FormRec>) -> Vec<FormRec> {
+    forms.into_iter().filter(|f| !f.is_epp_injected()).collect()
 }
 
 fn check_meta(v: RawJsonValue<'_, '_>) -> Result<(), String> {
@@ -223,7 +236,7 @@ fn compare_parse(
     }
 
     let forms = match parse_forms(v) {
-        Ok(f) => f,
+        Ok(f) => fixture_forms_for_compare(f),
         Err(e) => return Compare::Error(format!("{id}: {e}")),
     };
     if forms.is_empty() {
@@ -394,10 +407,12 @@ fn parse_forms(v: RawJsonValue<'_, '_>) -> Result<Vec<FormRec>, String> {
         let parse = req_stage(item, "parse")?;
         let category = opt_str(item, "category")?.unwrap_or_else(|| "other".to_string());
         let line = opt_usize(item, "line")?;
+        let epp = opt_str(item, "epp")?;
         out.push(FormRec {
             parse,
             category,
             line,
+            epp,
         });
     }
     Ok(out)

@@ -734,6 +734,14 @@ pub fn named_divergence(id: &str) -> Option<&'static str> {
             "syn:err:missing-dot",
             "finish flushes an unterminated last unit; OTP parse_form reports an error",
         ),
+        (
+            "syn:otp29:mc-multi",
+            "multi-valued list comprehension template not yet implemented",
+        ),
+        (
+            "syn:otp29:native-record",
+            "module-qualified native record not yet implemented",
+        ),
     ];
     TABLE
         .iter()

@@ -78,7 +78,9 @@ is_skipped(Path) ->
                           "/lib/compiler/src/beam_asm.erl",
                           "/lib/compiler/src/beam_disasm.erl",
                           "/lib/kernel/src/inet_dns.erl",
-                          "/lib/common_test/src/ct_snmp.erl"]).
+                          "/lib/common_test/src/ct_snmp.erl",
+                          "/lib/stdlib/src/io_ansi.erl",
+                          "/lib/syntax_tools/src/merl_tests.erl"]).
 
 dump_otp_file(Root, File) ->
     case read_utf8(File) of
@@ -142,6 +144,8 @@ collect_forms(Epp) ->
             []
     end.
 
+abs_form({attribute, Anno, file, _}) ->
+    #{parse => ok, category => "attribute", line => anno_line(Anno), epp => file};
 abs_form({attribute, Anno, _, _}) ->
     #{parse => ok, category => "attribute", line => anno_line(Anno)};
 abs_form({function, Anno, _, _, _}) ->
@@ -417,11 +421,16 @@ field_json("forms_raw", Forms) ->
 field_json(Key, Val) when is_list(Val); is_binary(Val) ->
     [$", Key, $", $:, $", escape(Val), $"].
 
-form_object(#{parse := P, category := C, line := L}) ->
+form_object(#{parse := P, category := C, line := L} = F) ->
+    Epp = case maps:get(epp, F, undefined) of
+              undefined -> "";
+              E -> [",", "\"epp\":\"", atom_to_list(E), "\""]
+          end,
     [${,
      "\"parse\":\"", atom_to_list(P), "\",",
      "\"category\":\"", escape(C), "\",",
      "\"line\":", integer_to_list(L),
+     Epp,
      $}].
 
 escape(B) when is_binary(B) -> escape(binary_to_list(B));
