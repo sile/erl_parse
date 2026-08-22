@@ -72,7 +72,7 @@ mod tests {
             ("-1", SyntaxKind::UnaryOpExpr),
         ] {
             let mut p = drive_pattern(source);
-            let root = p.next_top_node().expect("unit");
+            let root = p.next_node().expect("unit");
             assert_eq!(first_child_kind(&p, root), kind, "source {source}");
             assert!(
                 p.syntax_tree().diagnostics().is_empty(),
@@ -91,7 +91,7 @@ mod tests {
             "<<A:8, B/binary>>",
         ] {
             let mut p = drive_pattern(source);
-            let _ = p.next_top_node().expect("unit");
+            let _ = p.next_node().expect("unit");
             assert!(
                 p.syntax_tree().diagnostics().is_empty(),
                 "source {source} produced unexpected errors"
@@ -103,7 +103,7 @@ mod tests {
     fn accepts_match_pattern_x_equals_pat() {
         // `X = {a, B}` is a valid match pattern binding X to the tuple.
         let mut p = drive_pattern("X = {a, B}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MatchExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn rejects_call_in_pattern_position() {
         let mut p = drive_pattern("f(1)");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
@@ -124,7 +124,7 @@ mod tests {
             "fun (X) -> X end",
         ] {
             let mut p = drive_pattern(source);
-            let _ = p.next_top_node().expect("unit");
+            let _ = p.next_node().expect("unit");
             assert!(
                 !p.syntax_tree().diagnostics().is_empty(),
                 "source {source} should have produced an error"
@@ -135,25 +135,25 @@ mod tests {
     #[test]
     fn rejects_comprehension_in_pattern_position() {
         let mut p = drive_pattern("[X || X <- L]");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
     fn rejects_remote_qualifier_and_send_in_pattern_position() {
         let mut p = drive_pattern("mod:foo");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(!p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive_pattern("Pid ! msg");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
     fn rejects_catch_prefix_in_pattern_position() {
         let mut p = drive_pattern("catch 1");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 }

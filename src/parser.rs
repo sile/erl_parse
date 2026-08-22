@@ -6,7 +6,7 @@
 //! extend as they run. It exposes a small feed/pull API:
 //!
 //! - [`Parser::push_token`] appends one input token.
-//! - [`Parser::next_top_node`] pulls the next completed top-level unit.
+//! - [`Parser::next_node`] pulls the next completed `.`-terminated unit.
 //! - [`Parser::state`] queries in-progress grammar state.
 //! - [`Parser::syntax_tree`] borrows the accumulated tree for reading.
 //! - [`Parser::finish`] consumes the parser and hands back the finished
@@ -203,7 +203,7 @@ pub struct Parser {
     /// unit's events).
     unit_events_cursor: usize,
     /// Completed `NodeId`s produced by finalize but not yet handed out via
-    /// `next_top_node`.
+    /// `next_node`.
     pending_pull: std::collections::VecDeque<NodeId>,
     /// Form / attribute / function / clause progression, exposed to
     /// callers as a snapshot via [`Parser::state`] and mutated by
@@ -280,9 +280,11 @@ impl Parser {
         index
     }
 
-    /// Returns the next completed top-level unit's [`NodeId`], or `None`
-    /// when no new unit has completed since the last call.
-    pub fn next_top_node(&mut self) -> Option<NodeId> {
+    /// Returns the [`NodeId`] of the next completed `.`-terminated
+    /// unit, or `None` when no new unit has completed since the last
+    /// call. Nested nodes stay in the syntax index and are walked
+    /// from this root (see [`crate::Cursor::roots`]).
+    pub fn next_node(&mut self) -> Option<NodeId> {
         // Attempt to make grammar progress in case the previous push_token
         // paused at a partial unit.
         self.advance_grammar();
@@ -1027,7 +1029,7 @@ mod tests {
     #[test]
     fn empty_buffer_pulls_nothing() {
         let mut p = Parser::new(ParseMode::Module);
-        assert!(p.next_top_node().is_none());
+        assert!(p.next_node().is_none());
         assert!(p.syntax_tree().syntax().is_empty());
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1037,18 +1039,18 @@ mod tests {
         let mut p = Parser::new(ParseMode::Module);
         push_all(&mut p, "   \n  ");
         assert!(!p.syntax_tree().tokens().is_empty());
-        assert!(p.next_top_node().is_none());
+        assert!(p.next_node().is_none());
     }
 
     #[test]
     fn pull_returns_none_before_boundary_and_node_id_after() {
         let mut p = Parser::new(ParseMode::Module);
         push_all(&mut p, "-foo");
-        assert!(p.next_top_node().is_none(), "no dot yet");
+        assert!(p.next_node().is_none(), "no dot yet");
         push_all(&mut p, " .");
-        let node = p.next_top_node().expect("unit completed at dot");
+        let node = p.next_node().expect("unit completed at dot");
         assert_eq!(node, NodeId::new(0));
-        assert!(p.next_top_node().is_none(), "one unit only");
+        assert!(p.next_node().is_none(), "one unit only");
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
@@ -1062,8 +1064,8 @@ mod tests {
     fn finish_returns_syntax_tree_with_completed_units() {
         let mut p = Parser::new(ParseMode::Module);
         push_all(&mut p, "-foo. -bar.");
-        let first = p.next_top_node().expect("first form");
-        let second = p.next_top_node().expect("second form");
+        let first = p.next_node().expect("first form");
+        let second = p.next_node().expect("second form");
         assert_ne!(first, second);
         let tree = p.finish();
         assert!(tree.diagnostics().is_empty());
@@ -1077,7 +1079,7 @@ mod tests {
         // error diagnostics.
         let mut p = Parser::new(ParseMode::Module);
         push_all(&mut p, "-foo(");
-        assert!(p.next_top_node().is_none());
+        assert!(p.next_node().is_none());
         let tree = p.finish();
         assert!(!tree.syntax().is_empty());
         assert!(!tree.diagnostics().is_empty());
@@ -1113,7 +1115,7 @@ mod tests {
         // `.` is consumed by the top-level driver outside the unit's
         // marker, so the range stops just before the dot.
         push_all(&mut p, "-foo .");
-        let node = p.next_top_node().expect("unit completed");
+        let node = p.next_node().expect("unit completed");
         let tree = p.syntax_tree();
         let entry = tree.syntax().entry(node).expect("entry exists");
         assert_eq!(entry.range().start(), TokenIndex::new(0));
@@ -1131,7 +1133,7 @@ mod tests {
         // unit that already completed; it stays in the buffer past the
         // unit's end.
         push_all(&mut p, "-foo . ");
-        let node = p.next_top_node().expect("unit completed");
+        let node = p.next_node().expect("unit completed");
         let tree = p.syntax_tree();
         let entry = tree.syntax().entry(node).expect("entry exists");
         assert!(entry.range().end() < tree.tokens().end_index());
@@ -1187,7 +1189,7 @@ mod tests {
         let _ = p.consume_lexical();
         outer.complete(&mut p, SyntaxKind::Error);
         p.finalize_pending_units();
-        let node = p.next_top_node().expect("outer unit");
+        let node = p.next_node().expect("outer unit");
         let entry = p.syntax_tree().syntax().entry(node).expect("entry exists");
         assert_eq!(entry.range().start(), TokenIndex::new(0));
     }
@@ -1210,7 +1212,7 @@ mod tests {
         outer.complete(&mut p, SyntaxKind::Error);
         p.finalize_pending_units();
 
-        let root = p.next_top_node().expect("root");
+        let root = p.next_node().expect("root");
         assert_eq!(root, NodeId::new(0));
         let index = p.syntax_tree().syntax();
         let outer_entry = index.entry(root).expect("outer entry exists");
@@ -1241,7 +1243,7 @@ mod tests {
         outer.complete(&mut p, SyntaxKind::Error);
         p.finalize_pending_units();
 
-        let root = p.next_top_node().expect("outer unit");
+        let root = p.next_node().expect("outer unit");
         assert_eq!(root, NodeId::new(0));
         // Only one entry: the outer node. The abandoned inner produced no
         // syntax entry.

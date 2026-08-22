@@ -42,7 +42,7 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
 
 /// Two parsers driven with the same tokens produce the same
 /// `SyntaxIndex` / `erl_parse::Diagnostic` regardless of whether the caller
-/// interleaves `next_top_node` / `state` / `syntax_tree`
+/// interleaves `next_node` / `state` / `syntax_tree`
 /// observations between `push_token` calls or defers all
 /// observation until `finish` returns.
 #[test]
@@ -62,14 +62,14 @@ fn observation_invariance() -> noprop::TestResult {
             noisy.push_token(*t);
             // Interleave observations at pseudo-random points.
             if i.is_multiple_of(3) {
-                let _ = noisy.next_top_node();
+                let _ = noisy.next_node();
                 let _ = noisy.state();
                 let _ = noisy.syntax_tree();
                 saw_observation.bump();
             }
         }
         // Drain any remaining pending units on the noisy side.
-        while noisy.next_top_node().is_some() {}
+        while noisy.next_node().is_some() {}
         let tq = quiet.finish();
         let tn = noisy.finish();
         assert_eq!(

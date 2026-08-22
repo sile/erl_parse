@@ -25,7 +25,7 @@ fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::Sy
 fn expression_mode_emits_unit_on_dot() {
     let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
     push_all(&mut parser, "1 + 2.");
-    let node = parser.next_top_node().expect("unit completed at `.`");
+    let node = parser.next_node().expect("unit completed at `.`");
     let tree = parser.finish();
     assert_eq!(kind_of(&tree, node), erl_parse::SyntaxKind::BinaryOpExpr);
     assert!(tree.diagnostics().is_empty());
@@ -38,7 +38,7 @@ fn expression_mode_finish_flushes_input_without_trailing_dot() {
     let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
     push_all(&mut parser, "foo(1, 2)");
     // No unit before finish because no `.` has been seen.
-    assert!(parser.next_top_node().is_none());
+    assert!(parser.next_node().is_none());
     let tree = parser.finish();
     assert!(tree.diagnostics().is_empty());
     assert!(!tree.syntax().is_empty());
@@ -52,8 +52,8 @@ fn expression_mode_finish_flushes_input_without_trailing_dot() {
 fn expression_mode_emits_multiple_units_across_dots() {
     let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
     push_all(&mut parser, "1. 2.");
-    let first = parser.next_top_node().expect("first unit");
-    let second = parser.next_top_node().expect("second unit");
+    let first = parser.next_node().expect("first unit");
+    let second = parser.next_node().expect("second unit");
     let tree = parser.finish();
     assert_eq!(kind_of(&tree, first), erl_parse::SyntaxKind::IntegerExpr);
     assert_eq!(kind_of(&tree, second), erl_parse::SyntaxKind::IntegerExpr);

@@ -608,7 +608,7 @@ mod tests {
             ("$a", SyntaxKind::CharExpr),
         ] {
             let mut p = drive_type(source);
-            let root = p.next_top_node().expect("unit");
+            let root = p.next_node().expect("unit");
             assert_eq!(first_child_kind(&p, root), kind, "source {source}");
             assert!(
                 p.syntax_tree().diagnostics().is_empty(),
@@ -628,7 +628,7 @@ mod tests {
             ("[integer(), ...]", SyntaxKind::NonemptyListType),
         ] {
             let mut p = drive_type(source);
-            let root = p.next_top_node().expect("unit");
+            let root = p.next_node().expect("unit");
             assert_eq!(first_child_kind(&p, root), kind, "source {source}");
             assert!(
                 p.syntax_tree().diagnostics().is_empty(),
@@ -641,13 +641,13 @@ mod tests {
     #[test]
     fn parses_map_and_record_types() {
         let mut p = drive_type("#{atom() => integer(), binary() := boolean()}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MapType);
         assert!(tree_contains_kind(&p, SyntaxKind::MapTypeField));
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive_type("#user{name :: binary(), age :: integer()}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordType);
         assert!(tree_contains_kind(&p, SyntaxKind::RecordTypeField));
         assert!(p.syntax_tree().diagnostics().is_empty());
@@ -657,7 +657,7 @@ mod tests {
     fn parses_bitstring_types() {
         for source in ["<<>>", "<<_:8>>", "<<_:_*8>>", "<<_:8, _:_*4>>"] {
             let mut p = drive_type(source);
-            let root = p.next_top_node().expect("unit");
+            let root = p.next_node().expect("unit");
             assert_eq!(
                 first_child_kind(&p, root),
                 SyntaxKind::BitstringType,
@@ -674,12 +674,12 @@ mod tests {
     #[test]
     fn parses_type_call_and_remote_type() {
         let mut p = drive_type("list(integer())");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::TypeCall);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive_type("erlang:map(atom(), integer())");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::TypeCall);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -692,7 +692,7 @@ mod tests {
             "fun((atom(), integer()) -> boolean())",
         ] {
             let mut p = drive_type(source);
-            let root = p.next_top_node().expect("unit");
+            let root = p.next_node().expect("unit");
             assert_eq!(
                 first_child_kind(&p, root),
                 SyntaxKind::FunctionType,
@@ -710,19 +710,19 @@ mod tests {
     fn parses_union_range_annotated_types() {
         // Union.
         let mut p = drive_type("atom() | integer() | binary()");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::UnionType);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Range.
         let mut p = drive_type("1 .. 100");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RangeType);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Annotated.
         let mut p = drive_type("Var :: integer()");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::AnnotatedType);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -730,7 +730,7 @@ mod tests {
     #[test]
     fn parses_integer_type_arithmetic() {
         let mut p = drive_type("-1 .. 1 + 5");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         // Range takes 200, add_op takes 400 → 400 > 200 so `+ 5` is
         // consumed as the range's right operand: `-1 .. (1 + 5)`.
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RangeType);
@@ -742,7 +742,7 @@ mod tests {
     #[test]
     fn parses_parenthesized_type() {
         let mut p = drive_type("(atom() | integer())");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ParenExpr);
         assert!(tree_contains_kind(&p, SyntaxKind::UnionType));
         assert!(p.syntax_tree().diagnostics().is_empty());
@@ -765,7 +765,7 @@ mod tests {
         p.set_context(prev);
         outer.complete(&mut p, SyntaxKind::Error);
         p.finalize_pending_units_for_test();
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(tree_contains_kind(&p, SyntaxKind::TypeGuard));
         assert!(tree_contains_kind(&p, SyntaxKind::TypeConstraint));
         assert!(p.syntax_tree().diagnostics().is_empty());
@@ -774,7 +774,7 @@ mod tests {
     #[test]
     fn unrecognized_leading_token_produces_error_but_still_completes_unit() {
         let mut p = drive_type(")");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         // The outer Error wrapper is the root; the type parser
         // completes an inner Error for the unrecognized `)`.
         assert!(matches!(

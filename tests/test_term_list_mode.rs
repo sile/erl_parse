@@ -26,7 +26,7 @@ fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
     let mut p = erl_parse::Parser::new(erl_parse::ParseMode::TermList);
     push_all(&mut p, source);
     let mut roots = Vec::new();
-    while let Some(id) = p.next_top_node() {
+    while let Some(id) = p.next_node() {
         roots.push(id);
     }
     (p.finish(), roots)

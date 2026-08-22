@@ -25,7 +25,7 @@ fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
     let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Type);
     push_all(&mut p, source);
     let mut roots = Vec::new();
-    while let Some(id) = p.next_top_node() {
+    while let Some(id) = p.next_node() {
         roots.push(id);
     }
     (p.finish(), roots)
@@ -43,7 +43,7 @@ fn type_mode_emits_unit_on_dot() {
 fn type_mode_finish_flushes_input_without_trailing_dot() {
     let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Type);
     push_all(&mut parser, "list(integer())");
-    assert!(parser.next_top_node().is_none());
+    assert!(parser.next_node().is_none());
     let tree = parser.finish();
     assert!(tree.diagnostics().is_empty());
     assert_eq!(

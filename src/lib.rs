@@ -14,7 +14,7 @@
 //!
 //! - [`Parser`] and [`ParseMode`] are the entry point. Construct a parser
 //!   for the desired [`ParseMode`] and drive it with [`Parser::push_token`]
-//!   / [`Parser::next_top_node`] / [`Parser::state`] /
+//!   / [`Parser::next_node`] / [`Parser::state`] /
 //!   [`Parser::syntax_tree`] / [`Parser::finish`].
 //! - [`SyntaxTree`] bundles the token buffer, the syntax index, and the
 //!   diagnostics so callers can keep the parse result around after the

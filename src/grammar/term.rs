@@ -81,7 +81,7 @@ mod tests {
             ("-1", SyntaxKind::UnaryOpExpr),
         ] {
             let mut p = drive_term(source);
-            let root = p.next_top_node().expect("unit");
+            let root = p.next_node().expect("unit");
             assert_eq!(first_child_kind(&p, root), kind, "source {source}");
             assert!(
                 p.syntax_tree().diagnostics().is_empty(),
@@ -93,14 +93,14 @@ mod tests {
     #[test]
     fn rejects_variables_in_term_position() {
         let mut p = drive_term("X");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
     fn rejects_match_in_term_position() {
         let mut p = drive_term("X = 1");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
@@ -113,7 +113,7 @@ mod tests {
             "fun (X) -> X end",
         ] {
             let mut p = drive_term(source);
-            let _ = p.next_top_node().expect("unit");
+            let _ = p.next_node().expect("unit");
             assert!(
                 !p.syntax_tree().diagnostics().is_empty(),
                 "source {source} should have produced an error"
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn rejects_remote_qualifier_in_term_position() {
         let mut p = drive_term("mod:foo");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 }

@@ -35,7 +35,7 @@ error; warnings and notes are not emitted yet.
 
 There is no public "please recover" API. Recovery runs as
 [`Parser::push_token`](crate::Parser::push_token),
-[`Parser::next_top_node`](crate::Parser::next_top_node), and
+[`Parser::next_node`](crate::Parser::next_node), and
 [`Parser::finish`](crate::Parser::finish) drive the grammar.
 
 ## What happens at a problem site
@@ -154,7 +154,7 @@ while let Some(token) = scan_token(source, pos).expect("valid source") {
 }
 
 let mut roots = Vec::new();
-while let Some(id) = parser.next_top_node() {
+while let Some(id) = parser.next_node() {
     roots.push(id);
 }
 let tree = parser.finish();
@@ -176,7 +176,7 @@ A strict caller would treat that tree as a failed parse
 
 - Invent tokens to "repair" the input.
 - Expose a skip-to-next-form or rewind API. Continue driving
-  `push_token` / `next_top_node`, or drop the [`Parser`](crate::Parser).
+  `push_token` / `next_node`, or drop the [`Parser`](crate::Parser).
 - Emit warnings or notes. Every diagnostic is currently an error.
 - Report preprocessor or tokenizer problems. Those belong to `erl_pp`
   / `erl_tokenize` (and to the driver that sits between them).

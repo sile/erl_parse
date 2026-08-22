@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn parses_simple_guard_sequence() {
         let mut p = drive_guard("X > 0, X < 10");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(tree_contains_kind(&p, SyntaxKind::GuardSequence));
         assert!(tree_contains_kind(&p, SyntaxKind::Guard));
     }
@@ -63,7 +63,7 @@ mod tests {
     fn parses_semicolon_separated_guards() {
         // `X > 0, X < 10 ; Y == a` — one sequence containing two guards.
         let mut p = drive_guard("X > 0, X < 10 ; Y == a");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         let syntax = p.syntax_tree().syntax();
         let guard_count = (0..syntax.len())
             .filter(|i| {
@@ -79,11 +79,11 @@ mod tests {
         // elsewhere. Both `is_atom(X)` and `erlang:is_atom(X)` parse
         // without errors here.
         let mut p = drive_guard("is_atom(X)");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive_guard("erlang:is_atom(X)");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
 }

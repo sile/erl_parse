@@ -48,7 +48,7 @@ pub struct ParseRun {
     pub parse: Stage,
     /// Finished tree. `None` when tokenize failed.
     pub tree: Option<erl_parse::SyntaxTree>,
-    /// Top-level units returned by `next_top_node`.
+    /// Top-level units returned by `next_node`.
     pub roots: Vec<erl_parse::NodeId>,
     /// Lexical token count (hidden tokens excluded).
     pub token_count: usize,
@@ -116,7 +116,7 @@ pub fn parse_text(
                 predef.on_token(&t);
                 token_sources.push(Arc::clone(t.source()));
                 parser.push_token(*t.token());
-                while let Some(id) = parser.next_top_node() {
+                while let Some(id) = parser.next_node() {
                     roots.push(id);
                 }
             }
@@ -185,7 +185,7 @@ pub fn parse_text(
         }
     }
 
-    while let Some(id) = parser.next_top_node() {
+    while let Some(id) = parser.next_node() {
         roots.push(id);
     }
     let tree = parser.finish();

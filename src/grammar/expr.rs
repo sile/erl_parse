@@ -1016,7 +1016,7 @@ mod tests {
     /// Constructs a parser, pushes every token in `source`, resets the
     /// stub-grammar state so `parse_expr` can drive the cursor from the
     /// beginning, then wraps the result in a synthetic top-level unit so
-    /// `next_top_node` returns it.
+    /// `next_node` returns it.
     ///
     /// Used only by the expression-grammar unit tests until the real
     /// expression-mode wiring is in place.
@@ -1067,7 +1067,7 @@ mod tests {
             ("\"hi\"", SyntaxKind::StringExpr),
         ] {
             let mut p = drive(source);
-            let root = p.next_top_node().expect("unit");
+            let root = p.next_node().expect("unit");
             assert_eq!(first_child_kind(&p, root), kind, "source {source}");
             assert!(p.syntax_tree().diagnostics().is_empty(), "source {source}");
         }
@@ -1076,40 +1076,40 @@ mod tests {
     #[test]
     fn concatenates_adjacent_string_tokens() {
         let mut p = drive("\"foo\" \"bar\"");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::StringExpr);
     }
 
     #[test]
     fn parses_parenthesized_expression() {
         let mut p = drive("(1)");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ParenExpr);
     }
 
     #[test]
     fn parses_empty_and_populated_tuples() {
         let mut p = drive("{}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::TupleExpr);
 
         let mut p = drive("{a, 1, X}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::TupleExpr);
     }
 
     #[test]
     fn parses_proper_list_and_cons() {
         let mut p = drive("[]");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ListExpr);
 
         let mut p = drive("[a, b, c]");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ListExpr);
 
         let mut p = drive("[H | T]");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ConsExpr);
     }
 
@@ -1117,7 +1117,7 @@ mod tests {
     fn precedence_matches_yrl() {
         // 1 + 2 * 3 → BinaryOp(1, +, BinaryOp(2, *, 3))
         let mut p = drive("1 + 2 * 3");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::BinaryOpExpr);
         // Second child = 1 (IntegerExpr), third = another BinaryOp.
         let syntax = p.syntax_tree().syntax();
@@ -1138,21 +1138,21 @@ mod tests {
     #[test]
     fn match_operator_uses_match_expr_kind() {
         let mut p = drive("X = 1");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MatchExpr);
     }
 
     #[test]
     fn send_operator_uses_send_expr_kind() {
         let mut p = drive("Pid ! msg");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::SendExpr);
     }
 
     #[test]
     fn call_wraps_target_expression() {
         let mut p = drive("f(1, 2)");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::CallExpr);
     }
 
@@ -1160,7 +1160,7 @@ mod tests {
     fn remote_call_chain_wraps_remote_then_call() {
         // `mod:foo(1)`; `foo` is a plain atom, not the `fun` keyword.
         let mut p = drive("mod:foo(1)");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::CallExpr);
         // Second entry after the CallExpr is the RemoteExpr target.
         let syntax = p.syntax_tree().syntax();
@@ -1173,21 +1173,21 @@ mod tests {
     #[test]
     fn unary_prefix_operator_produces_unary_op_expr() {
         let mut p = drive("-1");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::UnaryOpExpr);
     }
 
     #[test]
     fn catch_prefix_operator_produces_catch_expr() {
         let mut p = drive("catch 1");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::CatchExpr);
     }
 
     #[test]
     fn nonassoc_comparison_chain_records_error_but_keeps_progress() {
         let mut p = drive("1 == 2 == 3");
-        let _ = p.next_top_node().expect("unit");
+        let _ = p.next_node().expect("unit");
         assert!(
             !p.syntax_tree().diagnostics().is_empty(),
             "expected an error for `1 == 2 == 3`"
@@ -1198,7 +1198,7 @@ mod tests {
     fn unexpected_token_produces_error_node_and_still_returns_unit() {
         // A bare `)` cannot start an expression.
         let mut p = drive(")");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(root_kind(&p, root), SyntaxKind::Error);
         assert!(!p.syntax_tree().diagnostics().is_empty());
     }
@@ -1210,7 +1210,7 @@ mod tests {
     #[test]
     fn parses_begin_block() {
         let mut p = drive("begin 1, 2, 3 end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::BeginExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1218,7 +1218,7 @@ mod tests {
     #[test]
     fn parses_case_expression_with_two_clauses() {
         let mut p = drive("case X of a -> 1; b -> 2 end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::CaseExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1226,7 +1226,7 @@ mod tests {
     #[test]
     fn parses_if_expression_with_guard_sequence() {
         let mut p = drive("if X > 0 -> pos; X < 0 -> neg; true -> zero end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::IfExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1234,7 +1234,7 @@ mod tests {
     #[test]
     fn parses_receive_with_after() {
         let mut p = drive("receive msg -> ok after 1000 -> timeout end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ReceiveExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1242,7 +1242,7 @@ mod tests {
     #[test]
     fn parses_receive_after_only() {
         let mut p = drive("receive after 0 -> ok end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ReceiveExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1250,7 +1250,7 @@ mod tests {
     #[test]
     fn parses_try_with_catch_class_reason_stack() {
         let mut p = drive("try foo() of X -> X catch error:Reason:Stack -> Stack end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::TryExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1260,7 +1260,7 @@ mod tests {
         // yrl `try_clause -> atom ':' pat_expr ...`; `pat_expr` includes
         // match, so the reason can be `{error, _} = E`.
         let mut p = drive("try foo() catch throw:{error, _} = E -> E end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::TryExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
         assert!(tree_contains_kind(&p, SyntaxKind::CatchClause));
@@ -1269,7 +1269,7 @@ mod tests {
     #[test]
     fn parses_try_with_after_only() {
         let mut p = drive("try do_thing() after cleanup() end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::TryExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1279,7 +1279,7 @@ mod tests {
         // `else` clauses are `cr_clauses` (case clauses), so the pattern
         // is a plain pattern, not a `Class:Reason` try-catch head.
         let mut p = drive("maybe {ok, X} ?= foo() else Other -> Other end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MaybeExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1287,7 +1287,7 @@ mod tests {
     #[test]
     fn maybe_match_operator_uses_maybe_match_expr_kind() {
         let mut p = drive("maybe X ?= foo() end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MaybeExpr);
         // Search for the MaybeMatchExpr node inside the tree.
         let syntax = p.syntax_tree().syntax();
@@ -1304,7 +1304,7 @@ mod tests {
     #[test]
     fn parses_anonymous_fun_single_clause() {
         let mut p = drive("fun (X) -> X + 1 end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::AnonymousFun);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1312,7 +1312,7 @@ mod tests {
     #[test]
     fn parses_anonymous_fun_with_multiple_clauses_and_guard() {
         let mut p = drive("fun (0) -> zero; (N) when N > 0 -> N end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::AnonymousFun);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1320,7 +1320,7 @@ mod tests {
     #[test]
     fn parses_named_fun() {
         let mut p = drive("fun Loop(0) -> ok; Loop(N) -> Loop(N - 1) end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::NamedFun);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1328,7 +1328,7 @@ mod tests {
     #[test]
     fn parses_local_fun_ref() {
         let mut p = drive("fun foo/2");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::LocalFunRef);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1336,7 +1336,7 @@ mod tests {
     #[test]
     fn parses_remote_fun_ref_with_concrete_names() {
         let mut p = drive("fun mod:fun_name/3");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RemoteFunRef);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1344,7 +1344,7 @@ mod tests {
     #[test]
     fn parses_remote_fun_ref_with_variables() {
         let mut p = drive("fun M:F/N");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RemoteFunRef);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1352,7 +1352,7 @@ mod tests {
     #[test]
     fn empty_argument_list_in_fun_clause_is_accepted() {
         let mut p = drive("fun () -> ok end");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::AnonymousFun);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1364,12 +1364,12 @@ mod tests {
     #[test]
     fn parses_empty_and_populated_map_literals() {
         let mut p = drive("#{}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MapExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive("#{a => 1, b := 2}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MapExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1377,7 +1377,7 @@ mod tests {
     #[test]
     fn parses_map_update_on_expression() {
         let mut p = drive("M#{k => v}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MapUpdateExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1386,25 +1386,25 @@ mod tests {
     fn parses_record_literal_and_index_and_update_and_access() {
         // #Name{...}
         let mut p = drive("#user{name = \"a\"}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         // #Name.Field
         let mut p = drive("#user.name");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordIndexExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Expr#Name{...}
         let mut p = drive("U#user{name = \"a\"}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordUpdateExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Expr#Name.Field
         let mut p = drive("U#user.name");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(
             first_child_kind(&p, root),
             SyntaxKind::RecordFieldAccessExpr
@@ -1416,19 +1416,19 @@ mod tests {
     fn parses_qualified_native_record_and_update_and_access() {
         // #Module:Name{...}
         let mut p = drive("#mod:name{a = 1}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Expr#Module:Name{...}
         let mut p = drive("U#mod:name{a = 1}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordUpdateExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Expr#Module:Name.Field
         let mut p = drive("U#mod:name.a");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(
             first_child_kind(&p, root),
             SyntaxKind::RecordFieldAccessExpr
@@ -1440,19 +1440,19 @@ mod tests {
     fn parses_anonymous_native_record_and_update_and_access() {
         // #_{...}
         let mut p = drive("#_{name = \"a\"}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Expr#_{...}
         let mut p = drive("U#_{name = \"a\"}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordUpdateExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Expr#_.Field
         let mut p = drive("U#_.name");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(
             first_child_kind(&p, root),
             SyntaxKind::RecordFieldAccessExpr
@@ -1463,12 +1463,12 @@ mod tests {
     #[test]
     fn parses_empty_and_populated_bitstring() {
         let mut p = drive("<<>>");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::BitstringExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive("<<1, 2, 3>>");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::BitstringExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1476,7 +1476,7 @@ mod tests {
     #[test]
     fn parses_bitstring_element_with_size_and_type() {
         let mut p = drive("<<X:8/integer-unsigned-big>>");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::BitstringExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1485,7 +1485,7 @@ mod tests {
     fn parses_bitstring_element_with_unit_size() {
         // `x/integer:8` — bit type with a unit size after `:`
         let mut p = drive("<<X/binary:8>>");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::BitstringExpr);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1503,7 +1503,7 @@ mod tests {
     #[test]
     fn parses_list_comprehension_with_generator_and_filter() {
         let mut p = drive("[X * 2 || X <- L, X > 0]");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
         assert!(tree_contains_kind(&p, SyntaxKind::Generator));
         assert!(tree_contains_kind(&p, SyntaxKind::Filter));
@@ -1513,7 +1513,7 @@ mod tests {
     #[test]
     fn parses_binary_comprehension_with_bitstring_generator() {
         let mut p = drive("<<B || <<B:8>> <= Bin>>");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::BinaryComprehension);
         assert!(tree_contains_kind(&p, SyntaxKind::BitstringGenerator));
         assert!(p.syntax_tree().diagnostics().is_empty());
@@ -1522,7 +1522,7 @@ mod tests {
     #[test]
     fn parses_map_comprehension_with_map_generator() {
         let mut p = drive("#{K => V + 1 || K := V <- M}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MapComprehension);
         assert!(tree_contains_kind(&p, SyntaxKind::MapGenerator));
         assert!(p.syntax_tree().diagnostics().is_empty());
@@ -1531,19 +1531,19 @@ mod tests {
     #[test]
     fn parses_strict_generator_variants() {
         let mut p = drive("[X || X <:- L]");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
         assert!(tree_contains_kind(&p, SyntaxKind::StrictGenerator));
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive("<<B || <<B:8>> <:= Bin>>");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::BinaryComprehension);
         assert!(tree_contains_kind(&p, SyntaxKind::StrictBitstringGenerator));
         assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive("#{K => V || K := V <:- M}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MapComprehension);
         assert!(tree_contains_kind(&p, SyntaxKind::StrictMapGenerator));
         assert!(p.syntax_tree().diagnostics().is_empty());
@@ -1552,7 +1552,7 @@ mod tests {
     #[test]
     fn parses_zip_qualifier_with_ampersand_chain() {
         let mut p = drive("[{X, Y} || X <- L1 && Y <- L2]");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
         assert!(tree_contains_kind(&p, SyntaxKind::ZipQualifier));
         assert!(p.syntax_tree().diagnostics().is_empty());
@@ -1561,7 +1561,7 @@ mod tests {
     #[test]
     fn parses_comprehension_with_multiple_qualifiers_separated_by_comma() {
         let mut p = drive("[X + Y || X <- L1, Y <- L2, X /= Y]");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
         // Two Generator nodes plus one Filter node.
         let syntax = p.syntax_tree().syntax();
@@ -1578,7 +1578,7 @@ mod tests {
     #[test]
     fn parses_multi_valued_list_comprehension_template() {
         let mut p = drive("[X, Y || X <- [1], Y <- [2]]");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ListComprehension);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
@@ -1586,7 +1586,7 @@ mod tests {
     #[test]
     fn parses_multi_valued_map_comprehension_template() {
         let mut p = drive("#{K => V, A => B || K := V <- M}");
-        let root = p.next_top_node().expect("unit");
+        let root = p.next_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MapComprehension);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }

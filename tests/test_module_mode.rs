@@ -26,7 +26,7 @@ fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
     let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Module);
     push_all(&mut p, source);
     let mut roots = Vec::new();
-    while let Some(id) = p.next_top_node() {
+    while let Some(id) = p.next_node() {
         roots.push(id);
     }
     (p.finish(), roots)
@@ -314,7 +314,7 @@ fn missing_form_terminating_dot_flushes_via_finish() {
     // whatever the mode's grammar can extract.
     let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Module);
     push_all(&mut p, "-module(m)");
-    assert!(p.next_top_node().is_none());
+    assert!(p.next_node().is_none());
     let tree = p.finish();
     assert!(!tree.syntax().is_empty());
 }
@@ -348,11 +348,11 @@ fn in_progress_state_is_default_before_between_and_after_forms() {
     expect_default(p.state());
 
     push_all(&mut p, "-attr(payload).");
-    let _ = p.next_top_node().expect("first form");
+    let _ = p.next_node().expect("first form");
     expect_default(p.state());
 
     push_all(&mut p, " foo(1, 2) -> ok.");
-    let _ = p.next_top_node().expect("second form");
+    let _ = p.next_node().expect("second form");
     expect_default(p.state());
 }
 
