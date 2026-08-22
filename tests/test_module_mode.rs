@@ -141,6 +141,32 @@ fn spec_type_record_and_export_are_uniform_attributes() {
 }
 
 #[test]
+fn record_field_dot_does_not_end_the_form_mid_push() {
+    // The field-access `.` is the same token as a form terminator.
+    // Incremental `push_token` must not start `parse_one` when that
+    // `.` is pushed, because the field name is not in the buffer yet.
+    for source in [
+        "f(X) -> X#r.f.",
+        "f() -> #r.f.",
+        "f(X) -> X#_.f.",
+        "f(X) -> X#r.f + 1.",
+    ] {
+        let (tree, roots) = drive(source);
+        assert_eq!(roots.len(), 1, "source: {source}");
+        assert_eq!(
+            kind_of(&tree, roots[0]),
+            SyntaxKind::FunctionDecl,
+            "source: {source}"
+        );
+        assert!(
+            tree.errors().is_empty(),
+            "source: {source} produced unexpected errors: {:?}",
+            tree.errors()
+        );
+    }
+}
+
+#[test]
 fn unpreprocessed_directives_are_kept_as_unknown_attributes() {
     // `-define`, `-undef`, `-include`, `-ifdef` etc. would normally be
     // consumed by preprocessing. The parser makes no attempt to

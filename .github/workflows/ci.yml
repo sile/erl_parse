@@ -2,6 +2,9 @@ name: CI
 
 on: [push]
 
+env:
+  OTP_TAG: OTP-29.0.5
+
 jobs:
   check:
     name: Check
@@ -11,7 +14,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup update stable
       - run: rustup default stable
-      - run: cargo check --all-targets
+      - run: cargo check --workspace --all-targets
 
   test:
     name: Test Suite
@@ -21,7 +24,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup update stable
       - run: rustup default stable
-      - run: cargo test --all
+      - run: cargo test --workspace
 
   msrv:
     name: MSRV
@@ -31,7 +34,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup toolchain install 1.88 --profile minimal
       - run: rustup default 1.88
-      - run: cargo build --all-targets
+      - run: cargo build --workspace --all-targets
 
   lints:
     name: Lints
@@ -43,8 +46,55 @@ jobs:
       - run: rustup default stable
       - run: rustup component add rustfmt clippy
       - run: cargo fmt --all -- --check
-      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Doc
         env:
           RUSTDOCFLAGS: -D warnings
-        run: cargo doc --no-deps
+        run: cargo doc --workspace --no-deps
+
+  otp-check:
+    name: OTP source check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout Erlang/OTP source (${{ env.OTP_TAG }})
+        run: git clone --depth 1 --branch "${OTP_TAG}" https://github.com/erlang/otp otp
+      - run: rustup update stable
+      - run: rustup default stable
+      - run: cargo run --release -p otp_conformance --bin check_otp_parse -- otp
+
+  otp-diff:
+    name: OTP parse diff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout Erlang/OTP source (${{ env.OTP_TAG }})
+        run: git clone --depth 1 --branch "${OTP_TAG}" https://github.com/erlang/otp otp
+      - id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: fixture.jsonl.gz
+          key: otp-diff-fixture-${{ env.OTP_TAG }}-${{ hashFiles('scripts/dump-otp-parse-fixture.escript', 'examples/otp_conformance/Cargo.toml') }}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        id: otp-major
+        name: Extract OTP major from tag
+        run: |
+          major="${OTP_TAG#OTP-}"
+          major="${major%%.*}"
+          echo "major=$major" >> "$GITHUB_OUTPUT"
+      - if: steps.cache.outputs.cache-hit != 'true'
+        name: Install Erlang/OTP ${{ steps.otp-major.outputs.major }}
+        uses: erlef/setup-beam@e6d7c94229049569db56a7ad5a540c051a010af9 # v1.20.4
+        with:
+          otp-version: ${{ steps.otp-major.outputs.major }}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        name: Generate OTP parse fixture
+        run: scripts/dump-otp-parse-fixture.escript otp | gzip -9 > fixture.jsonl.gz
+      - run: rustup update stable
+      - run: rustup default stable
+      - name: Decompress fixture
+        run: gunzip -k fixture.jsonl.gz
+      - name: Compare parser output against fixture
+        run: cargo run --release -p otp_conformance --bin otp_diff -- fixture.jsonl

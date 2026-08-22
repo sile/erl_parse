@@ -1241,6 +1241,17 @@ mod tests {
     }
 
     #[test]
+    fn parses_try_catch_class_reason_with_match() {
+        // yrl `try_clause -> atom ':' pat_expr ...`; `pat_expr` includes
+        // match, so the reason can be `{error, _} = E`.
+        let mut p = drive("try foo() catch throw:{error, _} = E -> E end");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::TryExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+        assert!(tree_contains_kind(&p, SyntaxKind::CatchClause));
+    }
+
+    #[test]
     fn parses_try_with_after_only() {
         let mut p = drive("try do_thing() after cleanup() end");
         let root = p.next_top_node().expect("unit");

@@ -158,6 +158,16 @@ fn try_catch_section_holds_both_clause_and_catch_clause_shapes() {
     assert!(inner.contains(&SyntaxKind::CatchClause), "{inner:?}");
 }
 
+#[test]
+fn try_catch_class_reason_can_be_a_match_pattern() {
+    let tree = parse_expr("try foo() catch throw:{error, _} = E -> E end.");
+    assert!(tree.errors().is_empty(), "{:?}", tree.errors());
+    let try_node = root_view(&tree);
+    let catch = find_child(try_node, SyntaxKind::TryCatchSection).expect("catch");
+    let inner: Vec<SyntaxKind> = catch.children().map(|c| c.kind()).collect();
+    assert!(inner.contains(&SyntaxKind::CatchClause), "{inner:?}");
+}
+
 // -----------------------------------------------------------------
 // maybe
 // -----------------------------------------------------------------

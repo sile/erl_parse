@@ -758,13 +758,18 @@ impl Parser {
         }
     }
 
-    /// Scans the pending buffer for a lexical `.` at or after the
-    /// current cursor position, without moving the cursor.
+    /// Scans the pending buffer for a lexical `.` that can terminate a
+    /// top-level unit, without moving the cursor.
+    ///
+    /// Record field dots (`#Name.Field`, `Expr#Name.Field`, `Expr#_.Field`)
+    /// are skipped: they use the same token as a form terminator but
+    /// appear in the middle of a form, so treating them as a boundary
+    /// would start `parse_one` before the field name has been pushed.
     fn has_lexical_dot_after_cursor(&self) -> bool {
         let tokens = self.tree.tokens();
         let mut i = self.at;
         while let Some(t) = tokens.get(TokenIndex::new(i)) {
-            if t.kind().is_lexical() && is_dot(t) {
+            if t.kind().is_lexical() && is_dot(t) && !is_record_field_dot(tokens, i) {
                 return true;
             }
             i += 1;
@@ -789,6 +794,34 @@ fn is_dot(token: Token) -> bool {
         token.kind(),
         erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Dot)
     )
+}
+
+fn prev_lexical(tokens: &crate::TokenBuffer, index: usize) -> Option<(usize, Token)> {
+    let mut i = index;
+    while i > 0 {
+        i -= 1;
+        let t = tokens.get(TokenIndex::new(i))?;
+        if t.kind().is_lexical() {
+            return Some((i, t));
+        }
+    }
+    None
+}
+
+fn is_record_field_dot(tokens: &crate::TokenBuffer, dot_index: usize) -> bool {
+    let Some((prev_i, prev)) = prev_lexical(tokens, dot_index) else {
+        return false;
+    };
+    match prev.kind() {
+        erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::WildcardRecord) => true,
+        erl_tokenize::TokenKind::Atom | erl_tokenize::TokenKind::Variable => matches!(
+            prev_lexical(tokens, prev_i).map(|(_, t)| t.kind()),
+            Some(erl_tokenize::TokenKind::Symbol(
+                erl_tokenize::Symbol::Sharp | erl_tokenize::Symbol::WildcardRecord
+            ))
+        ),
+        _ => false,
+    }
 }
 
 /// Handle to an open node in the event log.
