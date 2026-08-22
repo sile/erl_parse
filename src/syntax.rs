@@ -83,9 +83,11 @@ pub enum SyntaxKind {
     /// the EEP 79 native-record forms `#Module:Name{...}` and
     /// `#_{...}`).
     RecordExpr,
-    /// A record update, written `Expr#Name{...}`.
+    /// A record update, written `Expr#Name{...}` (including
+    /// `Expr#Module:Name{...}`).
     RecordUpdateExpr,
-    /// A record field access, written `Expr#Name.Field`.
+    /// A record field access, written `Expr#Name.Field` (including
+    /// `Expr#Module:Name.Field`).
     RecordFieldAccessExpr,
     /// A record field index, written `#Name.Field`.
     RecordIndexExpr,

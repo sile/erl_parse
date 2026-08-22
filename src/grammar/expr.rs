@@ -600,7 +600,7 @@ fn parse_named_fun_clause(p: &mut Parser) -> CompletedMarker {
 /// Handles the `#`-prefixed literal forms:
 ///
 /// - `#{...}` → [`SyntaxKind::MapExpr`]
-/// - `#Name{...}` → [`SyntaxKind::RecordExpr`]
+/// - `#Name{...}` / `#Module:Name{...}` → [`SyntaxKind::RecordExpr`]
 /// - `#Name.Field` → [`SyntaxKind::RecordIndexExpr`]
 fn parse_record_or_map_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
     p.consume_lexical(); // `#`
@@ -614,6 +614,7 @@ fn parse_record_or_map_prefix(p: &mut Parser, m: Marker) -> CompletedMarker {
         return m.complete(p, kind);
     }
     consume_atom_or_var(p, "record name");
+    try_consume_native_record_qualifier(p);
     if at_symbol(p, Symbol::OpenBrace) {
         parse_record_body(p);
         return m.complete(p, SyntaxKind::RecordExpr);
@@ -668,6 +669,7 @@ fn complete_record_or_map_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
         return m.complete(p, SyntaxKind::MapUpdateExpr);
     }
     consume_atom_or_var(p, "record name");
+    try_consume_native_record_qualifier(p);
     if at_symbol(p, Symbol::OpenBrace) {
         parse_record_body(p);
         return m.complete(p, SyntaxKind::RecordUpdateExpr);
@@ -689,6 +691,21 @@ fn complete_record_or_map_suffix(p: &mut Parser, m: Marker) -> CompletedMarker {
         found,
     ));
     m.complete(p, SyntaxKind::Error)
+}
+
+/// After the leading atom or variable of a record name, optionally
+/// consumes EEP 79's `:` `record_name` qualifier when the next tokens
+/// match `#Module:Name`.
+fn try_consume_native_record_qualifier(p: &mut Parser) {
+    if at_symbol(p, Symbol::Colon)
+        && matches!(
+            p.peek_lexical(1).map(|(_, t)| t.kind()),
+            Some(TokenKind::Atom) | Some(TokenKind::Variable)
+        )
+    {
+        p.consume_lexical(); // `:`
+        consume_atom_or_var(p, "record name");
+    }
 }
 
 /// Completes an already-started marker whose parent already consumed
@@ -1387,6 +1404,30 @@ mod tests {
 
         // Expr#Name.Field
         let mut p = drive("U#user.name");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(
+            first_child_kind(&p, root),
+            SyntaxKind::RecordFieldAccessExpr
+        );
+        assert!(p.syntax_tree().errors().is_empty());
+    }
+
+    #[test]
+    fn parses_qualified_native_record_and_update_and_access() {
+        // #Module:Name{...}
+        let mut p = drive("#mod:name{a = 1}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+
+        // Expr#Module:Name{...}
+        let mut p = drive("U#mod:name{a = 1}");
+        let root = p.next_top_node().expect("unit");
+        assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordUpdateExpr);
+        assert!(p.syntax_tree().errors().is_empty());
+
+        // Expr#Module:Name.Field
+        let mut p = drive("U#mod:name.a");
         let root = p.next_top_node().expect("unit");
         assert_eq!(
             first_child_kind(&p, root),
