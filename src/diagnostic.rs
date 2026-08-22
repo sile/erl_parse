@@ -7,7 +7,8 @@
 //! as success.
 //!
 //! Every diagnostic currently produced is a syntax error. Warnings and
-//! informational notes are not emitted yet.
+//! informational notes are not emitted yet. How the grammar continues
+//! after a diagnostic is recorded is in [`crate::docs::diagnostics`].
 
 use erl_tokenize::Token;
 
@@ -17,7 +18,8 @@ use crate::token_range::TokenRange;
 ///
 /// This is a diagnostic record, not an operation-failure type: it does
 /// not implement [`std::error::Error`], and the parser never returns it
-/// as `Result::Err`.
+/// as `Result::Err`. See [`crate::docs::diagnostics`] for the recovery
+/// contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Diagnostic {
     kind: DiagnosticKind,

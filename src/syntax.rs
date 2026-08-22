@@ -23,10 +23,11 @@ use crate::token_range::TokenRange;
 /// grammar coverage grows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SyntaxKind {
-    /// Marks a token range consumed by error recovery. The recovery logic
-    /// itself is added by a subsequent change; this variant is present so
-    /// consumers of the syntax index can navigate through the recovered
-    /// range structurally.
+    /// A hole left by error recovery: a skipped span, an unexpected
+    /// token at a production start, or a unit force-closed at end of
+    /// input. A skipped span matches the corresponding
+    /// [`crate::DiagnosticKind::SkippedToken`] diagnostic's range. See
+    /// [`crate::docs::diagnostics`].
     Error,
 
     // ---------------------------------------------------------------------

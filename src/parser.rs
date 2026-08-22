@@ -303,7 +303,7 @@ impl Parser {
     }
 
     /// Borrows the accumulated syntax tree (tokens, syntax index, and
-    /// errors) for reading during parsing.
+    /// diagnostics) for reading during parsing.
     pub fn syntax_tree(&self) -> &SyntaxTree {
         &self.tree
     }

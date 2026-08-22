@@ -8,6 +8,14 @@ erl_parse
 
 Erlang source code parser written in Rust.
 
+A parse always produces a syntax tree. Syntax problems are recorded as
+diagnostics and the grammar recovers to the next sync point (typically
+the next `.`) instead of aborting. See
+[Diagnostics and error recovery](docs/diagnostics.md); the same page
+renders as
+[`docs::diagnostics`](https://docs.rs/erl_parse/erl_parse/docs/diagnostics/index.html)
+on docs.rs.
+
 References
 ----------
 

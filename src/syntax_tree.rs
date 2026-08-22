@@ -24,7 +24,7 @@ use crate::token_buffer::TokenBuffer;
 /// displaying the diagnostics alongside it; ranges consumed by error
 /// recovery survive as [`crate::SyntaxKind::Error`] nodes in the index
 /// and stay reachable through the same navigation surface as any other
-/// node.
+/// node. See [`crate::docs::diagnostics`] for the recovery contract.
 #[derive(Debug, Default, Clone)]
 pub struct SyntaxTree {
     tokens: TokenBuffer,

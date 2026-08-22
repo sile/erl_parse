@@ -5,8 +5,10 @@
 //! top-level units back out. The parser holds the input token buffer, a
 //! flat preorder syntax index, and the accumulated diagnostics bundled
 //! together as a [`SyntaxTree`] that survives past the parser instance.
-//! Grammar coverage is added by subsequent crates and modules; the
-//! machinery kept here is grammar-agnostic.
+//! A parse always produces that tree: syntax problems are recorded as
+//! [`Diagnostic`]s and the grammar recovers to the next sync point
+//! rather than returning `Result::Err`. The caller-facing contract is
+//! in [`docs::diagnostics`].
 //!
 //! Top-level types:
 //!
@@ -19,7 +21,8 @@
 //!   parser goes away.
 //! - [`Diagnostic`], [`DiagnosticKind`], and [`Expected`] describe a
 //!   syntax diagnostic. Every diagnostic currently produced is an error;
-//!   warnings and notes are not emitted yet.
+//!   warnings and notes are not emitted yet. See [`docs::diagnostics`]
+//!   for how recovery continues after a diagnostic is recorded.
 //! - [`TokenIndex`] and [`TokenRange`] describe positions and half-open
 //!   spans over the token buffer.
 //! - [`TokenBuffer`] is the append-only container that stores the pushed
@@ -52,3 +55,5 @@ pub use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind
 pub use crate::syntax_tree::SyntaxTree;
 pub use crate::token_buffer::TokenBuffer;
 pub use crate::token_range::{TokenIndex, TokenRange};
+
+pub mod docs;
