@@ -1,18 +1,22 @@
-//! Erlang source parser for language tools.
+//! A Rust library for parsing Erlang source code, designed for language tooling.
 //!
-//! You feed tokens; this crate does not read files, tokenize, preprocess,
-//! or resolve names. Whitespace and comments stay in the stream. A parse
-//! always produces a [`SyntaxTree`]; syntax problems are [`Diagnostic`]s
-//! rather than `Result::Err`. The grammar tracks OTP 29's `erl_parse.yrl`
-//! (CI checks against OTP-29.0.5).
+//! Callers provide the tokens; this crate does not read files, tokenize source,
+//! preprocess it, or resolve names. Every parse produces a [`SyntaxTree`], with
+//! syntax problems reported as [`Diagnostic`]s rather than `Result::Err`. The
+//! parser recovers from syntax errors so later forms, terms, or elements can
+//! still be parsed. The grammar tracks OTP 29's `erl_parse.yrl` (CI checks
+//! against OTP-29.0.5).
 //!
 //! Tokenize with [erl_tokenize](https://docs.rs/erl_tokenize). For macros,
 //! includes, and conditionals, preprocess first with
 //! [erl_pp](https://docs.rs/erl_pp).
-//! Recovery is [`docs::diagnostics`]; walking the tree is
-//! [`docs::navigation`].
+//! [`ParseMode`] selects the top-level construct; recovery and tree
+//! walking are in [`docs::diagnostics`] and [`docs::navigation`].
 //!
 //! # Minimal loop
+//!
+//! This example tokenizes a minimal Erlang module, feeds its tokens to the
+//! parser, and collects the completed top-level nodes.
 //!
 //! ```
 //! # fn main() -> Result<(), erl_tokenize::Error> {
