@@ -29,22 +29,19 @@ use erl_tokenize::{Symbol, TokenKind};
 
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::util::expect_symbol;
-use crate::parser::{CompletedMarker, FormKind, Parser};
+use crate::parser::{CompletedMarker, Parser};
 use crate::syntax::SyntaxKind;
 use crate::token_range::TokenRange;
 
 /// Parses one attribute form starting at the leading `-`.
 pub(crate) fn parse_attribute(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
-    p.in_progress_mut().form_kind = Some(FormKind::Attribute);
 
     expect_symbol(p, Symbol::Hyphen, "`-` to open attribute form");
     parse_attribute_name(p);
     parse_attribute_payload(p);
 
-    let completed = m.complete(p, SyntaxKind::Attribute);
-    p.in_progress_mut().attribute_name = None;
-    completed
+    m.complete(p, SyntaxKind::Attribute)
 }
 
 fn parse_attribute_name(p: &mut Parser) {
@@ -53,8 +50,6 @@ fn parse_attribute_name(p: &mut Parser) {
     match p.peek_lexical(0).map(|(_, t)| t.kind()) {
         Some(TokenKind::Atom) => {
             p.consume_lexical();
-            let end_at = p.cursor_position();
-            p.in_progress_mut().attribute_name = Some(TokenRange::new(start_at, end_at));
         }
         _ => {
             let found = p.peek_lexical(0).map(|(_, t)| t);

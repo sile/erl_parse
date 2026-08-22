@@ -15,8 +15,8 @@
 //!
 //! - [`Parser`] and [`ParseMode`] are the entry point. Construct a parser
 //!   for the desired [`ParseMode`] and drive it with [`Parser::feed_token`]
-//!   / [`Parser::next_node`] / [`Parser::state`] /
-//!   [`Parser::syntax_tree`] / [`Parser::finish`].
+//!   / [`Parser::next_node`] / [`Parser::syntax_tree`] /
+//!   [`Parser::finish`].
 //! - [`SyntaxTree`] bundles the token buffer, the syntax index, and the
 //!   diagnostics so callers can keep the parse result around after the
 //!   parser goes away.
@@ -53,7 +53,7 @@ mod token_range;
 
 pub use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 pub use crate::node::{Cursor, NodeView};
-pub use crate::parser::{FormKind, InProgressState, ParseMode, Parser};
+pub use crate::parser::{ParseMode, Parser};
 pub use crate::syntax::{NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 pub use crate::syntax_tree::SyntaxTree;
 pub use crate::token_buffer::TokenBuffer;

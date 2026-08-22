@@ -7,7 +7,6 @@
 //!
 //! - [`Parser::feed_token`] feeds one input token.
 //! - [`Parser::next_node`] pulls the next completed `.`-terminated unit.
-//! - [`Parser::state`] queries in-progress grammar state.
 //! - [`Parser::syntax_tree`] borrows the accumulated tree for reading.
 //! - [`Parser::finish`] consumes the parser and hands back the finished
 //!   [`SyntaxTree`].
@@ -48,63 +47,6 @@ pub enum ParseMode {
     /// A type expression (a `-spec` / `-type` payload-style input)
     /// terminated by `.`.
     Type,
-}
-
-/// Which kind of module-mode form the parser has currently opened,
-/// as reported by [`InProgressState::form_kind`].
-///
-/// Only exposes the shape the grammar has committed to (attribute
-/// wrapper vs. function declaration wrapper). The attribute-name
-/// spelling is not included because the parser does not interpret
-/// attribute names (per the Sans I/O boundary in this crate) — the
-/// caller reads the spelling from the token buffer using the
-/// [`InProgressState::attribute_name`] range.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FormKind {
-    /// The parser is inside an `-Name.` or `-Name(Payload).` form.
-    Attribute,
-    /// The parser is inside a `Name(Args) [when Guard] -> Body;
-    /// ... .` function declaration.
-    FunctionDecl,
-}
-
-/// In-progress grammar state that a caller can query mid-unit.
-///
-/// Every field describes state that is only meaningful while a
-/// specific position inside a top-level unit is being parsed. All
-/// fields reset to their default (`None` / `Idle` equivalent) between
-/// top-level units, so a `None` reading means "no form / attribute /
-/// function / clause open here", not "unavailable".
-///
-/// `TokenIndex` / `TokenRange` values act as keys into a caller-side
-/// table over [`TokenBuffer`](crate::TokenBuffer); source positions
-/// (`erl_tokenize::Position`) are never exposed.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct InProgressState {
-    /// The kind of form the parser has currently opened at module
-    /// top level. `None` between forms (the module-mode driver is
-    /// looking for the start of the next form) and in every mode
-    /// that has no form concept (expression, term-list).
-    pub form_kind: Option<FormKind>,
-    /// While an attribute form is being parsed, the range of the
-    /// `atom` token that names the attribute. `None` outside
-    /// attribute forms.
-    pub attribute_name: Option<TokenRange>,
-    /// While a function declaration is being parsed, the range of
-    /// the `atom` token that names the function (the name of the
-    /// clause the driver is currently inside). `None` outside
-    /// function declarations.
-    pub function_name: Option<TokenRange>,
-    /// While a function declaration's clause head is being parsed,
-    /// the arity read from that clause's argument list. Set once the
-    /// argument list closes; cleared at the end of the enclosing
-    /// form. `None` before the head closes and outside function
-    /// declarations.
-    pub function_arity: Option<usize>,
-    /// The 1-based index of the clause currently being parsed inside
-    /// a function declaration (`1` for the first clause, incremented
-    /// past each `;`). `None` outside function declarations.
-    pub current_clause: Option<usize>,
 }
 
 /// Identifies the grammar site that ran the most recent recovery
@@ -205,11 +147,6 @@ pub struct Parser {
     /// Completed `NodeId`s produced by finalize but not yet handed out via
     /// `next_node`.
     pending_pull: std::collections::VecDeque<NodeId>,
-    /// Form / attribute / function / clause progression, exposed to
-    /// callers as a snapshot via [`Parser::state`] and mutated by
-    /// grammar code through [`Parser::in_progress_mut`]. Reset to
-    /// default at every top-level unit boundary.
-    in_progress: InProgressState,
     /// Which grammar sub-language is currently accepted (see
     /// [`ParseContext`]).
     context: ParseContext,
@@ -252,7 +189,6 @@ impl Parser {
             unit_start_event: None,
             unit_events_cursor: 0,
             pending_pull: std::collections::VecDeque::new(),
-            in_progress: InProgressState::default(),
             context: ParseContext::Expression,
         }
     }
@@ -293,19 +229,6 @@ impl Parser {
         self.pending_pull.pop_front()
     }
 
-    /// Returns a snapshot of the in-progress grammar state.
-    ///
-    /// The parser's top-level driver consumes a whole `.`-terminated
-    /// unit within one `feed_token` call and resets [`InProgressState`]
-    /// afterwards, so a caller polling between `feed_token` calls will see the
-    /// default value at every observation point. The fields become
-    /// meaningful when a future recovery grammar leaves a partial
-    /// unit open across driver calls, or when a caller layers its
-    /// own grammar callbacks on top of the parser.
-    pub fn state(&self) -> InProgressState {
-        self.in_progress
-    }
-
     /// Borrows the accumulated syntax tree (tokens, syntax index, and
     /// diagnostics) for reading during parsing.
     pub fn syntax_tree(&self) -> &SyntaxTree {
@@ -338,7 +261,6 @@ impl Parser {
                 ParseMode::Type => parse_type(&mut self),
             };
             self.finalize_pending_units();
-            self.in_progress = InProgressState::default();
         }
         if self.unit_in_progress {
             let end = self.tree.tokens().end_index();
@@ -489,16 +411,6 @@ impl Parser {
     /// Returns the current grammar sub-language ([`ParseContext`]).
     pub(crate) fn context(&self) -> ParseContext {
         self.context
-    }
-
-    /// Grants grammar code mutable access to the in-progress state
-    /// so it can record form / attribute / function / clause
-    /// progression. Callers must clear the fields they set at the
-    /// end of the corresponding scope; the parser itself resets the
-    /// whole struct to its default at each top-level unit boundary
-    /// as a backstop.
-    pub(crate) fn in_progress_mut(&mut self) -> &mut InProgressState {
-        &mut self.in_progress
     }
 
     /// Sets the current grammar sub-language and returns the previous
@@ -674,9 +586,7 @@ impl Parser {
     /// [`SyntaxKind::Error`] node with a matching
     /// [`DiagnosticKind::SkippedToken`] diagnostic; the boundary
     /// dot itself is consumed after that so the cursor never
-    /// stalls. Between top-level units the in-progress state is
-    /// reset to its default so a stale field cannot leak across
-    /// unit boundaries.
+    /// stalls.
     fn advance_dot_driven_grammar<F>(
         &mut self,
         parse_one: F,
@@ -700,7 +610,6 @@ impl Parser {
                 self.consume_lexical();
             }
             self.finalize_pending_units();
-            self.in_progress = InProgressState::default();
         }
     }
 
