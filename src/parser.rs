@@ -308,11 +308,6 @@ impl Parser {
         &self.tree
     }
 
-    /// Returns the current grammar nesting depth.
-    pub fn nesting_depth(&self) -> usize {
-        self.depth
-    }
-
     /// Re-parses the tokens in `range` (which must already be inside the
     /// internal buffer) as a single expression. Returns the [`NodeId`]
     /// of the resulting top-level unit, which is appended to the syntax
