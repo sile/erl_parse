@@ -100,7 +100,7 @@ dump_otp_file(Root, File) ->
                     case epp:open([{name, File}, {includes, Includes},
                                    {default_encoding, utf8}]) of
                         {ok, Epp} ->
-                            Forms = collect_forms(Epp),
+                            Forms = collect_forms(Epp, File),
                             epp:close(Epp),
                             emit_otp_ok(File, Forms);
                         {error, _} ->
@@ -134,24 +134,39 @@ emit_otp_ok(File, Forms) ->
                   "\"forms\":[", FormJson, $],
                   $}, $\n]).
 
-collect_forms(Epp) ->
+collect_forms(Epp, SourceFile) ->
     case epp:parse_erl_form(Epp) of
         {ok, Form} ->
-            [abs_form(Form) | collect_forms(Epp)];
+            [abs_form(Form, SourceFile) | collect_forms(Epp, SourceFile)];
         {error, ErrorInfo} ->
-            [error_form(ErrorInfo) | collect_forms(Epp)];
+            [error_form(ErrorInfo) | collect_forms(Epp, SourceFile)];
         {eof, _} ->
             []
     end.
 
-abs_form({attribute, Anno, file, _}) ->
-    #{parse => ok, category => "attribute", line => anno_line(Anno), epp => file};
-abs_form({attribute, Anno, _, _}) ->
+abs_form({attribute, Anno, file, {Path, _Line}}, _SourceFile) ->
+    case is_epp_file_path(Path) of
+        true ->
+            #{parse => ok, category => "attribute", line => anno_line(Anno),
+              epp => file};
+        false ->
+            #{parse => ok, category => "attribute", line => anno_line(Anno)}
+    end;
+abs_form({attribute, Anno, _, _}, _SourceFile) ->
     #{parse => ok, category => "attribute", line => anno_line(Anno)};
-abs_form({function, Anno, _, _, _}) ->
+abs_form({function, Anno, _, _, _}, _SourceFile) ->
     #{parse => ok, category => "function", line => anno_line(Anno)};
-abs_form(_) ->
+abs_form(_, _SourceFile) ->
     #{parse => ok, category => "other", line => 1}.
+
+%% OTP `epp` file markers use a filesystem path (`dir/name`); generated
+%% `-file("yeccgramm.yrl", 0).` markers use a basename only.
+is_epp_file_path(Path) when is_binary(Path) ->
+    is_epp_file_path(binary_to_list(Path));
+is_epp_file_path(Path) when is_list(Path) ->
+    filename:dirname(Path) =/= ".";
+is_epp_file_path(_) ->
+    false.
 
 error_form({Loc, _, _}) ->
     #{parse => err, category => "error", line => loc_line(Loc)};
@@ -352,7 +367,7 @@ parse_forms(Ts, Acc) ->
         none -> parse_forms([], Acc);
         {FormToks, Rest} ->
             Rec = case erl_parse:parse_form(FormToks) of
-                      {ok, Abs} -> abs_form(Abs);
+                      {ok, Abs} -> abs_form(Abs, "<synthetic>");
                       {error, Info} -> error_form(Info)
                   end,
             parse_forms(Rest, [Rec | Acc])

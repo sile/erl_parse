@@ -135,6 +135,19 @@ impl PredefContext {
         }
     }
 
+    /// Evaluates a macro-expanded `-if` / `-elif` condition when it is a
+    /// simple atom-or-variable comparison. Returns `None` when the shape
+    /// is not recognised (caller should pick a conservative branch).
+    pub fn if_branch(&self, tokens: &[SourceToken]) -> Option<erl_pp::Branch> {
+        evaluate_condition(tokens).map(|v| {
+            if v {
+                erl_pp::Branch::Then
+            } else {
+                erl_pp::Branch::Else
+            }
+        })
+    }
+
     /// Erlang source text to splice in, or an error if the call is unknown
     /// or used before its value exists.
     pub fn expansion_text(&self, call: &erl_pp::MacroCall) -> Result<String, String> {
@@ -553,6 +566,36 @@ fn emit_bool(v: bool) -> String {
     if v { "true" } else { "false" }.to_string()
 }
 
+fn evaluate_condition(tokens: &[SourceToken]) -> Option<bool> {
+    let lex: Vec<&SourceToken> = tokens
+        .iter()
+        .filter(|t| t.token().kind().is_lexical())
+        .collect();
+    if lex.len() != 3 {
+        return None;
+    }
+    let left = token_name(lex[0])?;
+    let right = token_name(lex[2])?;
+    let equal = match lex[1].token().kind() {
+        TokenKind::Symbol(Symbol::Eq) | TokenKind::Symbol(Symbol::ExactEq) => true,
+        TokenKind::Symbol(Symbol::NotEq) | TokenKind::Symbol(Symbol::ExactNotEq) => false,
+        _ => return None,
+    };
+    let matches = left == right;
+    Some(if equal { matches } else { !matches })
+}
+
+fn token_name(token: &SourceToken) -> Option<String> {
+    match token.token().kind() {
+        TokenKind::Atom | TokenKind::Variable => match token.value() {
+            TokenValue::Atom(a) => Some(a.into_owned()),
+            TokenValue::Variable(v) => Some(v.to_string()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn is_bare_atom(name: &str) -> bool {
     let mut chars = name.chars();
     let Some(first) = chars.next() else {
@@ -623,6 +666,23 @@ mod tests {
     #[test]
     fn ifdef_otp_release_takes_the_defined_branch() {
         parse_ok("-module(demo).\n-ifdef(OTP_RELEASE).\nf() -> ok.\n-endif.\n");
+    }
+
+    #[test]
+    fn if_module_comparison_keeps_then_branch() {
+        parse_ok("-module(demo).\n-if(?MODULE =/= beam_ssa).\n-export([f/0]).\n-endif.\n");
+    }
+
+    #[test]
+    fn if_module_comparison_skips_then_branch_when_equal() {
+        parse_ok(
+            "-module(beam_ssa).\n-if(?MODULE =/= beam_ssa).\n-export([f/0]).\n-endif.\nf() -> ok.\n",
+        );
+    }
+
+    #[test]
+    fn if_module_guard_preserves_import_record() {
+        parse_ok("-module(demo).\n-if(?MODULE =/= beam_ssa).\n-import_record(m, [r]).\n-endif.\n");
     }
 
     #[test]

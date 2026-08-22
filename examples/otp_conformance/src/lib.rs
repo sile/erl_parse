@@ -188,9 +188,9 @@ pub fn parse_text(
                         Some(false) => erl_pp::Branch::Then,
                         None => d.recommended,
                     },
-                    erl_pp::Conditional::If(_) | erl_pp::Conditional::Elif(_) => {
-                        erl_pp::Branch::Else
-                    }
+                    erl_pp::Conditional::If(c) | erl_pp::Conditional::Elif(c) => predef
+                        .if_branch(&c.condition_tokens)
+                        .unwrap_or(erl_pp::Branch::Else),
                 };
                 pp.resume_conditional(branch)
                     .expect("resume_conditional after AwaitingConditional");
