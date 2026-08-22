@@ -1,5 +1,5 @@
-//! Lightweight navigation over a [`SyntaxIndex`] borrowed together with its
-//! [`TokenBuffer`].
+//! Lightweight navigation over a [`SyntaxIndex`] borrowed together with the
+//! tokens the caller fed.
 //!
 //! Forest-level questions (`roots`, `innermost_containing`) live on
 //! [`SyntaxTree`](crate::SyntaxTree). [`NodeView`] is one node. Neither
@@ -306,7 +306,7 @@ mod tests {
             tokens.push(token);
             pos = token.end();
         }
-        assert_eq!(tokens.len(), 3, "foo, whitespace, bar");
+        assert_eq!(tokens.as_slice().len(), 3, "foo, whitespace, bar");
 
         // Syntax index layout:
         //   0: parent      kind=Error  range=0..3  subtree_end=3

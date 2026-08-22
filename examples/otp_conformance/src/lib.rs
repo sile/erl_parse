@@ -266,7 +266,7 @@ pub fn is_epp_consumed_feature_attribute(
     let Some(name_node) = child_of_kind(view, erl_parse::SyntaxKind::AttributeName) else {
         return false;
     };
-    for (idx, t) in tree.tokens().iter_range(name_node.range()) {
+    for (idx, t) in name_node.tokens_in_range() {
         if t.kind().is_lexical()
             && let Some(text) = token_text(tree, token_sources, idx)
         {
@@ -301,7 +301,7 @@ fn token_text<'a>(
     token_sources: &'a [Arc<erl_pp::Source>],
     index: erl_parse::TokenIndex,
 ) -> Option<&'a str> {
-    let token = tree.tokens().get(index)?;
+    let token = *tree.tokens().get(index.get())?;
     let source = token_sources.get(index.get())?;
     Some(token.text(source.text()))
 }
@@ -309,11 +309,11 @@ fn token_text<'a>(
 /// 1-based line of a `Diagnostic` range start.
 pub fn diagnostic_line(tree: &erl_parse::SyntaxTree, range: erl_parse::TokenRange) -> usize {
     let idx = range.start();
-    if let Some(t) = tree.tokens().get(idx) {
+    if let Some(t) = tree.tokens().get(idx.get()).copied() {
         return t.start().line().get();
     }
     if idx.get() > 0
-        && let Some(t) = tree.tokens().get(erl_parse::TokenIndex::new(idx.get() - 1))
+        && let Some(t) = tree.tokens().get(idx.get() - 1).copied()
     {
         return t.start().line().get();
     }
@@ -602,10 +602,7 @@ fn operator_between(
         return None;
     }
     let mut ops = Vec::new();
-    for (_, t) in tree
-        .tokens()
-        .iter_range(erl_parse::TokenRange::new(start, end))
-    {
+    for t in &tree.tokens()[erl_parse::TokenRange::new(start, end).as_range()] {
         if t.kind().is_lexical() {
             ops.push(t.text(source).to_string());
         }

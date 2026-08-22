@@ -17,17 +17,17 @@
 //!   for the desired [`ParseMode`] and drive it with [`Parser::feed_token`]
 //!   / [`Parser::next_node`] / [`Parser::syntax_tree`] /
 //!   [`Parser::finish`].
-//! - [`SyntaxTree`] bundles the token buffer, the syntax index, and the
+//! - [`SyntaxTree`] bundles the tokens the caller fed, the syntax index, and the
 //!   diagnostics so callers can keep the parse result around after the
-//!   parser goes away.
+//!   parser goes away. [`SyntaxTree::tokens`] is the feed-order slice;
+//!   a [`TokenIndex`] obtained earlier still names the same token after
+//!   later feeds.
 //! - [`Diagnostic`], [`DiagnosticKind`], and [`Expected`] describe a
 //!   syntax diagnostic. Every diagnostic currently produced is an error;
 //!   warnings and notes are not emitted yet. See [`docs::diagnostics`]
 //!   for how recovery continues after a diagnostic is recorded.
 //! - [`TokenIndex`] and [`TokenRange`] describe positions and half-open
-//!   spans over the token buffer.
-//! - [`TokenBuffer`] is the append-only container that stores the tokens
-//!   the caller fed.
+//!   spans over [`SyntaxTree::tokens`].
 //! - [`SyntaxIndex`] is a flat preorder array of [`SyntaxEntry`], addressed
 //!   by [`NodeId`]. [`SyntaxKind`] tags each entry with a grammar-level
 //!   nonterminal kind.
@@ -56,7 +56,6 @@ pub use crate::node::NodeView;
 pub use crate::parser::{ParseMode, Parser};
 pub use crate::syntax::{NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 pub use crate::syntax_tree::SyntaxTree;
-pub use crate::token_buffer::TokenBuffer;
 pub use crate::token_range::{TokenIndex, TokenRange};
 
 pub mod docs;

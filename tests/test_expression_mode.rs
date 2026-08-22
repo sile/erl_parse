@@ -78,7 +78,8 @@ fn feed_token_returns_index_of_added_token() {
         );
         let got = tree
             .tokens()
-            .get(*index)
+            .get(index.get())
+            .copied()
             .expect("returned index recovers the fed token");
         assert_eq!(got, *expected, "get({index:?}) mismatch");
     }

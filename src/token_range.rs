@@ -6,14 +6,15 @@ use core::ops::Range;
 ///
 /// A single [`TokenIndex`] can refer either to an existing token or to a
 /// boundary (the trailing EOF position or the endpoint of an empty
-/// [`TokenRange`]). Values lie in `0..=buffer.len()`.
+/// [`TokenRange`]). Values lie in `0..=tokens.len()`.
 ///
 /// Unlike [`NodeId`](crate::NodeId), this is the caller's address space:
-/// the buffer is the sequence they fed via
-/// [`Parser::feed_token`](crate::Parser::feed_token). Constructing from a
-/// slice position or from arithmetic on [`TokenIndex::get`] is expected.
-/// "Existing element" and "boundary" are not separate types here:
-/// missing-token, EOF, and empty-range cases dominate on the token side.
+/// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens) is the sequence they
+/// fed via [`Parser::feed_token`](crate::Parser::feed_token). Constructing
+/// from a slice position or from arithmetic on [`TokenIndex::get`] is
+/// expected. "Existing element" and "boundary" are not separate types
+/// here: missing-token, EOF, and empty-range cases dominate on the
+/// token side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TokenIndex(usize);
 
@@ -29,8 +30,10 @@ impl TokenIndex {
 
     /// Returns the offset as a `usize`.
     ///
-    /// Use this to index a parallel table kept beside the buffer, or to
-    /// compute a neighbouring index and wrap it with [`TokenIndex::new`].
+    /// Use this to index [`SyntaxTree::tokens`](crate::SyntaxTree::tokens)
+    /// (`tokens[index.get()]`), a parallel table kept beside the feed,
+    /// or to compute a neighbouring index and wrap it with
+    /// [`TokenIndex::new`].
     pub const fn get(self) -> usize {
         self.0
     }
@@ -59,8 +62,9 @@ impl TokenRange {
     ///
     /// Empty ranges are `start == end`. Callers compose spans that are
     /// not already a node's or diagnostic's range — for example the
-    /// tokens between two child ranges — and pass them to
-    /// [`TokenBuffer::iter_range`](crate::TokenBuffer::iter_range).
+    /// tokens between two child ranges — and slice
+    /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens) with
+    /// [`TokenRange::as_range`].
     ///
     /// Panics if `start > end`.
     pub fn new(start: TokenIndex, end: TokenIndex) -> Self {
@@ -103,8 +107,8 @@ impl TokenRange {
         self.end.0 - self.start.0
     }
 
-    /// Returns the range as `Range<usize>`, suitable for slicing the token
-    /// buffer.
+    /// Returns the range as `Range<usize>`, suitable for slicing
+    /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens).
     pub const fn as_range(self) -> Range<usize> {
         self.start.0..self.end.0
     }

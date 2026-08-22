@@ -282,7 +282,7 @@ fn error_ranges_are_usable_as_keys_into_external_metadata() {
         .copied()
         .expect("at least one error");
     let start = err.range().start();
-    assert!(start.get() <= tree.tokens().end_index().get());
+    assert!(start.get() <= tree.tokens().len());
 }
 
 #[test]

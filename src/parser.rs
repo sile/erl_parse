@@ -25,6 +25,7 @@ use crate::grammar::expr::parse_expr;
 use crate::grammar::ty::parse_type;
 use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 use crate::syntax_tree::SyntaxTree;
+use crate::token_buffer::TokenBuffer;
 use crate::token_range::{TokenIndex, TokenRange};
 
 /// Selects the top-level construct the parser recognizes.
@@ -201,11 +202,12 @@ impl Parser {
     /// Feeds one token into the parser and returns the [`TokenIndex`]
     /// at which it was placed in the buffer.
     ///
-    /// The returned index is a real (in-range) index — passing it to
-    /// [`TokenBuffer::get`](crate::TokenBuffer::get) recovers the same
-    /// token. Hidden tokens are indexed alongside lexical tokens, so a
-    /// caller feeding every token they receive from `erl_tokenize` gets
-    /// a strictly-increasing sequence starting at `TokenIndex::new(0)`.
+    /// The returned index is a real (in-range) index —
+    /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens) at
+    /// [`TokenIndex::get`] recovers the same token. Hidden tokens
+    /// are indexed alongside lexical tokens, so a caller feeding
+    /// every token they receive from `erl_tokenize` gets a
+    /// strictly-increasing sequence starting at `TokenIndex::new(0)`.
     ///
     /// The return value can be discarded when the caller does not need
     /// to associate the token with any external metadata; the method is
@@ -263,7 +265,7 @@ impl Parser {
             self.finalize_pending_units();
         }
         if self.unit_in_progress {
-            let end = self.tree.tokens().end_index();
+            let end = self.tree.token_buffer().end_index();
             // The force-closed Error node covers the unterminated unit
             // from its outer Start's `start_at` to the buffer's end.
             // Anchor the diagnostic to the same range so
@@ -321,7 +323,7 @@ impl Parser {
     /// hidden tokens into the consumed span. Returns the boundary the
     /// cursor advanced to, or `None` when no lexical token is available.
     pub(crate) fn consume_lexical(&mut self) -> Option<TokenIndex> {
-        let mut cursor = TokenCursor::new(self.tree.tokens(), self.at);
+        let mut cursor = TokenCursor::new(self.tree.token_buffer(), self.at);
         let end = cursor.advance_lexical()?;
         self.at = end.get();
         Some(end)
@@ -331,7 +333,7 @@ impl Parser {
     /// skipping hidden tokens. Returns `None` when the requested lookahead
     /// is beyond the tokens that have been pushed so far.
     pub(crate) fn peek_lexical(&self, offset: usize) -> Option<(TokenIndex, Token)> {
-        TokenCursor::new(self.tree.tokens(), self.at).peek_lexical(offset)
+        TokenCursor::new(self.tree.token_buffer(), self.at).peek_lexical(offset)
     }
 
     /// Returns the cursor's current position as a [`TokenIndex`], for use
@@ -476,7 +478,7 @@ impl Parser {
     )]
     pub(crate) fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
-            cursor: TokenCursor::new(self.tree.tokens(), self.at).save(),
+            cursor: TokenCursor::new(self.tree.token_buffer(), self.at).save(),
             events_len: self.events.len(),
             diagnostics_len: self.tree.diagnostics().len(),
         }
@@ -621,7 +623,7 @@ impl Parser {
     /// appear in the middle of a form, so treating them as a boundary
     /// would start `parse_one` before the field name has been pushed.
     fn has_lexical_dot_after_cursor(&self) -> bool {
-        let tokens = self.tree.tokens();
+        let tokens = self.tree.token_buffer();
         let mut i = self.at;
         while let Some(t) = tokens.get(TokenIndex::new(i)) {
             if t.kind().is_lexical() && is_dot(t) && !is_record_field_dot(tokens, i) {
@@ -651,7 +653,7 @@ fn is_dot(token: Token) -> bool {
     )
 }
 
-fn prev_lexical(tokens: &crate::TokenBuffer, index: usize) -> Option<(usize, Token)> {
+fn prev_lexical(tokens: &TokenBuffer, index: usize) -> Option<(usize, Token)> {
     let mut i = index;
     while i > 0 {
         i -= 1;
@@ -663,7 +665,7 @@ fn prev_lexical(tokens: &crate::TokenBuffer, index: usize) -> Option<(usize, Tok
     None
 }
 
-fn is_record_field_dot(tokens: &crate::TokenBuffer, dot_index: usize) -> bool {
+fn is_record_field_dot(tokens: &TokenBuffer, dot_index: usize) -> bool {
     let Some((prev_i, prev)) = prev_lexical(tokens, dot_index) else {
         return false;
     };
@@ -1032,7 +1034,7 @@ mod tests {
         assert_eq!(entry.range().start(), TokenIndex::new(0));
         assert_eq!(
             entry.range().end().get(),
-            tree.tokens().end_index().get() - 1,
+            tree.tokens().len() - 1,
             "range covers the space but stops before the boundary dot"
         );
     }
@@ -1047,7 +1049,7 @@ mod tests {
         let node = p.next_node().expect("unit completed");
         let tree = p.syntax_tree();
         let entry = tree.syntax().entry(node).expect("entry exists");
-        assert!(entry.range().end() < tree.tokens().end_index());
+        assert!(entry.range().end() < TokenIndex::new(tree.tokens().len()));
     }
 
     #[test]

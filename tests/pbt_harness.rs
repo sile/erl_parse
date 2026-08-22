@@ -581,16 +581,6 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
 
 /// Confirms that `tree.tokens()` byte-for-byte equals `expected`.
 /// The parser must never add, remove, or reorder input tokens.
-pub fn assert_tokens_unchanged(tokens: &erl_parse::TokenBuffer, expected: &[erl_tokenize::Token]) {
-    assert_eq!(
-        tokens.len(),
-        expected.len(),
-        "parser modified token buffer length"
-    );
-    for (i, exp) in expected.iter().enumerate() {
-        let got = tokens
-            .get(erl_parse::TokenIndex::new(i))
-            .expect("index in range");
-        assert_eq!(got, *exp, "parser modified token at index {i}");
-    }
+pub fn assert_tokens_unchanged(tokens: &[erl_tokenize::Token], expected: &[erl_tokenize::Token]) {
+    assert_eq!(tokens, expected, "parser modified the input token sequence");
 }

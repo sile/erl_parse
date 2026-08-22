@@ -1,65 +1,54 @@
 //! Token buffer owned by the parser core.
 //!
-//! Accumulates [`erl_tokenize::Token`] values the caller feeds into a
-//! growing buffer. Removing, reordering, or mutating already-appended tokens
-//! is not exposed.
+//! Holds the [`erl_tokenize::Token`] values the caller fed. The buffer is
+//! append-only: a [`TokenIndex`] obtained earlier still names the same
+//! token after later feeds.
 
 use erl_tokenize::Token;
 
 use crate::token_range::{TokenIndex, TokenRange};
 
-/// Append-only token buffer.
+/// Append-only buffer of tokens the caller fed.
 ///
-/// Backed by a `Vec<Token>` without pre-allocating capacity via
-/// `Vec::with_capacity`; `Token` is `Copy`, so appending is cheap and
-/// `Clone` is a straight `Vec::clone`.
+/// Not part of the public API: callers read
+/// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens). Tokens are
+/// appended only through [`Parser::feed_token`](crate::Parser::feed_token).
+/// Already-stored tokens are never removed, reordered, or mutated, so a
+/// [`TokenIndex`] stays valid for the rest of the parse and on the
+/// finished tree.
 #[derive(Debug, Clone)]
-pub struct TokenBuffer {
+pub(crate) struct TokenBuffer {
     tokens: Vec<Token>,
 }
 
 impl TokenBuffer {
     /// Creates an empty buffer.
-    // `pub(crate)`: callers receive a buffer from `SyntaxTree::tokens`.
-    // Tokens are appended only through `Parser::feed_token`.
     pub(crate) const fn new() -> Self {
         Self { tokens: Vec::new() }
     }
 
-    /// Returns the current number of tokens in the buffer.
-    pub fn len(&self) -> usize {
-        self.tokens.len()
-    }
-
-    /// Returns `true` when the buffer is empty.
-    pub fn is_empty(&self) -> bool {
-        self.tokens.is_empty()
-    }
-
     /// Returns the token at `index`, or `None` if the index is out of range.
-    pub fn get(&self, index: TokenIndex) -> Option<Token> {
+    pub(crate) fn get(&self, index: TokenIndex) -> Option<Token> {
         self.tokens.get(index.get()).copied()
     }
 
     /// Borrows the buffer as a slice.
-    pub fn as_slice(&self) -> &[Token] {
+    pub(crate) fn as_slice(&self) -> &[Token] {
         &self.tokens
     }
 
-    /// Returns the trailing boundary index (`len()`, the upper end of the
+    /// Returns the trailing boundary index (the upper end of the
     /// `0..=len()` domain).
-    pub fn end_index(&self) -> TokenIndex {
+    pub(crate) fn end_index(&self) -> TokenIndex {
         TokenIndex::new(self.tokens.len())
-    }
-
-    /// Returns the range that covers the entire buffer.
-    pub fn full_range(&self) -> TokenRange {
-        TokenRange::new(TokenIndex::new(0), self.end_index())
     }
 
     /// Returns an iterator that yields `(TokenIndex, Token)` pairs inside
     /// `range`.
-    pub fn iter_range(&self, range: TokenRange) -> impl Iterator<Item = (TokenIndex, Token)> {
+    pub(crate) fn iter_range(
+        &self,
+        range: TokenRange,
+    ) -> impl Iterator<Item = (TokenIndex, Token)> {
         BufferRange {
             tokens: &self.tokens,
             cursor: range.start().get(),
@@ -117,10 +106,8 @@ mod tests {
     #[test]
     fn empty_buffer() {
         let buffer = TokenBuffer::new();
-        assert_eq!(buffer.len(), 0);
-        assert!(buffer.is_empty());
+        assert!(buffer.as_slice().is_empty());
         assert_eq!(buffer.end_index(), TokenIndex::new(0));
-        assert!(buffer.full_range().is_empty());
     }
 
     #[test]
@@ -131,7 +118,7 @@ mod tests {
         for token in &scanned {
             buffer.push(*token);
         }
-        assert_eq!(buffer.len(), scanned.len());
+        assert_eq!(buffer.as_slice().len(), scanned.len());
         for (i, expected) in scanned.iter().enumerate() {
             let got = buffer.get(TokenIndex::new(i)).expect("in range");
             assert_eq!(got, *expected, "index {} mismatch", i);
@@ -165,8 +152,7 @@ mod tests {
         for token in &scanned {
             buffer.push(*token);
         }
-        assert!(!buffer.is_empty());
-        assert_eq!(buffer.len(), 1);
+        assert_eq!(buffer.as_slice().len(), 1);
         assert!(buffer.get(TokenIndex::new(0)).is_some());
         assert!(buffer.get(TokenIndex::new(1)).is_none());
     }
@@ -183,7 +169,7 @@ mod tests {
         }
 
         let collected: Vec<Token> = buffer
-            .iter_range(buffer.full_range())
+            .iter_range(TokenRange::new(TokenIndex::new(0), buffer.end_index()))
             .map(|(_idx, tok)| tok)
             .collect();
         assert_eq!(collected, scanned);

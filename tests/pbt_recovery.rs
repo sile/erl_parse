@@ -252,8 +252,7 @@ fn depth_cap_surfaces_as_structured_error() -> noprop::TestResult {
         // Sanity: the diagnostic anchors at a valid erl_parse::TokenIndex.
         for e in tree.diagnostics() {
             if e.kind() == erl_parse::DiagnosticKind::NestingDepthExceeded {
-                let end: erl_parse::TokenIndex = tree.tokens().end_index();
-                assert!(e.range().start().get() <= end.get());
+                assert!(e.range().start().get() <= tree.tokens().len());
             }
         }
         Ok(())

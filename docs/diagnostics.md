@@ -26,8 +26,8 @@ reachable through the same [`NodeView`](crate::NodeView) /
 [`SyntaxTree`](crate::SyntaxTree) navigation surface as any other node (see
 [`docs::navigation`](crate::docs::navigation)).
 [`TokenRange`](crate::TokenRange) values on both diagnostics and
-nodes are keys into the [`TokenBuffer`](crate::TokenBuffer) (and into
-any caller-side metadata table keyed the same way).
+nodes are keys into [`SyntaxTree::tokens`](crate::SyntaxTree::tokens)
+(and into any caller-side metadata table keyed the same way).
 
 A `Diagnostic` is a record, not an operation-failure type: it does
 not implement [`std::error::Error`], and the parser never returns it
@@ -192,7 +192,8 @@ Within the design above:
 
 - [`Parser::finish`](crate::Parser::finish) returns a `SyntaxTree` for
   every input the caller fed.
-- Hidden tokens around recovered spans stay in `TokenBuffer`.
+- Hidden tokens around recovered spans stay in
+  [`SyntaxTree::tokens`](crate::SyntaxTree::tokens).
 - A `SkippedToken` diagnostic's range equals the corresponding
   `Error` node's range.
 - A `MissingToken` diagnostic's range is empty, and the token count

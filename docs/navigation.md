@@ -1,7 +1,7 @@
 # Walking a syntax tree
 
-A finished [`SyntaxTree`](crate::SyntaxTree) is a
-[`TokenBuffer`](crate::TokenBuffer) plus a flat preorder
+A finished [`SyntaxTree`](crate::SyntaxTree) is the tokens the
+caller fed plus a flat preorder
 [`SyntaxIndex`](crate::SyntaxIndex). Nothing in that pair is a
 "current position". Forest-level questions live on the tree;
 [`NodeView`](crate::NodeView) answers questions about **one node**.
@@ -31,7 +31,7 @@ the whole file: each `.`-terminated unit is its own root.
 ```text
 source:  {1, 2}.
 
-TokenBuffer (every token the caller fed, hidden ones included):
+Tokens (every token the caller fed, hidden ones included):
   0 `{`   1 `1`   2 `,`   3 ` `   4 `2`   5 `}`   6 `.`
 
 SyntaxIndex:
@@ -80,7 +80,6 @@ assert_eq!(
 // not the tuple itself.
 let one = tree
     .tokens()
-    .as_slice()
     .iter()
     .position(|t| t.kind() == erl_tokenize::TokenKind::Integer)
     .map(erl_parse::TokenIndex::new)
