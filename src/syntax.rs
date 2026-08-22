@@ -346,8 +346,12 @@ pub enum SyntaxKind {
 /// Kept distinct from [`NodeId`], which refers to an existing entry:
 /// using [`NodeId`] as a sentinel for "past the last entry" would blur
 /// the distinction between element and boundary.
+///
+/// Not part of the public API: callers walk with [`NodeId`] and
+/// [`NodeView`](crate::NodeView). The parser core uses this type as
+/// the fence in `subtree_end`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct EntryIndex(usize);
+pub(crate) struct EntryIndex(usize);
 
 impl EntryIndex {
     /// Constructs an `EntryIndex` from a raw index.
@@ -362,8 +366,6 @@ impl EntryIndex {
 }
 
 /// Identifier of an existing syntax entry (values in `0..entries.len()`).
-///
-/// Kept distinct from [`EntryIndex`], which represents a boundary position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(usize);
 
@@ -377,14 +379,14 @@ impl NodeId {
     pub const fn get(self) -> usize {
         self.0
     }
-
-    /// Views the same position as an [`EntryIndex`].
-    pub const fn as_entry_index(self) -> EntryIndex {
-        EntryIndex(self.0)
-    }
 }
 
 /// A single entry in the flat syntax index.
+///
+/// Callers read [`SyntaxKind`] and [`TokenRange`] through
+/// [`SyntaxIndex::entry`] or [`SyntaxIndex::entries`]. Nested structure
+/// is walked with [`NodeView`](crate::NodeView). The parser core is the
+/// only builder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SyntaxEntry {
     kind: SyntaxKind,
@@ -394,7 +396,10 @@ pub struct SyntaxEntry {
 
 impl SyntaxEntry {
     /// Constructs a `SyntaxEntry`.
-    pub const fn new(kind: SyntaxKind, range: TokenRange, subtree_end: EntryIndex) -> Self {
+    // `pub(crate)`: only the parser core and in-crate tests build
+    // entries. `SyntaxIndex::push` is also `pub(crate)`, so a public
+    // constructor would only produce values a caller cannot insert.
+    pub(crate) const fn new(kind: SyntaxKind, range: TokenRange, subtree_end: EntryIndex) -> Self {
         Self {
             kind,
             range,
@@ -414,15 +419,14 @@ impl SyntaxEntry {
 
     /// Returns the boundary immediately past this entry's subtree in the
     /// preorder array.
-    pub const fn subtree_end(self) -> EntryIndex {
+    pub(crate) const fn subtree_end(self) -> EntryIndex {
         self.subtree_end
     }
 }
 
 /// Flat preorder array of syntax entries.
 ///
-/// This type is not `Clone`; it is designed to be owned by a stateful
-/// parser core. Entries can only be appended at the end; interior insertion,
+/// Entries can only be appended at the end; interior insertion,
 /// deletion, reordering, and in-place mutation are not exposed.
 ///
 /// # Preorder-array invariants
@@ -430,10 +434,9 @@ impl SyntaxEntry {
 /// The builder is responsible for preserving the following invariants.
 ///
 /// - A parent precedes every one of its descendants.
-/// - For an entry at `self_index` ([`EntryIndex`]), `subtree_end` satisfies
-///   `self_index + 1 <= subtree_end <= entries.len()`. For a leaf entry
-///   (one with no descendants), `subtree_end == self_index + 1`. This is
-///   independent of whether the node is zero-width.
+/// - For an entry at index `i`, its exclusive subtree end `e` satisfies
+///   `i + 1 <= e <= entries.len()`. For a leaf (no descendants),
+///   `e == i + 1`. This is independent of whether the node is zero-width.
 /// - A child's subtree is fully contained within the parent's subtree.
 /// - A child's [`TokenRange`] is contained within the parent's
 ///   [`TokenRange`].
@@ -478,21 +481,6 @@ impl SyntaxIndex {
         &self.entries
     }
 
-    /// Returns the boundary [`EntryIndex`] past the last entry.
-    pub fn end_index(&self) -> EntryIndex {
-        EntryIndex::new(self.entries.len())
-    }
-
-    /// Converts an [`EntryIndex`] to a [`NodeId`] when it refers to an
-    /// existing entry.
-    pub fn node_id_at(&self, index: EntryIndex) -> Option<NodeId> {
-        if index.get() < self.entries.len() {
-            Some(NodeId::new(index.get()))
-        } else {
-            None
-        }
-    }
-
     /// Appends an entry to the end of the array and returns its [`NodeId`].
     ///
     /// The caller is responsible for preserving the invariants listed at
@@ -516,10 +504,10 @@ mod tests {
     #[test]
     fn node_id_and_entry_index_are_distinct_types() {
         // NodeId (0..len) and EntryIndex (0..=len) are held in distinct
-        // types. Conversion from NodeId to EntryIndex is direct; going the
-        // other way requires SyntaxIndex to bounds-check.
+        // types. The same raw value can name a node or a fence; only
+        // `entry` decides which is valid.
         let node = NodeId::new(3);
-        let boundary: EntryIndex = node.as_entry_index();
+        let boundary = EntryIndex::new(node.get());
         assert_eq!(boundary.get(), 3);
     }
 
@@ -545,16 +533,20 @@ mod tests {
     }
 
     #[test]
-    fn node_id_at_boundary_returns_none() {
+    fn entry_past_len_is_none() {
         let mut index = SyntaxIndex::new();
         index.push(SyntaxEntry::new(
             SyntaxKind::Error,
             range(0, 1),
             EntryIndex::new(1),
         ));
-        assert_eq!(index.node_id_at(EntryIndex::new(0)), Some(NodeId::new(0)));
-        assert_eq!(index.node_id_at(EntryIndex::new(1)), None);
-        assert_eq!(index.end_index(), EntryIndex::new(1));
+        assert!(index.entry(NodeId::new(0)).is_some());
+        assert!(index.entry(NodeId::new(1)).is_none());
+        assert_eq!(index.len(), 1);
+        let leaf = index
+            .entry(NodeId::new(0))
+            .expect("id refers to an existing entry");
+        assert_eq!(leaf.subtree_end(), EntryIndex::new(1));
     }
 
     #[test]

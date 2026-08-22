@@ -14,7 +14,7 @@
 
 use erl_tokenize::Token;
 
-use crate::syntax::{EntryIndex, NodeId, SyntaxIndex, SyntaxKind};
+use crate::syntax::{NodeId, SyntaxIndex, SyntaxKind};
 use crate::token_buffer::TokenBuffer;
 use crate::token_range::{TokenIndex, TokenRange};
 
@@ -67,22 +67,14 @@ impl<'a> NodeView<'a> {
         self.entry_ref().range()
     }
 
-    /// Returns the boundary immediately past this entry's subtree.
-    pub fn subtree_end(self) -> EntryIndex {
-        self.entry_ref().subtree_end()
-    }
-
-    /// Returns the entry-index range occupied by this subtree
-    /// (`self..subtree_end`).
-    pub fn subtree_range(self) -> core::ops::Range<usize> {
-        self.node_id.get()..self.entry_ref().subtree_end().get()
+    fn subtree_fence(self) -> usize {
+        self.entry_ref().subtree_end().get()
     }
 
     /// Returns the first direct child, or `None` when this node is a leaf.
     pub fn first_child(self) -> Option<NodeView<'a>> {
-        let self_subtree_end = self.entry_ref().subtree_end();
         let candidate = self.node_id.get() + 1;
-        if candidate >= self_subtree_end.get() {
+        if candidate >= self.subtree_fence() {
             None
         } else {
             Some(Self {
@@ -99,7 +91,7 @@ impl<'a> NodeView<'a> {
             tokens: self.tokens,
             index: self.index,
             cursor: self.node_id.get() + 1,
-            parent_end: self.entry_ref().subtree_end().get(),
+            parent_end: self.subtree_fence(),
         }
     }
 
@@ -110,7 +102,7 @@ impl<'a> NodeView<'a> {
             tokens: self.tokens,
             index: self.index,
             cursor: self.node_id.get() + 1,
-            end: self.entry_ref().subtree_end().get(),
+            end: self.subtree_fence(),
         }
     }
 

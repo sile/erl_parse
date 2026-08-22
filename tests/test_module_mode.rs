@@ -36,25 +36,11 @@ fn direct_children(
     tree: &erl_parse::SyntaxTree,
     root: erl_parse::NodeId,
 ) -> Vec<erl_parse::NodeId> {
-    let end = tree
-        .syntax()
-        .entry(root)
+    tree.view(root)
         .expect("root entry")
-        .subtree_end()
-        .get();
-    let mut children = Vec::new();
-    let mut i = root.get() + 1;
-    while i < end {
-        let child_id = erl_parse::NodeId::new(i);
-        children.push(child_id);
-        i = tree
-            .syntax()
-            .entry(child_id)
-            .expect("child")
-            .subtree_end()
-            .get();
-    }
-    children
+        .children()
+        .map(|c| c.node_id())
+        .collect()
 }
 
 #[test]

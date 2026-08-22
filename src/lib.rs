@@ -29,9 +29,8 @@
 //! - [`TokenBuffer`] is the append-only container that stores the tokens
 //!   the caller fed.
 //! - [`SyntaxIndex`] is a flat preorder array of [`SyntaxEntry`], addressed
-//!   by [`NodeId`] (existing entries) and [`EntryIndex`] (entry-array
-//!   boundaries, including the trailing sentinel). [`SyntaxKind`] tags each
-//!   entry with a grammar-level nonterminal kind.
+//!   by [`NodeId`]. [`SyntaxKind`] tags each entry with a grammar-level
+//!   nonterminal kind.
 //! - [`NodeView`] and [`Cursor`] navigate the syntax index and token buffer
 //!   together. [`Cursor`] is the whole forest; [`NodeView`] is one node.
 //!   Construct them from [`SyntaxTree::cursor`] / [`SyntaxTree::view`] so
@@ -55,7 +54,7 @@ mod token_range;
 pub use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 pub use crate::node::{Cursor, NodeView};
 pub use crate::parser::{FormKind, InProgressState, ParseMode, Parser};
-pub use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
+pub use crate::syntax::{NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 pub use crate::syntax_tree::SyntaxTree;
 pub use crate::token_buffer::TokenBuffer;
 pub use crate::token_range::{TokenIndex, TokenRange};

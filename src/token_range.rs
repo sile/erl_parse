@@ -8,10 +8,9 @@ use core::ops::Range;
 /// boundary (the trailing EOF position or the endpoint of an empty
 /// [`TokenRange`]). Values lie in `0..=buffer.len()`.
 ///
-/// Unlike [`NodeId`](crate::NodeId) and
-/// [`EntryIndex`](crate::EntryIndex), "existing element" and
-/// "boundary" are not separated into two types: missing-token, EOF, and
-/// empty-range cases dominate on the token side, and a unified index type is
+/// Unlike [`NodeId`](crate::NodeId), "existing element" and "boundary"
+/// are not separate types here: missing-token, EOF, and empty-range
+/// cases dominate on the token side, and a unified index type is
 /// easier to work with there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TokenIndex(usize);

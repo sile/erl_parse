@@ -431,20 +431,6 @@ pub enum InvariantViolation {
         start: erl_parse::TokenIndex,
         end: erl_parse::TokenIndex,
     },
-    /// An entry's `subtree_end` fell outside `self_index+1..=entries.len()`.
-    SubtreeEndOutOfRange {
-        node: erl_parse::NodeId,
-        subtree_end: erl_parse::EntryIndex,
-        self_index: usize,
-        entries_len: usize,
-    },
-    /// A child subtree ended past its parent's `subtree_end`.
-    ChildOverflowsParent {
-        parent: erl_parse::NodeId,
-        parent_subtree_end: erl_parse::EntryIndex,
-        child: erl_parse::NodeId,
-        child_subtree_end: erl_parse::EntryIndex,
-    },
     /// A child's `erl_parse::TokenRange` was not contained in the parent's.
     ChildRangeOutsideParent {
         parent: erl_parse::NodeId,
@@ -452,6 +438,10 @@ pub enum InvariantViolation {
         child: erl_parse::NodeId,
         child_range: erl_parse::TokenRange,
     },
+    /// An index slot was not reachable from any root via `descendants`.
+    UnreachableFromRoots { node: erl_parse::NodeId },
+    /// An index slot was reached more than once from the root walk.
+    ReachedTwice { node: erl_parse::NodeId },
     /// Two adjacent diagnostics with the same `(kind, start)` appear in
     /// `diagnostics()` — the `push_unique_at_cursor` adjacent-dedupe
     /// contract was violated.
@@ -482,7 +472,7 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
     let tokens = tree.tokens();
     let buffer_len = tokens.len();
 
-    // Range boundaries + subtree_end structural check.
+    // Range boundaries.
     for i in 0..syntax.len() {
         let id = erl_parse::NodeId::new(i);
         let entry = syntax.entry(id).expect("id in bounds");
@@ -501,47 +491,44 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
                 end: range.end(),
             });
         }
-        let se = entry.subtree_end();
-        if se.get() < i + 1 || se.get() > syntax.len() {
-            violations.push(InvariantViolation::SubtreeEndOutOfRange {
-                node: id,
-                subtree_end: se,
-                self_index: i,
-                entries_len: syntax.len(),
-            });
-        }
     }
 
-    // Preorder containment: iterate parent + children.
+    // Child token ranges sit inside the parent. Walked through the
+    // public `children` iterator rather than the preorder fence.
     for i in 0..syntax.len() {
         let parent_id = erl_parse::NodeId::new(i);
-        let parent = syntax.entry(parent_id).expect("id in bounds");
-        let parent_end = parent.subtree_end().get();
-        let mut j = i + 1;
-        while j < parent_end {
-            let child_id = erl_parse::NodeId::new(j);
-            let child = syntax.entry(child_id).expect("child in bounds");
-            let child_end = child.subtree_end();
-            if child_end.get() > parent_end {
-                violations.push(InvariantViolation::ChildOverflowsParent {
-                    parent: parent_id,
-                    parent_subtree_end: parent.subtree_end(),
-                    child: child_id,
-                    child_subtree_end: child_end,
-                });
-                break;
-            }
-            let pr = parent.range();
+        let parent = tree.view(parent_id).expect("id in bounds");
+        let pr = parent.range();
+        for child in parent.children() {
             let cr = child.range();
             if cr.start().get() < pr.start().get() || cr.end().get() > pr.end().get() {
                 violations.push(InvariantViolation::ChildRangeOutsideParent {
                     parent: parent_id,
                     parent_range: pr,
-                    child: child_id,
+                    child: child.node_id(),
                     child_range: cr,
                 });
             }
-            j = child_end.get();
+        }
+    }
+
+    // Every index slot is reachable exactly once from the forest
+    // roots via `descendants`.
+    let mut reached = vec![0u8; syntax.len()];
+    for root in tree.cursor().roots() {
+        for node in std::iter::once(root).chain(root.descendants()) {
+            let i = node.node_id().get();
+            if i < reached.len() {
+                reached[i] = reached[i].saturating_add(1);
+            }
+        }
+    }
+    for (i, count) in reached.iter().enumerate() {
+        let node = erl_parse::NodeId::new(i);
+        match count {
+            0 => violations.push(InvariantViolation::UnreachableFromRoots { node }),
+            1 => {}
+            _ => violations.push(InvariantViolation::ReachedTwice { node }),
         }
     }
 
