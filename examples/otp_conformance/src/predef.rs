@@ -513,16 +513,6 @@ pub fn otp_release_from_env() -> Option<u32> {
         .and_then(otp_release_from_tag)
 }
 
-/// Scans `text` into a preprocessor [`erl_pp::Source`].
-pub fn scanned_source(display: &str, text: &str) -> Result<erl_pp::Source, String> {
-    let tokens = crate::scan_source(text)?;
-    Ok(erl_pp::Source::new(
-        display.to_string(),
-        text.to_string(),
-        tokens,
-    ))
-}
-
 fn emit_atom(name: &str) -> String {
     if is_bare_atom(name) {
         name.to_string()
