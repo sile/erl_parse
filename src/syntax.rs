@@ -365,18 +365,27 @@ impl EntryIndex {
     }
 }
 
-/// Identifier of an existing syntax entry (values in `0..entries.len()`).
+/// Identifier of an existing syntax entry.
+///
+/// Opaque: the parser and [`NodeView`](crate::NodeView) mint these.
+/// Callers compare and hash them as keys; they do not construct them
+/// from a raw slot index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(usize);
 
 impl NodeId {
     /// Constructs a `NodeId` from a raw index.
-    pub const fn new(index: usize) -> Self {
+    // `pub(crate)`: a raw slot is a preorder fence, not a caller-facing
+    // handle. External ids come from `Parser::next_node`, `Cursor::roots`,
+    // and `NodeView` iterators.
+    pub(crate) const fn new(index: usize) -> Self {
         Self(index)
     }
 
     /// Returns the underlying `usize`.
-    pub const fn get(self) -> usize {
+    // `pub(crate)`: the integer is the syntax-index slot. Callers key
+    // tables on `NodeId` itself (`Copy` + `Eq` + `Hash`).
+    pub(crate) const fn get(self) -> usize {
         self.0
     }
 }
@@ -448,14 +457,16 @@ impl SyntaxEntry {
 /// - Entries are appended at top-level unit boundaries. Interior entries
 ///   are not inserted mid-form, and entries are never reordered or removed
 ///   across top-level unit boundaries.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct SyntaxIndex {
     entries: Vec<SyntaxEntry>,
 }
 
 impl SyntaxIndex {
     /// Creates an empty index.
-    pub const fn new() -> Self {
+    // `pub(crate)`: callers receive an index from `SyntaxTree::syntax`.
+    // Entries are appended only by the parser core.
+    pub(crate) const fn new() -> Self {
         Self {
             entries: Vec::new(),
         }

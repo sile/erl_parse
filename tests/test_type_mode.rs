@@ -46,10 +46,8 @@ fn type_mode_finish_flushes_input_without_trailing_dot() {
     assert!(parser.next_node().is_none());
     let tree = parser.finish();
     assert!(tree.diagnostics().is_empty());
-    assert_eq!(
-        kind_of(&tree, erl_parse::NodeId::new(0)),
-        erl_parse::SyntaxKind::TypeCall
-    );
+    let root = tree.cursor().roots().next().expect("finish flushed a unit");
+    assert_eq!(root.kind(), erl_parse::SyntaxKind::TypeCall);
 }
 
 #[test]

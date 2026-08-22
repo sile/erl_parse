@@ -31,7 +31,8 @@ any caller-side metadata table keyed the same way).
 
 A `Diagnostic` is a record, not an operation-failure type: it does
 not implement [`std::error::Error`], and the parser never returns it
-as `Result::Err`. Every diagnostic currently produced is a syntax
+as `Result::Err`. Callers read the records from the tree; they do not
+construct them. Every diagnostic currently produced is a syntax
 error; warnings and notes are not emitted yet.
 
 There is no public "please recover" API. Recovery runs as

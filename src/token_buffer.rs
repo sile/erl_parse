@@ -13,14 +13,16 @@ use crate::token_range::{TokenIndex, TokenRange};
 /// Backed by a `Vec<Token>` without pre-allocating capacity via
 /// `Vec::with_capacity`; `Token` is `Copy`, so appending is cheap and
 /// `Clone` is a straight `Vec::clone`.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct TokenBuffer {
     tokens: Vec<Token>,
 }
 
 impl TokenBuffer {
     /// Creates an empty buffer.
-    pub const fn new() -> Self {
+    // `pub(crate)`: callers receive a buffer from `SyntaxTree::tokens`.
+    // Tokens are appended only through `Parser::feed_token`.
+    pub(crate) const fn new() -> Self {
         Self { tokens: Vec::new() }
     }
 

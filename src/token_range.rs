@@ -8,20 +8,29 @@ use core::ops::Range;
 /// boundary (the trailing EOF position or the endpoint of an empty
 /// [`TokenRange`]). Values lie in `0..=buffer.len()`.
 ///
-/// Unlike [`NodeId`](crate::NodeId), "existing element" and "boundary"
-/// are not separate types here: missing-token, EOF, and empty-range
-/// cases dominate on the token side, and a unified index type is
-/// easier to work with there.
+/// Unlike [`NodeId`](crate::NodeId), this is the caller's address space:
+/// the buffer is the sequence they fed via
+/// [`Parser::feed_token`](crate::Parser::feed_token). Constructing from a
+/// slice position or from arithmetic on [`TokenIndex::get`] is expected.
+/// "Existing element" and "boundary" are not separate types here:
+/// missing-token, EOF, and empty-range cases dominate on the token side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TokenIndex(usize);
 
 impl TokenIndex {
-    /// Constructs a `TokenIndex` from a raw offset.
+    /// Constructs a [`TokenIndex`] from a buffer offset in `0..=len`.
+    ///
+    /// [`Parser::feed_token`](crate::Parser::feed_token) returns the
+    /// index of the token just appended. Callers also mint one from a
+    /// slice position or from arithmetic on [`TokenIndex::get`].
     pub const fn new(index: usize) -> Self {
         Self(index)
     }
 
-    /// Returns the underlying `usize`.
+    /// Returns the offset as a `usize`.
+    ///
+    /// Use this to index a parallel table kept beside the buffer, or to
+    /// compute a neighbouring index and wrap it with [`TokenIndex::new`].
     pub const fn get(self) -> usize {
         self.0
     }
@@ -46,9 +55,14 @@ pub struct TokenRange {
 }
 
 impl TokenRange {
-    /// Constructs a `TokenRange` from a `start..end` pair.
+    /// Constructs a [`TokenRange`] from a `start..end` pair.
     ///
-    /// Panics if `start > end`. Empty ranges are expressed by `start == end`.
+    /// Empty ranges are `start == end`. Callers compose spans that are
+    /// not already a node's or diagnostic's range — for example the
+    /// tokens between two child ranges — and pass them to
+    /// [`TokenBuffer::iter_range`](crate::TokenBuffer::iter_range).
+    ///
+    /// Panics if `start > end`.
     pub fn new(start: TokenIndex, end: TokenIndex) -> Self {
         assert!(
             start.get() <= end.get(),
@@ -60,7 +74,9 @@ impl TokenRange {
     }
 
     /// Returns an empty range anchored at `position`.
-    pub const fn empty_at(position: TokenIndex) -> Self {
+    // `pub(crate)`: missing-token / EOF shape. External empty spans use
+    // `TokenRange::new(position, position)`.
+    pub(crate) const fn empty_at(position: TokenIndex) -> Self {
         Self {
             start: position,
             end: position,

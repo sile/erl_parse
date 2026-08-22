@@ -32,7 +32,7 @@ use crate::token_buffer::TokenBuffer;
 /// [`docs::diagnostics`](crate::docs::diagnostics) for the recovery
 /// contract and [`docs::navigation`](crate::docs::navigation) for
 /// walking the index.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct SyntaxTree {
     tokens: TokenBuffer,
     syntax: SyntaxIndex,
@@ -41,7 +41,9 @@ pub struct SyntaxTree {
 
 impl SyntaxTree {
     /// Creates an empty tree.
-    pub const fn new() -> Self {
+    // `pub(crate)`: callers receive a tree from `Parser::finish` /
+    // `Parser::syntax_tree`. An empty tree has no tokens to pair with.
+    pub(crate) const fn new() -> Self {
         Self {
             tokens: TokenBuffer::new(),
             syntax: SyntaxIndex::new(),

@@ -19,7 +19,9 @@ use crate::token_range::TokenRange;
 ///
 /// This is a diagnostic record, not an operation-failure type: it does
 /// not implement [`std::error::Error`], and the parser never returns it
-/// as `Result::Err`. See [`docs::diagnostics`](crate::docs::diagnostics)
+/// as `Result::Err`. Callers read these from
+/// [`SyntaxTree::diagnostics`](crate::SyntaxTree::diagnostics); they do
+/// not construct them. See [`docs::diagnostics`](crate::docs::diagnostics)
 /// for the recovery contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Diagnostic {
@@ -31,7 +33,9 @@ pub struct Diagnostic {
 
 impl Diagnostic {
     /// Builds a `Diagnostic` from its components.
-    pub const fn new(
+    // `pub(crate)`: the parser records diagnostics. Callers read
+    // `SyntaxTree::diagnostics`.
+    pub(crate) const fn new(
         kind: DiagnosticKind,
         range: TokenRange,
         expected: Expected,
@@ -127,4 +131,46 @@ pub enum Expected {
     /// A grammar-level category was expected. The identifier is chosen by
     /// the grammar site.
     Category(&'static str),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::token_range::{TokenIndex, TokenRange};
+
+    fn diag(kind: DiagnosticKind, range: TokenRange) -> Diagnostic {
+        Diagnostic::new(kind, range, Expected::Unspecified, None)
+    }
+
+    #[test]
+    fn push_unique_at_cursor_drops_adjacent_same_kind_and_start() {
+        let at = TokenRange::empty_at(TokenIndex::new(3));
+        let mut diagnostics = Vec::new();
+        push_unique_at_cursor(&mut diagnostics, diag(DiagnosticKind::MissingToken, at));
+        push_unique_at_cursor(&mut diagnostics, diag(DiagnosticKind::MissingToken, at));
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn push_unique_at_cursor_keeps_different_kinds_at_same_start() {
+        let at = TokenRange::empty_at(TokenIndex::new(3));
+        let mut diagnostics = Vec::new();
+        push_unique_at_cursor(&mut diagnostics, diag(DiagnosticKind::MissingToken, at));
+        push_unique_at_cursor(&mut diagnostics, diag(DiagnosticKind::UnexpectedToken, at));
+        assert_eq!(diagnostics.len(), 2);
+    }
+
+    #[test]
+    fn push_unique_at_cursor_keeps_non_adjacent_duplicates() {
+        let at = TokenRange::empty_at(TokenIndex::new(3));
+        let other = TokenRange::empty_at(TokenIndex::new(9));
+        let mut diagnostics = Vec::new();
+        push_unique_at_cursor(&mut diagnostics, diag(DiagnosticKind::MissingToken, at));
+        push_unique_at_cursor(
+            &mut diagnostics,
+            diag(DiagnosticKind::UnexpectedToken, other),
+        );
+        push_unique_at_cursor(&mut diagnostics, diag(DiagnosticKind::MissingToken, at));
+        assert_eq!(diagnostics.len(), 3);
+    }
 }

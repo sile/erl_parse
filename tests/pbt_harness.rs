@@ -421,13 +421,11 @@ pub fn mode_label(mode: erl_parse::ParseMode) -> &'static str {
 pub enum InvariantViolation {
     /// A `erl_parse::TokenRange` extended past the token buffer's end.
     RangeBeyondTokens {
-        node: erl_parse::NodeId,
         end: erl_parse::TokenIndex,
         buffer_len: usize,
     },
     /// A non-empty `erl_parse::TokenRange` had `start > end`.
     RangeInverted {
-        node: erl_parse::NodeId,
         start: erl_parse::TokenIndex,
         end: erl_parse::TokenIndex,
     },
@@ -438,8 +436,8 @@ pub enum InvariantViolation {
         child: erl_parse::NodeId,
         child_range: erl_parse::TokenRange,
     },
-    /// An index slot was not reachable from any root via `descendants`.
-    UnreachableFromRoots { node: erl_parse::NodeId },
+    /// The root / descendants walk did not cover every syntax-index slot.
+    ForestDoesNotCoverIndex { reached: usize, entries: usize },
     /// An index slot was reached more than once from the root walk.
     ReachedTwice { node: erl_parse::NodeId },
     /// Two adjacent diagnostics with the same `(kind, start)` appear in
@@ -463,6 +461,14 @@ pub enum InvariantViolation {
     },
 }
 
+/// Walks every node through the public forest: each root, then its
+/// descendants.
+fn all_views<'a>(tree: &'a erl_parse::SyntaxTree) -> impl Iterator<Item = erl_parse::NodeView<'a>> {
+    tree.cursor()
+        .roots()
+        .flat_map(|root| std::iter::once(root).chain(root.descendants()))
+}
+
 /// Runs every whole-tree invariant against `tree`. Returns
 /// `Err(list)` on the first tree that violates at least one
 /// invariant; `Ok(())` when the tree is clean.
@@ -472,21 +478,18 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
     let tokens = tree.tokens();
     let buffer_len = tokens.len();
 
-    // Range boundaries.
-    for i in 0..syntax.len() {
-        let id = erl_parse::NodeId::new(i);
-        let entry = syntax.entry(id).expect("id in bounds");
+    // Range boundaries. `entries()` is the public preorder slice;
+    // ids are not required.
+    for entry in syntax.entries() {
         let range = entry.range();
         if range.end().get() > buffer_len {
             violations.push(InvariantViolation::RangeBeyondTokens {
-                node: id,
                 end: range.end(),
                 buffer_len,
             });
         }
         if range.start().get() > range.end().get() {
             violations.push(InvariantViolation::RangeInverted {
-                node: id,
                 start: range.start(),
                 end: range.end(),
             });
@@ -495,15 +498,13 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
 
     // Child token ranges sit inside the parent. Walked through the
     // public `children` iterator rather than the preorder fence.
-    for i in 0..syntax.len() {
-        let parent_id = erl_parse::NodeId::new(i);
-        let parent = tree.view(parent_id).expect("id in bounds");
+    for parent in all_views(tree) {
         let pr = parent.range();
         for child in parent.children() {
             let cr = child.range();
             if cr.start().get() < pr.start().get() || cr.end().get() > pr.end().get() {
                 violations.push(InvariantViolation::ChildRangeOutsideParent {
-                    parent: parent_id,
+                    parent: parent.node_id(),
                     parent_range: pr,
                     child: child.node_id(),
                     child_range: cr,
@@ -514,22 +515,22 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
 
     // Every index slot is reachable exactly once from the forest
     // roots via `descendants`.
-    let mut reached = vec![0u8; syntax.len()];
-    for root in tree.cursor().roots() {
-        for node in std::iter::once(root).chain(root.descendants()) {
-            let i = node.node_id().get();
-            if i < reached.len() {
-                reached[i] = reached[i].saturating_add(1);
-            }
+    let mut seen = BTreeSet::new();
+    let mut twice = Vec::new();
+    for node in all_views(tree) {
+        let id = node.node_id();
+        if !seen.insert(id) {
+            twice.push(id);
         }
     }
-    for (i, count) in reached.iter().enumerate() {
-        let node = erl_parse::NodeId::new(i);
-        match count {
-            0 => violations.push(InvariantViolation::UnreachableFromRoots { node }),
-            1 => {}
-            _ => violations.push(InvariantViolation::ReachedTwice { node }),
-        }
+    if seen.len() != syntax.len() {
+        violations.push(InvariantViolation::ForestDoesNotCoverIndex {
+            reached: seen.len(),
+            entries: syntax.len(),
+        });
+    }
+    for node in twice {
+        violations.push(InvariantViolation::ReachedTwice { node });
     }
 
     // Adjacent-dedupe invariant on diagnostics.
@@ -593,148 +594,4 @@ pub fn assert_tokens_unchanged(tokens: &erl_parse::TokenBuffer, expected: &[erl_
             .expect("index in range");
         assert_eq!(got, *exp, "parser modified token at index {i}");
     }
-}
-
-// -----------------------------------------------------------------
-// Fake fixtures — for the negative test that the validation
-// helper actually rejects a broken tree. We cannot construct a
-// bad `SyntaxIndex` through the production API (constructors are
-// `pub(crate)`); instead we shape a small `impl` around the two
-// invariants exposed here and probe each by hand-crafted small
-// examples.
-// -----------------------------------------------------------------
-
-/// Runs the adjacent-dedupe invariant on a synthetic diagnostic list to
-/// confirm the helper's logic rejects a broken input.
-pub fn adjacent_dedupe_check(diagnostics: &[erl_parse::Diagnostic]) -> Result<(), usize> {
-    for (i, pair) in diagnostics.windows(2).enumerate() {
-        if pair[0].kind() == pair[1].kind() && pair[0].range().start() == pair[1].range().start() {
-            return Err(i);
-        }
-    }
-    Ok(())
-}
-
-/// Runs the `MissingToken` zero-width invariant on a synthetic
-/// diagnostic to confirm the helper rejects a non-empty range under
-/// `MissingToken` kind.
-pub fn missing_zero_width_check(err: erl_parse::Diagnostic) -> Result<(), erl_parse::TokenRange> {
-    if err.kind() == erl_parse::DiagnosticKind::MissingToken && !err.range().is_empty() {
-        return Err(err.range());
-    }
-    Ok(())
-}
-
-// -----------------------------------------------------------------
-// Negative tests: verify the validation helpers actually reject a
-// broken input. `SyntaxIndex` cannot be corrupted from an
-// integration test (its `push` is `pub(crate)`), so we probe only
-// the small helpers here on hand-crafted `erl_parse::Diagnostic`s. `validate_tree`
-// itself is exercised on real parser output by the `pbt_syntax_index`
-// tests — if the helper missed a real bug, those tests would let
-// the bug through.
-// -----------------------------------------------------------------
-
-#[test]
-fn adjacent_dedupe_check_rejects_adjacent_pair_with_same_kind_and_start() {
-    let at = erl_parse::TokenIndex::new(3);
-    let mk = |k: erl_parse::DiagnosticKind| {
-        erl_parse::Diagnostic::new(
-            k,
-            erl_parse::TokenRange::empty_at(at),
-            erl_parse::Expected::Unspecified,
-            None,
-        )
-    };
-    let bad = [
-        mk(erl_parse::DiagnosticKind::MissingToken),
-        mk(erl_parse::DiagnosticKind::MissingToken),
-    ];
-    let result = adjacent_dedupe_check(&bad);
-    assert_eq!(
-        result,
-        Err(0),
-        "helper must reject an adjacent duplicate pair at index 0"
-    );
-}
-
-#[test]
-fn adjacent_dedupe_check_accepts_different_kinds_at_same_start() {
-    let at = erl_parse::TokenIndex::new(3);
-    let mk = |k: erl_parse::DiagnosticKind| {
-        erl_parse::Diagnostic::new(
-            k,
-            erl_parse::TokenRange::empty_at(at),
-            erl_parse::Expected::Unspecified,
-            None,
-        )
-    };
-    let ok = [
-        mk(erl_parse::DiagnosticKind::MissingToken),
-        mk(erl_parse::DiagnosticKind::UnexpectedToken),
-    ];
-    assert_eq!(adjacent_dedupe_check(&ok), Ok(()));
-}
-
-#[test]
-fn adjacent_dedupe_check_accepts_non_adjacent_duplicates() {
-    let at = erl_parse::TokenIndex::new(3);
-    let other = erl_parse::TokenIndex::new(9);
-    let mk = |k: erl_parse::DiagnosticKind, i: erl_parse::TokenIndex| {
-        erl_parse::Diagnostic::new(
-            k,
-            erl_parse::TokenRange::empty_at(i),
-            erl_parse::Expected::Unspecified,
-            None,
-        )
-    };
-    // Same (kind, start) at positions 0 and 2 with a different
-    // error at position 1 — non-adjacent, so the invariant holds.
-    let ok = [
-        mk(erl_parse::DiagnosticKind::MissingToken, at),
-        mk(erl_parse::DiagnosticKind::UnexpectedToken, other),
-        mk(erl_parse::DiagnosticKind::MissingToken, at),
-    ];
-    assert_eq!(adjacent_dedupe_check(&ok), Ok(()));
-}
-
-#[test]
-fn missing_zero_width_check_rejects_non_empty_missing_range() {
-    let start = erl_parse::TokenIndex::new(1);
-    let end = erl_parse::TokenIndex::new(4);
-    let bad_range = erl_parse::TokenRange::new(start, end);
-    let bad = erl_parse::Diagnostic::new(
-        erl_parse::DiagnosticKind::MissingToken,
-        bad_range,
-        erl_parse::Expected::Unspecified,
-        None,
-    );
-    assert_eq!(missing_zero_width_check(bad), Err(bad_range));
-}
-
-#[test]
-fn missing_zero_width_check_accepts_zero_width_missing() {
-    let at = erl_parse::TokenIndex::new(2);
-    let ok = erl_parse::Diagnostic::new(
-        erl_parse::DiagnosticKind::MissingToken,
-        erl_parse::TokenRange::empty_at(at),
-        erl_parse::Expected::Unspecified,
-        None,
-    );
-    assert_eq!(missing_zero_width_check(ok), Ok(()));
-}
-
-#[test]
-fn missing_zero_width_check_ignores_other_kinds() {
-    // A non-empty range under a different kind is not a
-    // MissingToken violation.
-    let bad_range =
-        erl_parse::TokenRange::new(erl_parse::TokenIndex::new(1), erl_parse::TokenIndex::new(3));
-    let other = erl_parse::Diagnostic::new(
-        erl_parse::DiagnosticKind::SkippedToken,
-        bad_range,
-        erl_parse::Expected::Unspecified,
-        None,
-    );
-    assert_eq!(missing_zero_width_check(other), Ok(()));
 }
