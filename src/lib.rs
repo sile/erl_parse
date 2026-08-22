@@ -8,7 +8,8 @@
 //! A parse always produces that tree: syntax problems are recorded as
 //! [`Diagnostic`]s and the grammar recovers to the next sync point
 //! rather than returning `Result::Err`. The caller-facing contract is
-//! in [`docs::diagnostics`].
+//! in [`docs::diagnostics`]. Walking the finished tree is in
+//! [`docs::navigation`].
 //!
 //! Top-level types:
 //!
@@ -32,8 +33,9 @@
 //!   boundaries, including the trailing sentinel). [`SyntaxKind`] tags each
 //!   entry with a grammar-level nonterminal kind.
 //! - [`NodeView`] and [`Cursor`] navigate the syntax index and token buffer
-//!   together. Their iterator-returning methods hand back opaque
-//!   `impl Iterator` values.
+//!   together. [`Cursor`] is the whole forest; [`NodeView`] is one node.
+//!   See [`docs::navigation`]. Their iterator-returning methods hand back
+//!   opaque `impl Iterator` values.
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 

@@ -1,6 +1,10 @@
 //! Lightweight navigation over a [`SyntaxIndex`] borrowed together with its
 //! [`TokenBuffer`].
 //!
+//! [`Cursor`] is the whole forest; [`NodeView`] is one node. Neither is
+//! a zipper. See [`docs::navigation`](crate::docs::navigation) for a
+//! caller-facing walkthrough.
+//!
 //! [`NodeView`] is provided as a plain struct rather than a trait, so
 //! navigation is a concrete value type rather than an abstraction. All
 //! borrows share a single lifetime.
@@ -12,6 +16,9 @@ use crate::token_buffer::TokenBuffer;
 use crate::token_range::{TokenIndex, TokenRange};
 
 /// Lightweight navigation view anchored on a specific [`NodeId`].
+///
+/// Kind, range, children, descendants, ancestors, and the tokens in
+/// this span. See [`docs::navigation`](crate::docs::navigation).
 #[derive(Debug, Clone, Copy)]
 pub struct NodeView<'a> {
     tokens: &'a TokenBuffer,
@@ -213,7 +220,9 @@ impl<'a> Iterator for Ancestors<'a> {
 /// Whole-index traversal helper.
 ///
 /// Provides operations that a [`NodeView`] cannot express by itself, such
-/// as finding the innermost node containing a specific [`TokenIndex`].
+/// as listing root units or finding the innermost node containing a
+/// specific [`TokenIndex`]. There is no current node: this is not a
+/// zipper. See [`docs::navigation`](crate::docs::navigation).
 #[derive(Debug, Clone, Copy)]
 pub struct Cursor<'a> {
     tokens: &'a TokenBuffer,

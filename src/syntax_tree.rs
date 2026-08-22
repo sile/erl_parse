@@ -4,8 +4,10 @@
 //! the parser goes away: the [`TokenBuffer`], the flat preorder
 //! [`SyntaxIndex`], and the accumulated [`Diagnostic`]s. All three parts
 //! reference each other through [`TokenIndex`](crate::TokenIndex) and
-//! [`NodeId`](crate::NodeId), so navigation helpers work on a `SyntaxTree`
-//! in the same way they do against a live [`Parser`](crate::Parser).
+//! [`NodeId`](crate::NodeId), so [`Cursor`](crate::Cursor) and
+//! [`NodeView`](crate::NodeView) work on a `SyntaxTree` in the same
+//! way they do against a live [`Parser`](crate::Parser). See
+//! [`docs::navigation`](crate::docs::navigation).
 //!
 //! `SyntaxTree` is `Clone` (all sub-components are `Clone`), so callers
 //! can also snapshot the parser mid-parse via
@@ -26,7 +28,8 @@ use crate::token_buffer::TokenBuffer;
 /// nodes in the index and stay reachable through the same navigation
 /// surface as any other node. See
 /// [`docs::diagnostics`](crate::docs::diagnostics) for the recovery
-/// contract.
+/// contract and [`docs::navigation`](crate::docs::navigation) for
+/// walking the index.
 #[derive(Debug, Default, Clone)]
 pub struct SyntaxTree {
     tokens: TokenBuffer,

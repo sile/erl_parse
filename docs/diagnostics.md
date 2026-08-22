@@ -23,7 +23,8 @@ the process.
 alongside it. Ranges consumed by recovery survive as
 [`SyntaxKind::Error`](crate::SyntaxKind::Error) nodes and are
 reachable through the same [`NodeView`](crate::NodeView) /
-[`Cursor`](crate::Cursor) surface as any other node.
+[`Cursor`](crate::Cursor) surface as any other node (see
+[`docs::navigation`](crate::docs::navigation)).
 [`TokenRange`](crate::TokenRange) values on both diagnostics and
 nodes are keys into the [`TokenBuffer`](crate::TokenBuffer) (and into
 any caller-side metadata table keyed the same way).
