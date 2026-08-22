@@ -28,15 +28,14 @@
 //!   for how recovery continues after a diagnostic is recorded.
 //! - [`TokenIndex`] and [`TokenRange`] describe positions and half-open
 //!   spans over [`SyntaxTree::tokens`].
-//! - [`SyntaxIndex`] is a flat preorder array of [`SyntaxEntry`], addressed
-//!   by [`NodeId`]. [`SyntaxKind`] tags each entry with a grammar-level
-//!   nonterminal kind.
-//! - [`NodeView`] walks one node together with the token buffer.
-//!   Forest-level questions (`roots`, `innermost_containing`) and
-//!   [`SyntaxTree::view`] live on [`SyntaxTree`] so the buffer and
-//!   index always belong to the same tree. See [`docs::navigation`].
-//!   Iterator-returning methods hand back opaque `impl Iterator`
-//!   values.
+//! - [`SyntaxKind`] tags each node with a grammar-level nonterminal
+//!   kind. [`NodeId`] is an opaque key for one node; wrap it with
+//!   [`SyntaxTree::view`].
+//! - [`NodeView`] walks one node together with the tokens the caller
+//!   fed. Forest-level questions (`roots`, `innermost_containing`) and
+//!   [`SyntaxTree::view`] live on [`SyntaxTree`]. See
+//!   [`docs::navigation`]. Iterator-returning methods hand back opaque
+//!   `impl Iterator` values.
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 
@@ -54,7 +53,7 @@ mod token_range;
 pub use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 pub use crate::node::NodeView;
 pub use crate::parser::{ParseMode, Parser};
-pub use crate::syntax::{NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
+pub use crate::syntax::{NodeId, SyntaxKind};
 pub use crate::syntax_tree::SyntaxTree;
 pub use crate::token_range::{TokenIndex, TokenRange};
 

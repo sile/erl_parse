@@ -1,4 +1,4 @@
-//! Lightweight navigation over a [`SyntaxIndex`] borrowed together with the
+//! Lightweight navigation over the syntax index borrowed together with the
 //! tokens the caller fed.
 //!
 //! Forest-level questions (`roots`, `innermost_containing`) live on

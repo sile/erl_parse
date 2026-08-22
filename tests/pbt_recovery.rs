@@ -127,11 +127,8 @@ fn skipped_token_range_matches_error_node_range() -> noprop::TestResult {
             if err.kind() != erl_parse::DiagnosticKind::SkippedToken {
                 continue;
             }
-            let matched = tree
-                .syntax()
-                .entries()
-                .iter()
-                .any(|e| e.kind() == erl_parse::SyntaxKind::Error && e.range() == err.range());
+            let matched = pbt_harness::all_views(&tree)
+                .any(|v| v.kind() == erl_parse::SyntaxKind::Error && v.range() == err.range());
             assert!(
                 matched,
                 "SkippedToken with range {:?} has no matching Error node in tree for {src:?}",

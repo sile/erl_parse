@@ -5,7 +5,7 @@
 mod pbt_harness;
 
 /// Two fresh `erl_parse::Parser` instances driven with the same tokens in the
-/// same order produce byte-identical `SyntaxIndex` entries and
+/// same order produce matching preorder `(kind, range)` sequences and
 /// `erl_parse::Diagnostic` sequences.
 #[test]
 fn determinism_across_two_parsers() -> noprop::TestResult {
@@ -26,9 +26,9 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
         let ta = a.finish();
         let tb = b.finish();
         assert_eq!(
-            ta.syntax().entries(),
-            tb.syntax().entries(),
-            "syntax indexes disagree for source {src:?}"
+            pbt_harness::preorder_kind_and_range(&ta),
+            pbt_harness::preorder_kind_and_range(&tb),
+            "syntax trees disagree for source {src:?}"
         );
         assert_eq!(
             ta.diagnostics(),
@@ -41,7 +41,7 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
 }
 
 /// Two parsers driven with the same tokens produce the same
-/// `SyntaxIndex` / `erl_parse::Diagnostic` regardless of whether the caller
+/// syntax tree / `erl_parse::Diagnostic` regardless of whether the caller
 /// interleaves `next_node` / `syntax_tree` observations between
 /// `feed_token` calls or defers all observation until `finish`
 /// returns.
@@ -72,9 +72,9 @@ fn observation_invariance() -> noprop::TestResult {
         let tq = quiet.finish();
         let tn = noisy.finish();
         assert_eq!(
-            tq.syntax().entries(),
-            tn.syntax().entries(),
-            "observation altered syntax entries for source {src:?}"
+            pbt_harness::preorder_kind_and_range(&tq),
+            pbt_harness::preorder_kind_and_range(&tn),
+            "observation altered the syntax tree for source {src:?}"
         );
         assert_eq!(
             tq.diagnostics(),

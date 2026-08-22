@@ -1,9 +1,9 @@
 //! Bundled output of a completed parse.
 //!
 //! A [`SyntaxTree`] owns everything the caller needs to keep around after
-//! the parser goes away: the tokens they fed, the flat preorder
-//! [`SyntaxIndex`], and the accumulated [`Diagnostic`]s. Tokens and
-//! entries reference each other through [`TokenIndex`](crate::TokenIndex)
+//! the parser goes away: the tokens they fed, the flat preorder syntax
+//! index, and the accumulated [`Diagnostic`]s. Tokens and nodes
+//! reference each other through [`TokenIndex`](crate::TokenIndex)
 //! and [`NodeId`](crate::NodeId), so [`NodeView`](crate::NodeView) works
 //! on a `SyntaxTree` in the same way it does against a live
 //! [`Parser`](crate::Parser). Forest-level walks
@@ -23,18 +23,18 @@ use crate::token_buffer::TokenBuffer;
 use crate::token_range::TokenIndex;
 use erl_tokenize::Token;
 
-/// The full result of a parse: input tokens, flat syntax index, and
+/// The full result of a parse: input tokens, syntax nodes, and
 /// accumulated diagnostics.
 ///
 /// A strict caller checks `diagnostics().is_empty()` as its success
-/// condition. A best-effort caller walks the syntax index while
-/// displaying the diagnostics alongside it; ranges consumed by error
-/// recovery survive as [`SyntaxKind::Error`](crate::SyntaxKind::Error)
-/// nodes in the index and stay reachable through the same navigation
-/// surface as any other node. See
-/// [`docs::diagnostics`](crate::docs::diagnostics) for the recovery
-/// contract and [`docs::navigation`](crate::docs::navigation) for
-/// walking the index.
+/// condition. A best-effort caller walks the forest while displaying
+/// the diagnostics alongside it; ranges consumed by error recovery
+/// survive as [`SyntaxKind::Error`](crate::SyntaxKind::Error) nodes
+/// and stay reachable through the same navigation surface as any
+/// other node. See [`docs::diagnostics`](crate::docs::diagnostics)
+/// for the recovery contract and
+/// [`docs::navigation`](crate::docs::navigation) for walking the
+/// tree.
 #[derive(Debug, Clone)]
 pub struct SyntaxTree {
     tokens: TokenBuffer,
@@ -69,8 +69,9 @@ impl SyntaxTree {
         &self.tokens
     }
 
-    /// Borrows the syntax index.
-    pub fn syntax(&self) -> &SyntaxIndex {
+    /// Borrows the crate-internal syntax index.
+    #[cfg(test)]
+    pub(crate) fn syntax(&self) -> &SyntaxIndex {
         &self.syntax
     }
 

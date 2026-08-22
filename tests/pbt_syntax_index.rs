@@ -25,10 +25,10 @@ fn expression_mode_tree_invariants_hold() -> noprop::TestResult {
         if let Err(violations) = pbt_harness::validate_tree(&tree) {
             panic!("invariant violations for source {src:?}: {violations:?}");
         }
-        if tree.syntax().len() > 1 {
+        if pbt_harness::node_count(&tree) > 1 {
             non_empty.bump();
         }
-        if tree.syntax().len() >= 3 {
+        if pbt_harness::node_count(&tree) >= 3 {
             nested.set();
         }
         Ok(())
@@ -60,7 +60,7 @@ fn module_mode_tree_invariants_hold() -> noprop::TestResult {
         if let Err(violations) = pbt_harness::validate_tree(&tree) {
             panic!("invariant violations for source {src:?}: {violations:?}");
         }
-        if !tree.syntax().is_empty() {
+        if tree.roots().next().is_some() {
             saw_form.bump();
         }
         Ok(())
@@ -87,7 +87,7 @@ fn term_list_mode_tree_invariants_hold() -> noprop::TestResult {
         if let Err(violations) = pbt_harness::validate_tree(&tree) {
             panic!("invariant violations for source {src:?}: {violations:?}");
         }
-        if !tree.syntax().is_empty() {
+        if tree.roots().next().is_some() {
             saw_term.bump();
         }
         Ok(())
@@ -114,7 +114,7 @@ fn type_mode_tree_invariants_hold() -> noprop::TestResult {
         if let Err(violations) = pbt_harness::validate_tree(&tree) {
             panic!("invariant violations for source {src:?}: {violations:?}");
         }
-        if !tree.syntax().is_empty() {
+        if tree.roots().next().is_some() {
             saw_type.bump();
         }
         Ok(())

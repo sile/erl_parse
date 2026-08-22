@@ -165,7 +165,7 @@ assert!(roots.len() >= 2);
 assert!(!tree.diagnostics().is_empty());
 let last = *roots.last().expect("last root");
 assert_eq!(
-    tree.syntax().entry(last).expect("entry").kind(),
+    tree.view(last).expect("entry").kind(),
     erl_parse::SyntaxKind::Attribute,
 );
 ```

@@ -19,7 +19,7 @@ fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
 }
 
 fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
-    tree.syntax().entry(id).expect("entry exists").kind()
+    tree.view(id).expect("entry exists").kind()
 }
 
 fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
@@ -36,7 +36,7 @@ fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
 fn empty_term_list_emits_no_units_and_no_errors() {
     let (tree, roots) = drive("");
     assert!(roots.is_empty());
-    assert!(tree.syntax().is_empty());
+    assert!(tree.roots().next().is_none());
     assert!(tree.diagnostics().is_empty());
 }
 

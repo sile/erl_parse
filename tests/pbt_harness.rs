@@ -436,8 +436,6 @@ pub enum InvariantViolation {
         child: erl_parse::NodeId,
         child_range: erl_parse::TokenRange,
     },
-    /// The root / descendants walk did not cover every syntax-index slot.
-    ForestDoesNotCoverIndex { reached: usize, entries: usize },
     /// An index slot was reached more than once from the root walk.
     ReachedTwice { node: erl_parse::NodeId },
     /// Two adjacent diagnostics with the same `(kind, start)` appear in
@@ -463,9 +461,23 @@ pub enum InvariantViolation {
 
 /// Walks every node through the public forest: each root, then its
 /// descendants.
-fn all_views<'a>(tree: &'a erl_parse::SyntaxTree) -> impl Iterator<Item = erl_parse::NodeView<'a>> {
+pub fn all_views<'a>(
+    tree: &'a erl_parse::SyntaxTree,
+) -> impl Iterator<Item = erl_parse::NodeView<'a>> {
     tree.roots()
         .flat_map(|root| std::iter::once(root).chain(root.descendants()))
+}
+
+/// Number of nodes reachable from the forest roots.
+pub fn node_count(tree: &erl_parse::SyntaxTree) -> usize {
+    all_views(tree).count()
+}
+
+/// Preorder `(kind, range)` pairs of every reachable node.
+pub fn preorder_kind_and_range(
+    tree: &erl_parse::SyntaxTree,
+) -> Vec<(erl_parse::SyntaxKind, erl_parse::TokenRange)> {
+    all_views(tree).map(|v| (v.kind(), v.range())).collect()
 }
 
 /// Runs every whole-tree invariant against `tree`. Returns
@@ -473,14 +485,13 @@ fn all_views<'a>(tree: &'a erl_parse::SyntaxTree) -> impl Iterator<Item = erl_pa
 /// invariant; `Ok(())` when the tree is clean.
 pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantViolation>> {
     let mut violations = Vec::new();
-    let syntax = tree.syntax();
     let tokens = tree.tokens();
     let buffer_len = tokens.len();
 
-    // Range boundaries. `entries()` is the public preorder slice;
-    // ids are not required.
-    for entry in syntax.entries() {
-        let range = entry.range();
+    // Range boundaries. Walked through the public forest rather than
+    // the crate-internal index slice.
+    for node in all_views(tree) {
+        let range = node.range();
         if range.end().get() > buffer_len {
             violations.push(InvariantViolation::RangeBeyondTokens {
                 end: range.end(),
@@ -512,8 +523,7 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
         }
     }
 
-    // Every index slot is reachable exactly once from the forest
-    // roots via `descendants`.
+    // The public forest walk visits each node at most once.
     let mut seen = BTreeSet::new();
     let mut twice = Vec::new();
     for node in all_views(tree) {
@@ -521,12 +531,6 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
         if !seen.insert(id) {
             twice.push(id);
         }
-    }
-    if seen.len() != syntax.len() {
-        violations.push(InvariantViolation::ForestDoesNotCoverIndex {
-            reached: seen.len(),
-            entries: syntax.len(),
-        });
     }
     for node in twice {
         violations.push(InvariantViolation::ReachedTwice { node });
@@ -551,10 +555,8 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
     for (idx, err) in errs.iter().enumerate() {
         match err.kind() {
             erl_parse::DiagnosticKind::SkippedToken => {
-                let matches_node = syntax
-                    .entries()
-                    .iter()
-                    .any(|e| e.kind() == erl_parse::SyntaxKind::Error && e.range() == err.range());
+                let matches_node = all_views(tree)
+                    .any(|v| v.kind() == erl_parse::SyntaxKind::Error && v.range() == err.range());
                 if !matches_node {
                     violations.push(InvariantViolation::SkippedTokenWithoutMatchingErrorNode {
                         error_idx: idx,

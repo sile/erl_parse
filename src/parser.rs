@@ -943,7 +943,7 @@ mod tests {
     fn empty_buffer_pulls_nothing() {
         let mut p = Parser::new(ParseMode::Module);
         assert!(p.next_node().is_none());
-        assert!(p.syntax_tree().syntax().is_empty());
+        assert_eq!(p.syntax_tree().syntax().len(), 0);
         assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
@@ -994,7 +994,7 @@ mod tests {
         feed_all(&mut p, "-foo(");
         assert!(p.next_node().is_none());
         let tree = p.finish();
-        assert!(!tree.syntax().is_empty());
+        assert_ne!(tree.syntax().len(), 0);
         assert!(!tree.diagnostics().is_empty());
     }
 

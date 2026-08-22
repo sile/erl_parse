@@ -221,10 +221,12 @@ pub fn accepted(tree: &erl_parse::SyntaxTree) -> bool {
 }
 
 fn has_error_node(tree: &erl_parse::SyntaxTree) -> bool {
-    tree.syntax()
-        .entries()
-        .iter()
-        .any(|e| e.kind() == erl_parse::SyntaxKind::Error)
+    tree.roots().any(|root| {
+        root.kind() == erl_parse::SyntaxKind::Error
+            || root
+                .descendants()
+                .any(|n| n.kind() == erl_parse::SyntaxKind::Error)
+    })
 }
 
 /// Maps a module-mode root to OTP's attribute / function / error classification.
@@ -244,7 +246,7 @@ pub fn form_categories(
 ) -> Vec<&'static str> {
     roots
         .iter()
-        .filter_map(|id| tree.syntax().entry(*id).map(|e| form_category(e.kind())))
+        .filter_map(|id| tree.view(*id).map(|v| form_category(v.kind())))
         .collect()
 }
 
@@ -254,15 +256,12 @@ pub fn is_epp_consumed_feature_attribute(
     token_sources: &[Arc<erl_pp::Source>],
     id: erl_parse::NodeId,
 ) -> bool {
-    let Some(entry) = tree.syntax().entry(id) else {
-        return false;
-    };
-    if entry.kind() != erl_parse::SyntaxKind::Attribute {
-        return false;
-    }
     let Some(view) = tree.view(id) else {
         return false;
     };
+    if view.kind() != erl_parse::SyntaxKind::Attribute {
+        return false;
+    }
     let Some(name_node) = child_of_kind(view, erl_parse::SyntaxKind::AttributeName) else {
         return false;
     };
@@ -514,10 +513,10 @@ pub fn later_forms_after_error(tree: &erl_parse::SyntaxTree, roots: &[erl_parse:
     let mut seen_error = false;
     let mut later = 0usize;
     for id in roots {
-        let Some(entry) = tree.syntax().entry(*id) else {
+        let Some(view) = tree.view(*id) else {
             continue;
         };
-        if entry.kind() == erl_parse::SyntaxKind::Error {
+        if view.kind() == erl_parse::SyntaxKind::Error {
             seen_error = true;
             continue;
         }

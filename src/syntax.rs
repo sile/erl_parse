@@ -365,7 +365,7 @@ impl EntryIndex {
     }
 }
 
-/// Identifier of an existing syntax entry.
+/// Identifier of an existing syntax node.
 ///
 /// Opaque: the parser and [`NodeView`](crate::NodeView) mint these.
 /// Callers compare and hash them as keys; they do not construct them
@@ -392,12 +392,11 @@ impl NodeId {
 
 /// A single entry in the flat syntax index.
 ///
-/// Callers read [`SyntaxKind`] and [`TokenRange`] through
-/// [`SyntaxIndex::entry`] or [`SyntaxIndex::entries`]. Nested structure
-/// is walked with [`NodeView`](crate::NodeView). The parser core is the
-/// only builder.
+/// Not part of the public API: callers read [`SyntaxKind`] and
+/// [`TokenRange`] through [`NodeView`](crate::NodeView). The parser
+/// core is the only builder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SyntaxEntry {
+pub(crate) struct SyntaxEntry {
     kind: SyntaxKind,
     range: TokenRange,
     subtree_end: EntryIndex,
@@ -405,9 +404,7 @@ pub struct SyntaxEntry {
 
 impl SyntaxEntry {
     /// Constructs a `SyntaxEntry`.
-    // `pub(crate)`: only the parser core and in-crate tests build
-    // entries. `SyntaxIndex::push` is also `pub(crate)`, so a public
-    // constructor would only produce values a caller cannot insert.
+    // Only the parser core and in-crate tests build entries.
     pub(crate) const fn new(kind: SyntaxKind, range: TokenRange, subtree_end: EntryIndex) -> Self {
         Self {
             kind,
@@ -417,12 +414,12 @@ impl SyntaxEntry {
     }
 
     /// Returns the entry's [`SyntaxKind`].
-    pub const fn kind(self) -> SyntaxKind {
+    pub(crate) const fn kind(self) -> SyntaxKind {
         self.kind
     }
 
     /// Returns the token range covered by this entry.
-    pub const fn range(self) -> TokenRange {
+    pub(crate) const fn range(self) -> TokenRange {
         self.range
     }
 
@@ -435,8 +432,10 @@ impl SyntaxEntry {
 
 /// Flat preorder array of syntax entries.
 ///
-/// Entries can only be appended at the end; interior insertion,
-/// deletion, reordering, and in-place mutation are not exposed.
+/// Not part of the public API: callers walk with
+/// [`NodeView`](crate::NodeView). Entries can only be appended at the
+/// end; interior insertion, deletion, reordering, and in-place
+/// mutation are not exposed.
 ///
 /// # Preorder-array invariants
 ///
@@ -458,13 +457,12 @@ impl SyntaxEntry {
 ///   are not inserted mid-form, and entries are never reordered or removed
 ///   across top-level unit boundaries.
 #[derive(Debug, Clone)]
-pub struct SyntaxIndex {
+pub(crate) struct SyntaxIndex {
     entries: Vec<SyntaxEntry>,
 }
 
 impl SyntaxIndex {
     /// Creates an empty index.
-    // `pub(crate)`: callers receive an index from `SyntaxTree::syntax`.
     // Entries are appended only by the parser core.
     pub(crate) const fn new() -> Self {
         Self {
@@ -473,22 +471,17 @@ impl SyntaxIndex {
     }
 
     /// Returns the number of entries currently held.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.entries.len()
     }
 
-    /// Returns `true` when the index has no entries.
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     /// Returns the entry at `id`, or `None` when out of range.
-    pub fn entry(&self, id: NodeId) -> Option<SyntaxEntry> {
+    pub(crate) fn entry(&self, id: NodeId) -> Option<SyntaxEntry> {
         self.entries.get(id.get()).copied()
     }
 
     /// Borrows the internal slice.
-    pub fn entries(&self) -> &[SyntaxEntry] {
+    pub(crate) fn entries(&self) -> &[SyntaxEntry] {
         &self.entries
     }
 
@@ -525,7 +518,7 @@ mod tests {
     #[test]
     fn append_only_builder() {
         let mut index = SyntaxIndex::new();
-        assert!(index.is_empty());
+        assert_eq!(index.len(), 0);
         let a = index.push(SyntaxEntry::new(
             SyntaxKind::Error,
             range(0, 2),

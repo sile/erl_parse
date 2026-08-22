@@ -18,7 +18,7 @@ fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
 }
 
 fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
-    tree.syntax().entry(id).expect("entry exists").kind()
+    tree.view(id).expect("entry exists").kind()
 }
 
 #[test]
@@ -30,7 +30,8 @@ fn expression_mode_emits_unit_on_dot() {
     assert_eq!(kind_of(&tree, node), erl_parse::SyntaxKind::BinaryOpExpr);
     assert!(tree.diagnostics().is_empty());
     // Root plus its two integer operands.
-    assert!(tree.syntax().len() >= 3);
+    let root = tree.view(node).expect("root");
+    assert!(1 + root.descendants().count() >= 3);
 }
 
 #[test]
@@ -41,7 +42,7 @@ fn expression_mode_finish_flushes_input_without_trailing_dot() {
     assert!(parser.next_node().is_none());
     let tree = parser.finish();
     assert!(tree.diagnostics().is_empty());
-    assert!(!tree.syntax().is_empty());
+    assert!(tree.roots().next().is_some());
     let root = tree.roots().next().expect("finish flushed a unit");
     assert_eq!(root.kind(), erl_parse::SyntaxKind::CallExpr);
 }

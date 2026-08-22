@@ -19,7 +19,7 @@ fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
 }
 
 fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
-    tree.syntax().entry(id).expect("entry exists").kind()
+    tree.view(id).expect("entry exists").kind()
 }
 
 fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
@@ -47,7 +47,7 @@ fn direct_children(
 fn empty_module_emits_no_units_and_no_errors() {
     let (tree, roots) = drive("");
     assert!(roots.is_empty());
-    assert!(tree.syntax().is_empty());
+    assert!(tree.roots().next().is_none());
     assert!(tree.diagnostics().is_empty());
 }
 
@@ -75,7 +75,7 @@ fn single_bare_attribute_form() {
     );
     // The payload node is zero-width because the form has no `(...)`
     // section.
-    let payload = tree.syntax().entry(children[1]).expect("payload");
+    let payload = tree.view(children[1]).expect("payload");
     assert!(payload.range().is_empty());
     assert!(tree.diagnostics().is_empty());
 }
@@ -98,8 +98,8 @@ fn parenthesized_attribute_records_name_and_payload_ranges() {
     // Callers pull the attribute name from the token buffer using the
     // erl_parse::AttributeName child's range; the parser does not interpret
     // `module`.
-    let name_entry = tree.syntax().entry(children[0]).expect("name");
-    let payload_entry = tree.syntax().entry(children[1]).expect("payload");
+    let name_entry = tree.view(children[0]).expect("name");
+    let payload_entry = tree.view(children[1]).expect("payload");
     assert!(!name_entry.range().is_empty());
     assert!(!payload_entry.range().is_empty());
     assert!(tree.diagnostics().is_empty());
@@ -302,7 +302,7 @@ fn missing_form_terminating_dot_flushes_via_finish() {
     feed_all(&mut p, "-module(m)");
     assert!(p.next_node().is_none());
     let tree = p.finish();
-    assert!(!tree.syntax().is_empty());
+    assert!(tree.roots().next().is_some());
 }
 
 #[test]
@@ -311,6 +311,15 @@ fn independent_parser_instances_do_not_share_state() {
     let (tree_a, roots_a) = drive(source);
     let (tree_b, roots_b) = drive(source);
     assert_eq!(roots_a.len(), roots_b.len());
-    assert_eq!(tree_a.syntax().len(), tree_b.syntax().len());
+    assert_eq!(
+        tree_a
+            .roots()
+            .map(|r| 1 + r.descendants().count())
+            .sum::<usize>(),
+        tree_b
+            .roots()
+            .map(|r| 1 + r.descendants().count())
+            .sum::<usize>(),
+    );
     assert_eq!(tree_a.diagnostics().len(), tree_b.diagnostics().len());
 }

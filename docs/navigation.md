@@ -1,10 +1,10 @@
 # Walking a syntax tree
 
 A finished [`SyntaxTree`](crate::SyntaxTree) is the tokens the
-caller fed plus a flat preorder
-[`SyntaxIndex`](crate::SyntaxIndex). Nothing in that pair is a
-"current position". Forest-level questions live on the tree;
-[`NodeView`](crate::NodeView) answers questions about **one node**.
+caller fed plus a flat preorder array of nodes. Nothing in that
+pair is a "current position". Forest-level questions live on the
+tree; [`NodeView`](crate::NodeView) answers questions about **one
+node**.
 
 - [`SyntaxTree::roots`](crate::SyntaxTree::roots) lists the
   `.`-terminated units. [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing)
@@ -34,7 +34,7 @@ source:  {1, 2}.
 Tokens (every token the caller fed, hidden ones included):
   0 `{`   1 `1`   2 `,`   3 ` `   4 `2`   5 `}`   6 `.`
 
-SyntaxIndex:
+Preorder:
   0  TupleExpr          range covers `{` .. `}`
     1  IntegerExpr      token `1`
     2  IntegerExpr      token `2`
@@ -173,7 +173,3 @@ recovery uses that shape; see
   concrete struct.
 - If you already have a [`NodeId`](crate::NodeId), start with
   [`SyntaxTree::view`](crate::SyntaxTree::view).
-- Kind and range alone do not need a view:
-  [`SyntaxIndex::entry`](crate::SyntaxIndex::entry) is enough.
-  Reach for [`NodeView`](crate::NodeView) when the walk also needs
-  tokens or child/ancestor iterators.

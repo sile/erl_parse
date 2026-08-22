@@ -37,14 +37,16 @@ fn drive(
 }
 
 fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
-    tree.syntax().entry(id).expect("entry exists").kind()
+    tree.view(id).expect("entry exists").kind()
+}
+
+fn all_views<'a>(tree: &'a erl_parse::SyntaxTree) -> impl Iterator<Item = erl_parse::NodeView<'a>> {
+    tree.roots()
+        .flat_map(|root| std::iter::once(root).chain(root.descendants()))
 }
 
 fn contains_error_node(tree: &erl_parse::SyntaxTree) -> bool {
-    tree.syntax()
-        .entries()
-        .iter()
-        .any(|e| e.kind() == erl_parse::SyntaxKind::Error)
+    all_views(tree).any(|v| v.kind() == erl_parse::SyntaxKind::Error)
 }
 
 fn find_diagnostic_by_kind(
@@ -98,12 +100,8 @@ fn skipped_token_diagnostic_range_matches_error_node_range() {
     let (tree, _roots) = drive(erl_parse::ParseMode::Expression, source);
     let skipped = find_diagnostic_by_kind(&tree, erl_parse::DiagnosticKind::SkippedToken)
         .expect("skip_one_token emits a SkippedToken");
-    let error_node = tree
-        .syntax()
-        .entries()
-        .iter()
-        .find(|e| e.kind() == erl_parse::SyntaxKind::Error)
-        .copied()
+    let error_node = all_views(&tree)
+        .find(|v| v.kind() == erl_parse::SyntaxKind::Error)
         .expect("recovery emits an Error node");
     assert_eq!(
         skipped.range(),
@@ -122,7 +120,7 @@ fn missing_token_diagnostic_is_zero_width_and_no_error_node_is_added() {
     let missing = find_diagnostic_by_kind(&tree, erl_parse::DiagnosticKind::MissingToken)
         .expect("expect_symbol emits a MissingToken");
     assert!(missing.range().is_empty(), "missing token is zero-width");
-    assert!(!tree.syntax().is_empty());
+    assert!(tree.roots().next().is_some());
 }
 
 #[test]
@@ -154,12 +152,9 @@ fn top_level_recovery_produces_error_nodes_that_survive_in_the_syntax_index() {
     );
     let skipped = find_diagnostic_by_kind(&tree, erl_parse::DiagnosticKind::SkippedToken)
         .expect("skip_until_sync emits a SkippedToken");
-    let error_node_range = tree
-        .syntax()
-        .entries()
-        .iter()
-        .find(|e| e.kind() == erl_parse::SyntaxKind::Error)
-        .map(|e| e.range())
+    let error_node_range = all_views(&tree)
+        .find(|v| v.kind() == erl_parse::SyntaxKind::Error)
+        .map(|v| v.range())
         .expect("Error node exists");
     assert_eq!(skipped.range(), error_node_range);
 }
@@ -239,11 +234,7 @@ fn container_recovery_lets_valid_elements_after_a_bad_one_still_land() {
     let source = "[1, ), 3].";
     let (tree, _roots) = drive(erl_parse::ParseMode::Expression, source);
     assert!(contains_error_node(&tree));
-    let has_int_3 = tree
-        .syntax()
-        .entries()
-        .iter()
-        .any(|e| e.kind() == erl_parse::SyntaxKind::IntegerExpr);
+    let has_int_3 = all_views(&tree).any(|v| v.kind() == erl_parse::SyntaxKind::IntegerExpr);
     assert!(has_int_3);
 }
 
@@ -254,12 +245,7 @@ fn clause_recovery_skips_to_semicolon_or_end() {
     let source = "case X of ) ) ; b -> 2 end.";
     let (tree, _roots) = drive(erl_parse::ParseMode::Expression, source);
     assert!(contains_error_node(&tree));
-    assert!(
-        tree.syntax()
-            .entries()
-            .iter()
-            .any(|e| e.kind() == erl_parse::SyntaxKind::CaseExpr)
-    );
+    assert!(all_views(&tree).any(|v| v.kind() == erl_parse::SyntaxKind::CaseExpr));
 }
 
 #[test]
