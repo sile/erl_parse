@@ -1,8 +1,11 @@
 //! Erlang source parser for language tools.
 //!
-//! The caller tokenizes ([`erl_tokenize::scan_token`]) and feeds every
+//! The caller tokenizes ([`erl_tokenize::scan_tokens`]) and feeds every
 //! token, including whitespace and comments. This crate does not read
-//! files, tokenize, preprocess, or resolve names. It records syntax
+//! files, tokenize, preprocess, or resolve names. For preprocessing
+//! (macros, includes, conditionals), use [erl_pp](https://docs.rs/erl_pp).
+//! The grammar tracks OTP 29's `erl_parse.yrl` (CI checks against
+//! OTP-29.0.5). It records syntax
 //! problems as [`Diagnostic`]s and always returns a [`SyntaxTree`]
 //! rather than `Result::Err`. The recovery contract is
 //! [`docs::diagnostics`]; walking the tree is [`docs::navigation`].
@@ -10,12 +13,11 @@
 //! # Minimal loop
 //!
 //! ```
+//! # fn main() -> Result<(), erl_tokenize::Error> {
 //! let source = "-module(foo).";
 //! let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-//! let mut pos = erl_tokenize::Position::new();
-//! while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid source") {
+//! for token in erl_tokenize::scan_tokens(source)? {
 //!     parser.feed_token(token);
-//!     pos = token.end();
 //! }
 //! let mut roots = Vec::new();
 //! while let Some(id) = parser.next_node() {
@@ -25,9 +27,11 @@
 //! assert!(tree.diagnostics().is_empty());
 //! assert_eq!(roots.len(), 1);
 //! assert_eq!(
-//!     tree.view(roots[0]).expect("root").kind(),
-//!     erl_parse::SyntaxKind::Attribute,
+//!     tree.view(roots[0]).map(|v| v.kind()),
+//!     Some(erl_parse::SyntaxKind::Attribute),
 //! );
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! Construct a [`Parser`] for a [`ParseMode`], feed tokens, pull completed

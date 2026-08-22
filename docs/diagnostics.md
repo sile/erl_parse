@@ -124,7 +124,7 @@ They are related but not 1:1.
   stack.
 
 Tokenizer / lexer failures never appear as parser diagnostics. The
-caller tokenizes ([`erl_tokenize::scan_token`]) and feeds tokens;
+caller tokenizes ([`erl_tokenize::scan_tokens`]) and feeds tokens;
 only `DiagnosticKind` variants this crate owns land on the tree.
 
 ## End of input
@@ -145,12 +145,11 @@ A first form that is garbage, then a well-formed attribute. The
 second form still lands; the tree carries diagnostics for the first.
 
 ```rust
+# fn main() -> Result<(), erl_tokenize::Error> {
 let source = "1 2 3.\n-ok.";
 let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-let mut pos = erl_tokenize::Position::new();
-while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid source") {
+for token in erl_tokenize::scan_tokens(source)? {
     parser.feed_token(token);
-    pos = token.end();
 }
 
 let mut roots = Vec::new();
@@ -161,11 +160,13 @@ let tree = parser.finish();
 
 assert!(roots.len() >= 2);
 assert!(!tree.diagnostics().is_empty());
-let last = *roots.last().expect("last root");
+let last = roots[roots.len() - 1];
 assert_eq!(
-    tree.view(last).expect("entry").kind(),
-    erl_parse::SyntaxKind::Attribute,
+    tree.view(last).map(|v| v.kind()),
+    Some(erl_parse::SyntaxKind::Attribute),
 );
+# Ok(())
+# }
 ```
 
 A strict caller would treat that tree as a failed parse

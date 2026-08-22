@@ -55,16 +55,17 @@ root, you do not pull them one by one.
 Roots are `NodeView`s borrowed from the tree.
 
 ```rust
+# fn main() -> Result<(), erl_tokenize::Error> {
 let source = "{1, 2}.";
 let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-let mut pos = erl_tokenize::Position::new();
-while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid source") {
+for token in erl_tokenize::scan_tokens(source)? {
     parser.feed_token(token);
-    pos = token.end();
 }
 let tree = parser.finish();
 
-let root = tree.roots().next().expect("one expression unit");
+let roots: Vec<_> = tree.roots().collect();
+assert_eq!(roots.len(), 1);
+let root = roots[0];
 assert_eq!(root.kind(), erl_parse::SyntaxKind::TupleExpr);
 
 let children: Vec<erl_parse::SyntaxKind> = root.children().map(|c| c.kind()).collect();
@@ -82,12 +83,11 @@ let one = tree
     .tokens()
     .iter()
     .position(|t| t.kind() == erl_tokenize::TokenKind::Integer)
-    .map(erl_parse::TokenIndex::new)
-    .expect("integer token");
-let hit = tree
-    .innermost_containing(one)
-    .expect("non-empty range contains the token");
-assert_eq!(hit.kind(), erl_parse::SyntaxKind::IntegerExpr);
+    .map(erl_parse::TokenIndex::new);
+let hit = one.and_then(|idx| tree.innermost_containing(idx));
+assert_eq!(hit.map(|v| v.kind()), Some(erl_parse::SyntaxKind::IntegerExpr));
+# Ok(())
+# }
 ```
 
 A [`NodeId`](crate::NodeId) or [`TokenIndex`](crate::TokenIndex) from
@@ -104,12 +104,11 @@ is still alive, or collect the ids and wrap them on the finished
 tree.
 
 ```rust
+# fn main() -> Result<(), erl_tokenize::Error> {
 let source = "{1}. {2}.";
 let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::TermList);
-let mut pos = erl_tokenize::Position::new();
-while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid source") {
+for token in erl_tokenize::scan_tokens(source)? {
     parser.feed_token(token);
-    pos = token.end();
 }
 
 let mut root_ids = Vec::new();
@@ -119,13 +118,15 @@ while let Some(id) = parser.next_node() {
 let tree = parser.finish();
 assert_eq!(root_ids.len(), 2);
 
-let first = tree
-    .view(root_ids[0])
-    .expect("id came from next_node");
-assert_eq!(first.kind(), erl_parse::SyntaxKind::TupleExpr);
+assert_eq!(
+    tree.view(root_ids[0]).map(|v| v.kind()),
+    Some(erl_parse::SyntaxKind::TupleExpr),
+);
 
 let via_roots: Vec<erl_parse::NodeId> = tree.roots().map(|v| v.node_id()).collect();
 assert_eq!(via_roots, root_ids);
+# Ok(())
+# }
 ```
 
 [`SyntaxTree::view`](crate::SyntaxTree::view) returns `None` when

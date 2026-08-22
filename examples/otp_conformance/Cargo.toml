@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 erl_parse = { path = "../.." }
-erl_pp = "0.3.2"
+erl_pp = "0.4.0"
 erl_tokenize = "0.11"
 noargs = "0.4"
 nojson = "0.3"

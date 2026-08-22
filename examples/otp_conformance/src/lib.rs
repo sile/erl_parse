@@ -79,8 +79,8 @@ pub fn parse_text(
     erl_libs: &[PathBuf],
     otp_release: Option<u32>,
 ) -> ParseRun {
-    let source = match erl_pp::Source::from_text(display, text.clone()) {
-        Ok(source) => source,
+    let source = match erl_tokenize::scan_tokens(&text) {
+        Ok(tokens) => erl_pp::Source::new(display, text.clone(), tokens),
         Err(e) => {
             return ParseRun {
                 tokenize: Stage::Err,
@@ -91,7 +91,7 @@ pub fn parse_text(
                 token_count: 0,
                 preprocess_warnings: 0,
                 preprocess_diagnostics_error: 0,
-                tokenize_reason: Some(format!("{e}")),
+                tokenize_reason: Some(format!("scan_tokens: {e}")),
                 preprocess_reason: None,
                 source: text,
                 token_sources: Vec::new(),
@@ -154,11 +154,11 @@ pub fn parse_text(
             }
             erl_pp::Event::AwaitingMacroExpansion(call) => {
                 let source = match predef.expansion_text(&call) {
-                    Ok(text) => match erl_pp::Source::from_text("<predef>", text) {
-                        Ok(s) => s,
+                    Ok(text) => match erl_tokenize::scan_tokens(&text) {
+                        Ok(tokens) => erl_pp::Source::new("<predef>", text, tokens),
                         Err(e) => {
                             if preprocess_reason.is_none() {
-                                preprocess_reason = Some(format!("predef scan: {e}"));
+                                preprocess_reason = Some(format!("predef scan_tokens: {e}"));
                             }
                             empty_source("<predef>")
                         }
@@ -340,18 +340,19 @@ fn resolve_include(
     let raw_path = include.path.as_str();
     match erl_pp::open_include(include, include_paths, erl_libs) {
         Ok(path) => match fs::read_to_string(&path) {
-            Ok(text) => {
-                match erl_pp::Source::from_text(path.to_string_lossy().into_owned(), text) {
-                    Ok(source) => (source, None),
-                    Err(e) => (
-                        empty_source(raw_path),
-                        Some(format!(
-                            "include scan_token failed for {}: {e}",
-                            path.display()
-                        )),
-                    ),
-                }
-            }
+            Ok(text) => match erl_tokenize::scan_tokens(&text) {
+                Ok(tokens) => (
+                    erl_pp::Source::new(path.to_string_lossy().into_owned(), text, tokens),
+                    None,
+                ),
+                Err(e) => (
+                    empty_source(raw_path),
+                    Some(format!(
+                        "include scan_tokens failed for {}: {e}",
+                        path.display()
+                    )),
+                ),
+            },
             Err(e) => (
                 empty_source(raw_path),
                 Some(format!("include read failed for {}: {e}", path.display())),
