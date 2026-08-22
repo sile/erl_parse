@@ -46,8 +46,16 @@ escript scripts/dump-otp-parse-fixture.escript otp > fixture.jsonl
 cargo run --release -p otp_conformance --bin otp_diff -- fixture.jsonl
 ```
 
-`check_otp_parse` treats preprocess-only failures as warnings. Parse errors
-fail the process unless `OTP_PARSE_ERROR_MAX` is set higher than the error
-file count. Unknown macros such as `?MODULE` are expanded to empty by the
-driver, so a full OTP tree currently produces many parse errors; the smoke
-job is still useful as a panic / completion check.
+`check_otp_parse` treats preprocess-only failures as warnings. A file that
+preprocesses cleanly but still has parse errors fails the process. The
+driver expands OTP predefined macros (`?MODULE`, `?FUNCTION_NAME`,
+`?OTP_RELEASE`, and so on); files that cannot be handled are listed in the
+skip list rather than tolerated as parse errors.
+
+Nested predefined macros inside `-define` bodies need an `erl_pp` that
+splices caller-driven expansions in front of the remaining expansion
+queue. Until that fix is on crates.io, point Cargo at a local checkout:
+
+```text
+cargo run --release -p otp_conformance --config 'patch.crates-io.erl_pp.path="../erl_pp"' --bin check_otp_parse -- otp
+```

@@ -5,10 +5,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod predef;
+
 use erl_parse::{
     NodeId, NodeView, ParseMode, Parser, SyntaxKind, SyntaxTree, TokenIndex, TokenRange,
 };
 use erl_tokenize::{Token, TokenKind};
+
+pub use predef::{otp_release_from_env, otp_release_from_tag};
 
 /// Outcome of one pipeline stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,12 +114,15 @@ pub fn scan_source(text: &str) -> Result<Vec<Token>, String> {
 }
 
 /// Tokenize, preprocess with `erl_pp`, then parse.
+///
+/// `otp_release` is the integer `?OTP_RELEASE` expands to (from `OTP_TAG`).
 pub fn parse_text(
     mode: ParseMode,
     display: &str,
     text: String,
     include_paths: &[PathBuf],
     erl_libs: &[PathBuf],
+    otp_release: Option<u32>,
 ) -> ParseRun {
     let tokens = match scan_source(&text) {
         Ok(t) => t,
@@ -138,6 +145,7 @@ pub fn parse_text(
     let source = erl_pp::Source::new(display.to_string(), text.clone(), tokens);
     let mut pp = erl_pp::Preprocessor::new([source]);
     let mut parser = Parser::new(mode);
+    let mut predef = predef::PredefContext::new(otp_release);
     let mut roots = Vec::new();
     let mut token_count = 0usize;
     let mut warnings = 0usize;
@@ -151,6 +159,7 @@ pub fn parse_text(
         match event {
             erl_pp::Event::Token(t) => {
                 token_count += 1;
+                predef.on_token(&t);
                 parser.push_token(*t.token());
                 while let Some(id) = parser.next_top_node() {
                     roots.push(id);
@@ -169,7 +178,16 @@ pub fn parse_text(
             }
             erl_pp::Event::AwaitingConditional(req) => {
                 let branch = match req {
-                    erl_pp::Conditional::Ifdef(d) | erl_pp::Conditional::Ifndef(d) => d.recommended,
+                    erl_pp::Conditional::Ifdef(d) => match predef.ifdef_defined(d.name.as_str()) {
+                        Some(true) => erl_pp::Branch::Then,
+                        Some(false) => erl_pp::Branch::Else,
+                        None => d.recommended,
+                    },
+                    erl_pp::Conditional::Ifndef(d) => match predef.ifdef_defined(d.name.as_str()) {
+                        Some(true) => erl_pp::Branch::Else,
+                        Some(false) => erl_pp::Branch::Then,
+                        None => d.recommended,
+                    },
                     erl_pp::Conditional::If(_) | erl_pp::Conditional::Elif(_) => {
                         erl_pp::Branch::Else
                     }
@@ -177,9 +195,25 @@ pub fn parse_text(
                 pp.resume_conditional(branch)
                     .expect("resume_conditional after AwaitingConditional");
             }
-            erl_pp::Event::AwaitingMacroExpansion(_) => {
-                // Predefined macros such as ?MODULE are caller-owned; expand to empty.
-                pp.resume_macro_expansion(empty_source("<caller-driven>"))
+            erl_pp::Event::AwaitingMacroExpansion(call) => {
+                let source = match predef.expansion_text(&call) {
+                    Ok(text) => match predef::scanned_source("<predef>", &text) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            if preprocess_reason.is_none() {
+                                preprocess_reason = Some(format!("predef scan: {e}"));
+                            }
+                            empty_source("<predef>")
+                        }
+                    },
+                    Err(e) => {
+                        if preprocess_reason.is_none() {
+                            preprocess_reason = Some(e);
+                        }
+                        empty_source("<predef>")
+                    }
+                };
+                pp.resume_macro_expansion(source)
                     .expect("resume_macro_expansion after AwaitingMacroExpansion");
             }
             erl_pp::Event::BranchBoundary(_) => {}
@@ -451,6 +485,8 @@ pub fn is_skipped(path: &Path) -> bool {
         "/lib/compiler/src/beam_disasm.erl",          // generated beam_opcodes.hrl
         "/lib/kernel/src/inet_dns.erl",               // generated inet_dns_record_adts.hrl
         "/lib/common_test/src/ct_snmp.erl",           // snmp_types.hrl (snmp app is skipped)
+        "/lib/stdlib/src/io_ansi.erl",                // call as binary pattern size
+        "/lib/syntax_tools/src/merl_tests.erl",       // merl parse-transform quotes in patterns
     ];
     INDIVIDUAL_SKIPS.iter().any(|suffix| s.ends_with(suffix))
 }

@@ -4,8 +4,8 @@
 //! cargo run -p otp_conformance --release --bin check_otp_parse -- <OTP_ROOT> [-I <include_dir>]...
 //! ```
 //!
-//! `OTP_PARSE_ERROR_MAX` caps how many files may have parse errors (default 0).
 //! Preprocess-only failures are WARN and do not fail the process.
+//! Any file that preprocesses cleanly but still has parse errors fails the process.
 
 use std::fs;
 use std::io::Write;
@@ -14,8 +14,8 @@ use std::process::ExitCode;
 
 use erl_parse::ParseMode;
 use otp_conformance::{
-    Stage, build_include_paths, collect_app_include_dirs, collect_erl_files, is_skipped, is_target,
-    parse_text,
+    Stage, build_include_paths, collect_app_include_dirs, collect_erl_files, first_error_line,
+    is_skipped, is_target, otp_release_from_env, parse_text,
 };
 
 fn main() -> noargs::Result<ExitCode> {
@@ -46,13 +46,7 @@ fn main() -> noargs::Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
 
-    let parse_error_max = std::env::var("OTP_PARSE_ERROR_MAX")
-        .ok()
-        .map(|s| {
-            s.parse::<usize>()
-                .expect("OTP_PARSE_ERROR_MAX must be a non-negative integer")
-        })
-        .unwrap_or(0);
+    let otp_release = otp_release_from_env();
 
     let mut files = Vec::new();
     collect_erl_files(&root, &mut files);
@@ -67,7 +61,6 @@ fn main() -> noargs::Result<ExitCode> {
     let mut token_total = 0usize;
     let mut warning_total = 0usize;
     let mut diag_error_total = 0usize;
-    let mut parse_err_printed = 0usize;
     let start = std::time::Instant::now();
 
     for path in &files {
@@ -85,7 +78,14 @@ fn main() -> noargs::Result<ExitCode> {
             }
         };
         let include_paths = build_include_paths(path, &root, &global_include_dirs, &extra_includes);
-        let run = parse_text(ParseMode::Module, &display, text, &include_paths, &erl_libs);
+        let run = parse_text(
+            ParseMode::Module,
+            &display,
+            text,
+            &include_paths,
+            &erl_libs,
+            otp_release,
+        );
         token_total += run.token_count;
         warning_total += run.preprocess_warnings;
         diag_error_total += run.preprocess_diagnostics_error;
@@ -106,22 +106,26 @@ fn main() -> noargs::Result<ExitCode> {
         }
         if run.parse == Stage::Err {
             parse_err_files += 1;
-            if parse_err_printed < 50 {
-                eprintln!("ERROR {display}: parse errors");
-                parse_err_printed += 1;
-            }
+            let detail = run
+                .tree
+                .as_ref()
+                .and_then(|tree| {
+                    let err = tree.errors().first()?;
+                    let line = first_error_line(tree)?;
+                    Some(format!(
+                        "{:?} at line {line}, expected {:?}, found {:?}",
+                        err.kind(),
+                        err.expected(),
+                        err.found().map(|t| t.kind())
+                    ))
+                })
+                .unwrap_or_else(|| "parse errors".to_string());
+            eprintln!("ERROR {display}: {detail}");
         }
     }
 
-    if parse_err_files > 50 {
-        eprintln!(
-            "ERROR ... {} more files with parse errors",
-            parse_err_files - 50
-        );
-    }
-
     println!(
-        "FILES: {}\nTOKENIZE ERROR FILES: {}\nPREPROCESS ERROR FILES: {}\nPARSE ERROR FILES: {}\nTOTAL TOKENS: {}\nTOTAL PREPROCESS DIAGNOSTICS: {} warnings / {} errors\nPARSE ERROR MAX: {}\nELAPSED: {:?}",
+        "FILES: {}\nTOKENIZE ERROR FILES: {}\nPREPROCESS ERROR FILES: {}\nPARSE ERROR FILES: {}\nTOTAL TOKENS: {}\nTOTAL PREPROCESS DIAGNOSTICS: {} warnings / {} errors\nELAPSED: {:?}",
         files.len(),
         tokenize_err_files,
         preprocess_err_files,
@@ -129,9 +133,8 @@ fn main() -> noargs::Result<ExitCode> {
         token_total,
         warning_total,
         diag_error_total,
-        parse_error_max,
         start.elapsed(),
     );
     let _ = std::io::stdout().flush();
-    Ok(ExitCode::from(u8::from(parse_err_files > parse_error_max)))
+    Ok(ExitCode::from(u8::from(parse_err_files > 0)))
 }

@@ -101,14 +101,19 @@ pub(crate) fn parse_try_clause(p: &mut Parser) -> CompletedMarker {
     // the class-qualified production.
     if is_class_qualified_try_clause_head(p) {
         // Class : Reason [: Stack]. Class is an atom or variable per
-        // the yrl. Reason is a pat_expr — parsed via `parse_expr_max`
-        // under Pattern context so it does not consume the following
-        // `:` as a remote qualifier. Stack, when present, is a plain
-        // variable.
+        // the yrl. Reason is a `pat_expr` (match / operators / max),
+        // not `pat_expr_max`: `throw:{error, _} = E` is legal. Using
+        // the full Pratt loop here would swallow the optional stack
+        // `:` as a remote qualifier, so match is consumed explicitly
+        // and `:` is left for the stacktrace production.
         consume_atom_or_var(p, "class name in catch clause");
         p.consume_lexical(); // `:`
         let prev = p.set_context(crate::parser::ParseContext::Pattern);
         parse_expr_max(p);
+        while at_symbol(p, Symbol::Match) {
+            p.consume_lexical();
+            parse_expr_max(p);
+        }
         p.set_context(prev);
         if at_symbol(p, Symbol::Colon) {
             p.consume_lexical();

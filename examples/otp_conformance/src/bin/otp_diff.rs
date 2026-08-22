@@ -18,8 +18,8 @@ use erl_parse::ParseMode;
 use nojson::{RawJson, RawJsonValue};
 use otp_conformance::{
     AuxKind, Stage, build_include_paths, collect_app_include_dirs, first_error_line,
-    form_categories, later_forms_after_error, named_divergence, otp_root_from_path,
-    otp_tag_from_env, parse_aux, parse_mode_from_str, parse_text, tree_shape,
+    form_categories, later_forms_after_error, named_divergence, otp_release_from_env,
+    otp_root_from_path, otp_tag_from_env, parse_aux, parse_mode_from_str, parse_text, tree_shape,
 };
 
 fn main() -> noargs::Result<ExitCode> {
@@ -147,7 +147,14 @@ fn compare_record(v: RawJsonValue<'_, '_>) -> Compare {
         Err(e) => return Compare::Error(format!("{id}: {e}")),
     };
 
-    let run = parse_text(mode, &display, text, &include_paths, &erl_libs);
+    let run = parse_text(
+        mode,
+        &display,
+        text,
+        &include_paths,
+        &erl_libs,
+        otp_release_from_env(),
+    );
 
     if let Some(c) = xor_stage(&id, "tokenize", exp_tok, run.tokenize) {
         return c;
