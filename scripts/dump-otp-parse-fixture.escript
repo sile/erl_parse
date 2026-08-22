@@ -174,11 +174,82 @@ error_form(Other) ->
     #{parse => err, category => "error", line => loc_line(Other)}.
 
 includes(Root, File) ->
-    Dir = filename:dirname(File),
+    Globals = filelib:wildcard(filename:join([Root, "lib", "*", "include"])),
+    build_include_paths(File, Root, Globals).
+
+%% Mirrors `otp_conformance::build_include_paths` (empty CLI `-I`).
+build_include_paths(Target, Root, Globals) ->
+    Acc0 = add_parent_include_dirs(Target, []),
+    Acc1 = add_app_src_walk_dirs(Target, Acc0),
+    Acc2 = add_preloaded_kernel_src(Target, Root, Acc1),
+    lists:foldl(fun add_unique/2, Acc2, Globals).
+
+add_parent_include_dirs(Target, Acc) ->
+    Dir = filename:dirname(Target),
+    Acc1 = add_unique(Dir, Acc),
     Parent = filename:dirname(Dir),
-    AppInc = filename:join(Parent, "include"),
-    Global = filelib:wildcard(filename:join([Root, "lib", "*", "include"])),
-    [Dir, AppInc | Global].
+    Include = filename:join(Parent, "include"),
+    case Include =/= Dir of
+        true -> add_unique(Include, Acc1);
+        false -> Acc1
+    end.
+
+add_app_src_walk_dirs(Target, Acc) ->
+    case find_app_src_dir(Target) of
+        undefined -> Acc;
+        AppSrc -> lists:foldl(fun add_unique/2, Acc, walk_dirs(AppSrc))
+    end.
+
+find_app_src_dir(Target) ->
+    find_app_src_dir_up(filename:dirname(Target)).
+
+find_app_src_dir_up(Dir) ->
+    case filename:basename(Dir) of
+        "src" -> Dir;
+        _ ->
+            Parent = filename:dirname(Dir),
+            case Parent =:= Dir of
+                true -> undefined;
+                false -> find_app_src_dir_up(Parent)
+            end
+    end.
+
+walk_dirs(Root) ->
+    walk_dirs(Root, []).
+
+walk_dirs(Root, Acc) ->
+    case filelib:is_dir(Root) of
+        false ->
+            Acc;
+        true ->
+            Acc1 = add_unique(Root, Acc),
+            lists:foldl(fun(Child, A) ->
+                                case filelib:is_dir(Child) of
+                                    true -> walk_dirs(Child, A);
+                                    false -> A
+                                end
+                        end,
+                        Acc1,
+                        filelib:wildcard(filename:join(Root, "*")))
+    end.
+
+add_preloaded_kernel_src(Target, Root, Acc) ->
+    case string:find(Target, "/erts/preloaded/src/") of
+        nomatch ->
+            Acc;
+        _ ->
+            KernelSrc = filename:join([Root, "lib", "kernel", "src"]),
+            case filelib:is_dir(KernelSrc) of
+                true -> add_unique(KernelSrc, Acc);
+                false -> Acc
+            end
+    end.
+
+add_unique(Path, Acc) ->
+    case lists:member(Path, Acc) of
+        true -> Acc;
+        false -> [Path | Acc]
+    end.
 
 id_otp(File) ->
     "otp:" ++ File.
