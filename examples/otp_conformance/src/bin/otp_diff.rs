@@ -9,6 +9,8 @@
 //! ```
 //!
 //! Tokenize / preprocess XOR is WARN (exit 0). Parse XOR is ERROR (exit 1).
+//! Per-form comparison drops OTP `epp`-only forms (`-file` in the fixture;
+//! `-feature` on the Rust side).
 
 use std::fs;
 use std::path::PathBuf;
@@ -19,7 +21,8 @@ use nojson::{RawJson, RawJsonValue};
 use otp_conformance::{
     AuxKind, Stage, build_include_paths, collect_app_include_dirs, first_error_line,
     form_categories, later_forms_after_error, named_divergence, otp_release_from_env,
-    otp_root_from_path, otp_tag_from_env, parse_aux, parse_mode_from_str, parse_text, tree_shape,
+    otp_root_from_path, otp_tag_from_env, parse_aux, parse_mode_from_str, parse_text,
+    roots_for_otp_parse_compare, tree_shape,
 };
 
 fn main() -> noargs::Result<ExitCode> {
@@ -272,15 +275,16 @@ fn compare_parse(
         return Compare::Ok;
     }
 
-    if run.roots.len() != forms.len() {
+    let rust_roots = roots_for_otp_parse_compare(tree, &run.source, &run.roots);
+    if rust_roots.len() != forms.len() {
         return Compare::Error(format!(
             "{id}: form count otp {} rust {}",
             forms.len(),
-            run.roots.len()
+            rust_roots.len()
         ));
     }
     if mode == ParseMode::Module {
-        let cats = form_categories(tree, &run.roots);
+        let cats = form_categories(tree, &rust_roots);
         for (i, (got, exp)) in cats.iter().zip(forms.iter()).enumerate() {
             if *got != exp.category.as_str() {
                 return Compare::Error(format!(

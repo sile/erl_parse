@@ -289,6 +289,41 @@ pub fn form_categories(tree: &SyntaxTree, roots: &[NodeId]) -> Vec<&'static str>
         .collect()
 }
 
+/// True when `id` is a `-feature(...)` attribute consumed by OTP `epp` before `erl_parse`.
+pub fn is_epp_consumed_feature_attribute(tree: &SyntaxTree, source: &str, id: NodeId) -> bool {
+    let Some(entry) = tree.syntax().entry(id) else {
+        return false;
+    };
+    if entry.kind() != SyntaxKind::Attribute {
+        return false;
+    }
+    let Some(view) = NodeView::new(tree.tokens(), tree.syntax(), id) else {
+        return false;
+    };
+    let Some(name_node) = child_of_kind(view, SyntaxKind::AttributeName) else {
+        return false;
+    };
+    for (_, t) in tree.tokens().iter_range(name_node.range()) {
+        if t.kind().is_lexical() {
+            return t.text(source) == "feature";
+        }
+    }
+    false
+}
+
+/// Roots aligned with OTP `erl_parse` per-form fixture lists (drops epp-consumed `-feature`).
+pub fn roots_for_otp_parse_compare(
+    tree: &SyntaxTree,
+    source: &str,
+    roots: &[NodeId],
+) -> Vec<NodeId> {
+    roots
+        .iter()
+        .copied()
+        .filter(|id| !is_epp_consumed_feature_attribute(tree, source, *id))
+        .collect()
+}
+
 /// 1-based line of a `ParseError` range start.
 pub fn error_line(tree: &SyntaxTree, range: TokenRange) -> usize {
     let idx = range.start();
@@ -780,4 +815,34 @@ pub fn otp_root_from_path(path: &Path) -> Option<PathBuf> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use erl_parse::ParseMode;
+
+    #[test]
+    fn roots_for_otp_parse_compare_drops_feature_attribute() {
+        let src = "-module(m).\n-feature(maybe_expr, enable).\n-export([f/0]).\n";
+        let run = parse_text(
+            ParseMode::Module,
+            "t",
+            src.to_string(),
+            &[],
+            &[] as &[PathBuf],
+            Some(29),
+        );
+        let tree = run.tree.as_ref().unwrap();
+        assert_eq!(run.roots.len(), 3);
+        assert!(is_epp_consumed_feature_attribute(
+            tree,
+            &run.source,
+            run.roots[1]
+        ));
+        let cmp = roots_for_otp_parse_compare(tree, &run.source, &run.roots);
+        assert_eq!(cmp.len(), 2);
+        assert_eq!(cmp[0], run.roots[0]);
+        assert_eq!(cmp[1], run.roots[2]);
+    }
 }
