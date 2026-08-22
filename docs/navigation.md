@@ -29,7 +29,7 @@ are adjacent and do not overlap. There is no grand-root wrapping
 the whole file: each `.`-terminated unit is its own root.
 
 ```text
-source:  { 1 , ␠ 2 } .
+source:  {1, 2}.
 
 TokenBuffer (every token the caller fed, hidden ones included):
   0 `{`   1 `1`   2 `,`   3 ` `   4 `2`   5 `}`   6 `.`
