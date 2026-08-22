@@ -275,7 +275,7 @@ fn compare_parse(
         return Compare::Ok;
     }
 
-    let rust_roots = roots_for_otp_parse_compare(tree, &run.source, &run.roots);
+    let rust_roots = roots_for_otp_parse_compare(tree, &run.token_sources, &run.roots);
     if rust_roots.len() != forms.len() {
         return Compare::Error(format!(
             "{id}: form count otp {} rust {}",

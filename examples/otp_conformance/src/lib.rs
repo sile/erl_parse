@@ -4,6 +4,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 mod predef;
 
@@ -95,6 +96,8 @@ pub struct ParseRun {
     pub preprocess_reason: Option<String>,
     /// Original input text (used with `Token::text` when there are no includes).
     pub source: String,
+    /// Source buffer for each parser token index (main file, includes, expansions).
+    pub token_sources: Vec<Arc<erl_pp::Source>>,
 }
 
 /// Scans `text` to EOF.
@@ -139,6 +142,7 @@ pub fn parse_text(
                 tokenize_reason: Some(reason),
                 preprocess_reason: None,
                 source: text,
+                token_sources: Vec::new(),
             };
         }
     };
@@ -147,6 +151,7 @@ pub fn parse_text(
     let mut parser = Parser::new(mode);
     let mut predef = predef::PredefContext::new(otp_release);
     let mut roots = Vec::new();
+    let mut token_sources = Vec::new();
     let mut token_count = 0usize;
     let mut warnings = 0usize;
     let mut diag_errors = 0usize;
@@ -160,6 +165,7 @@ pub fn parse_text(
             erl_pp::Event::Token(t) => {
                 token_count += 1;
                 predef.on_token(&t);
+                token_sources.push(Arc::clone(t.source()));
                 parser.push_token(*t.token());
                 while let Some(id) = parser.next_top_node() {
                     roots.push(id);
@@ -256,6 +262,7 @@ pub fn parse_text(
         tokenize_reason: None,
         preprocess_reason,
         source: text,
+        token_sources,
     }
 }
 
@@ -290,7 +297,11 @@ pub fn form_categories(tree: &SyntaxTree, roots: &[NodeId]) -> Vec<&'static str>
 }
 
 /// True when `id` is a `-feature(...)` attribute consumed by OTP `epp` before `erl_parse`.
-pub fn is_epp_consumed_feature_attribute(tree: &SyntaxTree, source: &str, id: NodeId) -> bool {
+pub fn is_epp_consumed_feature_attribute(
+    tree: &SyntaxTree,
+    token_sources: &[Arc<erl_pp::Source>],
+    id: NodeId,
+) -> bool {
     let Some(entry) = tree.syntax().entry(id) else {
         return false;
     };
@@ -303,9 +314,11 @@ pub fn is_epp_consumed_feature_attribute(tree: &SyntaxTree, source: &str, id: No
     let Some(name_node) = child_of_kind(view, SyntaxKind::AttributeName) else {
         return false;
     };
-    for (_, t) in tree.tokens().iter_range(name_node.range()) {
-        if t.kind().is_lexical() {
-            return t.text(source) == "feature";
+    for (idx, t) in tree.tokens().iter_range(name_node.range()) {
+        if t.kind().is_lexical()
+            && let Some(text) = token_text(tree, token_sources, idx)
+        {
+            return text == "feature";
         }
     }
     false
@@ -314,14 +327,24 @@ pub fn is_epp_consumed_feature_attribute(tree: &SyntaxTree, source: &str, id: No
 /// Roots aligned with OTP `erl_parse` per-form fixture lists (drops epp-consumed `-feature`).
 pub fn roots_for_otp_parse_compare(
     tree: &SyntaxTree,
-    source: &str,
+    token_sources: &[Arc<erl_pp::Source>],
     roots: &[NodeId],
 ) -> Vec<NodeId> {
     roots
         .iter()
         .copied()
-        .filter(|id| !is_epp_consumed_feature_attribute(tree, source, *id))
+        .filter(|id| !is_epp_consumed_feature_attribute(tree, token_sources, *id))
         .collect()
+}
+
+fn token_text<'a>(
+    tree: &SyntaxTree,
+    token_sources: &'a [Arc<erl_pp::Source>],
+    index: TokenIndex,
+) -> Option<&'a str> {
+    let token = tree.tokens().get(index)?;
+    let source = token_sources.get(index.get())?;
+    Some(token.text(source.text()))
 }
 
 /// 1-based line of a `ParseError` range start.
@@ -837,10 +860,10 @@ mod tests {
         assert_eq!(run.roots.len(), 3);
         assert!(is_epp_consumed_feature_attribute(
             tree,
-            &run.source,
+            &run.token_sources,
             run.roots[1]
         ));
-        let cmp = roots_for_otp_parse_compare(tree, &run.source, &run.roots);
+        let cmp = roots_for_otp_parse_compare(tree, &run.token_sources, &run.roots);
         assert_eq!(cmp.len(), 2);
         assert_eq!(cmp[0], run.roots[0]);
         assert_eq!(cmp[1], run.roots[2]);
