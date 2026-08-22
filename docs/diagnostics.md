@@ -145,12 +145,10 @@ A first form that is garbage, then a well-formed attribute. The
 second form still lands; the tree carries diagnostics for the first.
 
 ```rust
-use erl_tokenize::{Position, scan_token};
-
 let source = "1 2 3.\n-ok.";
 let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-let mut pos = Position::new();
-while let Some(token) = scan_token(source, pos).expect("valid source") {
+let mut pos = erl_tokenize::Position::new();
+while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid source") {
     parser.feed_token(token);
     pos = token.end();
 }

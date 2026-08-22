@@ -6,34 +6,42 @@ erl_parse
 [![Actions Status](https://github.com/sile/erl_parse/workflows/CI/badge.svg)](https://github.com/sile/erl_parse/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Erlang source code parser written in Rust.
+Erlang source parser for language tools. The caller tokenizes
+(`erl_tokenize::scan_token`) and feeds every token, including whitespace
+and comments. This crate does not read files, tokenize, or preprocess.
+A parse always produces a syntax tree; syntax problems are recorded as
+diagnostics.
 
-A parse always produces a syntax tree. Syntax problems are recorded as
-diagnostics and the grammar recovers to the next sync point (typically
-the next `.`) instead of aborting. See
-[Diagnostics and error recovery](docs/diagnostics.md); the same page
-renders as
-[`docs::diagnostics`](https://docs.rs/erl_parse/erl_parse/docs/diagnostics/index.html)
-on docs.rs.
+Examples
+--------
 
-Walking a finished tree uses `SyntaxTree` for forest-level
-questions (`roots`, `innermost_containing`) and `NodeView` for one
-node. Neither is a zipper. See
-[Walking a syntax tree](docs/navigation.md); the same page renders as
-[`docs::navigation`](https://docs.rs/erl_parse/erl_parse/docs/navigation/index.html)
-on docs.rs.
+```rust
+fn main() {
+    let source = "-module(foo).";
+    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
+    let mut pos = erl_tokenize::Position::new();
+    while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid source") {
+        parser.feed_token(token);
+        pos = token.end();
+    }
+    let mut roots = Vec::new();
+    while let Some(id) = parser.next_node() {
+        roots.push(id);
+    }
+    let tree = parser.finish();
+    assert!(tree.diagnostics().is_empty());
+    assert_eq!(roots.len(), 1);
+}
+```
 
-References
-----------
-
-- [AST](http://erlang.org/doc/apps/erts/absform.html)
-- [Macro](http://erlang.org/doc/reference_manual/macros.html)
-- [Expression](http://erlang.org/doc/reference_manual/expressions.html)
-
-Limitations
------------
-
-- Supports only UTF-8 source codes
+[`ParseMode`](https://docs.rs/erl_parse/erl_parse/enum.ParseMode.html)
+selects the top-level construct. Recovery is
+[Diagnostics and error recovery](docs/diagnostics.md)
+([`docs::diagnostics`](https://docs.rs/erl_parse/erl_parse/docs/diagnostics/index.html)
+on docs.rs). Walking the tree is
+[Walking a syntax tree](docs/navigation.md)
+([`docs::navigation`](https://docs.rs/erl_parse/erl_parse/docs/navigation/index.html)
+on docs.rs).
 
 Testing
 -------
@@ -41,7 +49,7 @@ Testing
 Unit tests and property tests do not need an Erlang runtime:
 
 ```text
-cargo test --all
+cargo test --workspace
 ```
 
 OTP grammar conformance lives in the `otp_conformance` workspace crate

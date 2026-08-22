@@ -1,41 +1,39 @@
-//! Sans I/O parser core and data model for an Erlang source parser.
+//! Erlang source parser for language tools.
 //!
-//! This crate exposes an incremental parser that a caller drives by feeding
-//! [`erl_tokenize::Token`] values one at a time and pulling completed
-//! top-level units back out. The parser holds the input token buffer, a
-//! flat preorder syntax index, and the accumulated diagnostics bundled
-//! together as a [`SyntaxTree`] that survives past the parser instance.
-//! A parse always produces that tree: syntax problems are recorded as
-//! [`Diagnostic`]s and the grammar recovers to the next sync point
-//! rather than returning `Result::Err`. The caller-facing contract is
-//! in [`docs::diagnostics`]. Walking the finished tree is in
-//! [`docs::navigation`].
+//! The caller tokenizes ([`erl_tokenize::scan_token`]) and feeds every
+//! token, including whitespace and comments. This crate does not read
+//! files, tokenize, preprocess, or resolve names. It records syntax
+//! problems as [`Diagnostic`]s and always returns a [`SyntaxTree`]
+//! rather than `Result::Err`. The recovery contract is
+//! [`docs::diagnostics`]; walking the tree is [`docs::navigation`].
 //!
-//! Top-level types:
+//! # Minimal loop
 //!
-//! - [`Parser`] and [`ParseMode`] are the entry point. Construct a parser
-//!   for the desired [`ParseMode`] and drive it with [`Parser::feed_token`]
-//!   / [`Parser::next_node`] / [`Parser::syntax_tree`] /
-//!   [`Parser::finish`].
-//! - [`SyntaxTree`] bundles the tokens the caller fed, the syntax index, and the
-//!   diagnostics so callers can keep the parse result around after the
-//!   parser goes away. [`SyntaxTree::tokens`] is the feed-order slice;
-//!   a [`TokenIndex`] obtained earlier still names the same token after
-//!   later feeds.
-//! - [`Diagnostic`], [`DiagnosticKind`], and [`Expected`] describe a
-//!   syntax diagnostic. Every diagnostic currently produced is an error;
-//!   warnings and notes are not emitted yet. See [`docs::diagnostics`]
-//!   for how recovery continues after a diagnostic is recorded.
-//! - [`TokenIndex`] and [`TokenRange`] describe positions and half-open
-//!   spans over [`SyntaxTree::tokens`].
-//! - [`SyntaxKind`] tags each node with a grammar-level nonterminal
-//!   kind. [`NodeId`] is an opaque key for one node; wrap it with
-//!   [`SyntaxTree::view`].
-//! - [`NodeView`] walks one node together with the tokens the caller
-//!   fed. Forest-level questions (`roots`, `innermost_containing`) and
-//!   [`SyntaxTree::view`] live on [`SyntaxTree`]. See
-//!   [`docs::navigation`]. Iterator-returning methods hand back opaque
-//!   `impl Iterator` values.
+//! ```
+//! let source = "-module(foo).";
+//! let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
+//! let mut pos = erl_tokenize::Position::new();
+//! while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid source") {
+//!     parser.feed_token(token);
+//!     pos = token.end();
+//! }
+//! let mut roots = Vec::new();
+//! while let Some(id) = parser.next_node() {
+//!     roots.push(id);
+//! }
+//! let tree = parser.finish();
+//! assert!(tree.diagnostics().is_empty());
+//! assert_eq!(roots.len(), 1);
+//! assert_eq!(
+//!     tree.view(roots[0]).expect("root").kind(),
+//!     erl_parse::SyntaxKind::Attribute,
+//! );
+//! ```
+//!
+//! Construct a [`Parser`] for a [`ParseMode`], feed tokens, pull completed
+//! `.`-terminated units with [`Parser::next_node`], then
+//! [`Parser::finish`]. Strict success is
+//! [`SyntaxTree::diagnostics`] being empty.
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 

@@ -28,23 +28,33 @@ use crate::token_range::{TokenIndex, TokenRange};
 
 /// Selects the top-level construct the parser recognizes.
 ///
-/// This is fixed at construction time. Every mode drives a
-/// `.`-terminated top-level loop internally: the parser emits one
-/// top-level unit per boundary `.`, and no mode wraps the full
-/// sequence in a single grand-root node.
+/// Fixed at [`Parser::new`]. Every mode uses the same feed / pull
+/// loop and emits one root per terminating `.`. There is no
+/// grand-root wrapping the whole input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParseMode {
-    /// A `.erl` module: a sequence of attribute / function-declaration
-    /// forms terminated by `.`.
+    /// A `.erl` module: attributes and function declarations.
+    ///
+    /// Each form ends with `.`. Unpreprocessed directives (`-define`,
+    /// `-include`, …) are kept as [`SyntaxKind::Attribute`] rather
+    /// than executed.
     Module,
-    /// A `file:consult/1`-style file: a sequence of terms terminated
-    /// by `.`.
+    /// A `file:consult/1`-style term file (`rebar.config`, `sys.config`, …).
+    ///
+    /// Each term ends with `.`. Variables and match expressions are
+    /// rejected (recorded as diagnostics) while the tree still holds
+    /// a structured node.
     TermList,
-    /// A single expression (an `erl_eval`-style input) terminated by
-    /// `.`.
+    /// An `erl_eval`-style expression.
+    ///
+    /// Each expression ends with `.`. Feeding several dotted
+    /// expressions yields several roots.
     Expression,
-    /// A type expression (a `-spec` / `-type` payload-style input)
-    /// terminated by `.`.
+    /// A type (`-spec` / `-type` payload style).
+    ///
+    /// Each type ends with `.`. Unions, ranges, annotations, and type
+    /// constructors are accepted; general expression constructs are
+    /// not.
     Type,
 }
 
@@ -106,7 +116,12 @@ pub(crate) enum ParseContext {
     Type,
 }
 
-/// Sans I/O parser core.
+/// Incremental parser driven by [`Parser::feed_token`].
+///
+/// Construct with [`Parser::new`], feed every token the tokenizer
+/// yields (including hidden ones), pull completed `.`-terminated
+/// units with [`Parser::next_node`], and take the finished
+/// [`SyntaxTree`] with [`Parser::finish`].
 #[derive(Debug)]
 pub struct Parser {
     mode: ParseMode,
@@ -169,12 +184,12 @@ impl Parser {
     /// rather than as a limit callers should design around.
     pub const MAX_NESTING_DEPTH: usize = 256;
 
-    /// Creates a new parser for the given mode.
+    /// Creates a parser for `mode`.
     ///
-    /// Grammar nesting is bounded by [`Parser::MAX_NESTING_DEPTH`]:
-    /// hitting the cap emits a
-    /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic and
-    /// unwinds to a bounded depth instead of panicking or
+    /// Feed every token from the tokenizer, including whitespace and
+    /// comments. Grammar nesting is bounded by
+    /// [`Parser::MAX_NESTING_DEPTH`]: hitting the cap emits a
+    /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic instead of
     /// overflowing the stack.
     pub fn new(mode: ParseMode) -> Self {
         Self {
