@@ -8,8 +8,8 @@ use core::ops::Range;
 /// boundary (the trailing EOF position or the endpoint of an empty
 /// [`TokenRange`]). Values lie in `0..=buffer.len()`.
 ///
-/// Unlike [`NodeId`][crate::syntax::NodeId] and
-/// [`EntryIndex`][crate::syntax::EntryIndex], "existing element" and
+/// Unlike [`NodeId`](crate::NodeId) and
+/// [`EntryIndex`](crate::EntryIndex), "existing element" and
 /// "boundary" are not separated into two types: missing-token, EOF, and
 /// empty-range cases dominate on the token side, and a unified index type is
 /// easier to work with there.

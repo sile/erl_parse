@@ -1,14 +1,15 @@
 //! Parse diagnostic type.
 //!
 //! A [`Diagnostic`] is a report about a syntax problem at a token-buffer
-//! range. The parser accumulates these on [`crate::SyntaxTree`] rather than
-//! returning them as `Result::Err`; a parse always produces a tree, and
-//! a strict caller treats [`crate::SyntaxTree::diagnostics`] being empty
+//! range. The parser accumulates these on [`SyntaxTree`](crate::SyntaxTree)
+//! rather than returning them as `Result::Err`; a parse always produces a
+//! tree, and a strict caller treats
+//! [`SyntaxTree::diagnostics`](crate::SyntaxTree::diagnostics) being empty
 //! as success.
 //!
 //! Every diagnostic currently produced is a syntax error. Warnings and
 //! informational notes are not emitted yet. How the grammar continues
-//! after a diagnostic is recorded is in [`crate::docs::diagnostics`].
+//! after a diagnostic is recorded is in [`docs::diagnostics`](crate::docs::diagnostics).
 
 use erl_tokenize::Token;
 
@@ -18,8 +19,8 @@ use crate::token_range::TokenRange;
 ///
 /// This is a diagnostic record, not an operation-failure type: it does
 /// not implement [`std::error::Error`], and the parser never returns it
-/// as `Result::Err`. See [`crate::docs::diagnostics`] for the recovery
-/// contract.
+/// as `Result::Err`. See [`docs::diagnostics`](crate::docs::diagnostics)
+/// for the recovery contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Diagnostic {
     kind: DiagnosticKind,
@@ -80,7 +81,7 @@ pub enum DiagnosticKind {
     UnexpectedEof,
     /// One or more tokens were skipped by error recovery. The
     /// [`Diagnostic::range`] covers the skipped span and matches the
-    /// [`crate::SyntaxKind::Error`] node emitted for the same span so
+    /// [`SyntaxKind::Error`](crate::SyntaxKind::Error) node emitted for the same span so
     /// consumers can navigate from a diagnostic to the structural
     /// hole (and vice versa).
     SkippedToken,
@@ -88,11 +89,11 @@ pub enum DiagnosticKind {
     /// The [`Diagnostic::range`] is zero-width (`start == end`) at
     /// the boundary where the token would have appeared. The parser
     /// does not synthesize a fake token — no
-    /// [`crate::SyntaxKind::Error`] node is emitted for a missing
+    /// [`SyntaxKind::Error`](crate::SyntaxKind::Error) node is emitted for a missing
     /// token.
     MissingToken,
     /// The grammar's nesting depth exceeded
-    /// [`crate::Parser::MAX_NESTING_DEPTH`] at this position. The
+    /// [`Parser::MAX_NESTING_DEPTH`](crate::Parser::MAX_NESTING_DEPTH) at this position. The
     /// parser stops recursing (instead of panicking or overflowing
     /// the stack), unwinds to a bounded depth, and continues
     /// recovery.

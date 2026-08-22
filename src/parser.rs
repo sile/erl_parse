@@ -77,7 +77,7 @@ pub enum FormKind {
 /// function / clause open here", not "unavailable".
 ///
 /// `TokenIndex` / `TokenRange` values act as keys into a caller-side
-/// table over [`crate::TokenBuffer`]; source positions
+/// table over [`TokenBuffer`](crate::TokenBuffer); source positions
 /// (`erl_tokenize::Position`) are never exposed.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct InProgressState {
@@ -235,7 +235,7 @@ impl Parser {
 
     /// Creates a new parser for the given mode.
     ///
-    /// Grammar nesting is bounded by [`Self::MAX_NESTING_DEPTH`]:
+    /// Grammar nesting is bounded by [`Parser::MAX_NESTING_DEPTH`]:
     /// hitting the cap emits a
     /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic and
     /// unwinds to a bounded depth instead of panicking or
@@ -266,7 +266,7 @@ impl Parser {
     /// at which it was placed in the buffer.
     ///
     /// The returned index is a real (in-range) index — passing it to
-    /// [`TokenBuffer::get`][crate::TokenBuffer::get] recovers the same
+    /// [`TokenBuffer::get`](crate::TokenBuffer::get) recovers the same
     /// token. Hidden tokens are indexed alongside lexical tokens, so a
     /// caller feeding every token they receive from `erl_tokenize` gets
     /// a strictly-increasing sequence starting at `TokenIndex::new(0)`.
@@ -283,7 +283,7 @@ impl Parser {
     /// Returns the [`NodeId`] of the next completed `.`-terminated
     /// unit, or `None` when no new unit has completed since the last
     /// call. Nested nodes stay in the syntax index and are walked
-    /// from this root (see [`crate::Cursor::roots`]).
+    /// from this root (see [`Cursor::roots`](crate::Cursor::roots)).
     pub fn next_node(&mut self) -> Option<NodeId> {
         // Attempt to make grammar progress in case the previous feed_token
         // paused at a partial unit.

@@ -26,8 +26,8 @@ pub enum SyntaxKind {
     /// A hole left by error recovery: a skipped span, an unexpected
     /// token at a production start, or a unit force-closed at end of
     /// input. A skipped span matches the corresponding
-    /// [`crate::DiagnosticKind::SkippedToken`] diagnostic's range. See
-    /// [`crate::docs::diagnostics`].
+    /// [`DiagnosticKind::SkippedToken`](crate::DiagnosticKind::SkippedToken)
+    /// diagnostic's range. See [`docs::diagnostics`](crate::docs::diagnostics).
     Error,
 
     // ---------------------------------------------------------------------

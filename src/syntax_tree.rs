@@ -3,14 +3,14 @@
 //! A [`SyntaxTree`] owns everything the caller needs to keep around after
 //! the parser goes away: the [`TokenBuffer`], the flat preorder
 //! [`SyntaxIndex`], and the accumulated [`Diagnostic`]s. All three parts
-//! reference each other through [`crate::TokenIndex`] and [`crate::NodeId`],
-//! so navigation helpers work on a `SyntaxTree` in the same way they do
-//! against a live [`crate::Parser`].
+//! reference each other through [`TokenIndex`](crate::TokenIndex) and
+//! [`NodeId`](crate::NodeId), so navigation helpers work on a `SyntaxTree`
+//! in the same way they do against a live [`Parser`](crate::Parser).
 //!
 //! `SyntaxTree` is `Clone` (all sub-components are `Clone`), so callers
 //! can also snapshot the parser mid-parse via
-//! [`crate::Parser::syntax_tree`] and clone the result if they want to
-//! decouple the snapshot from the running parser.
+//! [`Parser::syntax_tree`](crate::Parser::syntax_tree) and clone the result
+//! if they want to decouple the snapshot from the running parser.
 
 use crate::diagnostic::Diagnostic;
 use crate::syntax::SyntaxIndex;
@@ -22,9 +22,11 @@ use crate::token_buffer::TokenBuffer;
 /// A strict caller checks `diagnostics().is_empty()` as its success
 /// condition. A best-effort caller walks the syntax index while
 /// displaying the diagnostics alongside it; ranges consumed by error
-/// recovery survive as [`crate::SyntaxKind::Error`] nodes in the index
-/// and stay reachable through the same navigation surface as any other
-/// node. See [`crate::docs::diagnostics`] for the recovery contract.
+/// recovery survive as [`SyntaxKind::Error`](crate::SyntaxKind::Error)
+/// nodes in the index and stay reachable through the same navigation
+/// surface as any other node. See
+/// [`docs::diagnostics`](crate::docs::diagnostics) for the recovery
+/// contract.
 #[derive(Debug, Default, Clone)]
 pub struct SyntaxTree {
     tokens: TokenBuffer,
