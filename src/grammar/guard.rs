@@ -80,10 +80,10 @@ mod tests {
         // without errors here.
         let mut p = drive_guard("is_atom(X)");
         let _ = p.next_top_node().expect("unit");
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive_guard("erlang:is_atom(X)");
         let _ = p.next_top_node().expect("unit");
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 }

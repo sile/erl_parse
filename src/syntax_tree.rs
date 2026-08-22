@@ -2,7 +2,7 @@
 //!
 //! A [`SyntaxTree`] owns everything the caller needs to keep around after
 //! the parser goes away: the pushed [`TokenBuffer`], the flat preorder
-//! [`SyntaxIndex`], and the accumulated [`ParseError`]s. All three parts
+//! [`SyntaxIndex`], and the accumulated [`Diagnostic`]s. All three parts
 //! reference each other through [`crate::TokenIndex`] and [`crate::NodeId`],
 //! so navigation helpers work on a `SyntaxTree` in the same way they do
 //! against a live [`crate::Parser`].
@@ -12,23 +12,24 @@
 //! [`crate::Parser::syntax_tree`] and clone the result if they want to
 //! decouple the snapshot from the running parser.
 
-use crate::error::ParseError;
+use crate::diagnostic::Diagnostic;
 use crate::syntax::SyntaxIndex;
 use crate::token_buffer::TokenBuffer;
 
 /// The full result of a parse: input tokens, flat syntax index, and
-/// accumulated errors.
+/// accumulated diagnostics.
 ///
-/// A strict caller checks `errors().is_empty()` as its success condition.
-/// A best-effort caller walks the syntax index while displaying the
-/// errors alongside it; ranges consumed by error recovery survive as
-/// [`crate::SyntaxKind::Error`] nodes in the index and stay reachable
-/// through the same navigation surface as any other node.
+/// A strict caller checks `diagnostics().is_empty()` as its success
+/// condition. A best-effort caller walks the syntax index while
+/// displaying the diagnostics alongside it; ranges consumed by error
+/// recovery survive as [`crate::SyntaxKind::Error`] nodes in the index
+/// and stay reachable through the same navigation surface as any other
+/// node.
 #[derive(Debug, Default, Clone)]
 pub struct SyntaxTree {
     tokens: TokenBuffer,
     syntax: SyntaxIndex,
-    errors: Vec<ParseError>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 impl SyntaxTree {
@@ -37,7 +38,7 @@ impl SyntaxTree {
         Self {
             tokens: TokenBuffer::new(),
             syntax: SyntaxIndex::new(),
-            errors: Vec::new(),
+            diagnostics: Vec::new(),
         }
     }
 
@@ -51,9 +52,9 @@ impl SyntaxTree {
         &self.syntax
     }
 
-    /// Borrows the accumulated parse errors.
-    pub fn errors(&self) -> &[ParseError] {
-        &self.errors
+    /// Borrows the accumulated diagnostics.
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
     }
 
     /// Mutable access to the token buffer, for the in-crate parser core.
@@ -66,8 +67,8 @@ impl SyntaxTree {
         &mut self.syntax
     }
 
-    /// Mutable access to the error list, for the in-crate parser core.
-    pub(crate) fn errors_mut(&mut self) -> &mut Vec<ParseError> {
-        &mut self.errors
+    /// Mutable access to the diagnostic list, for the in-crate parser core.
+    pub(crate) fn diagnostics_mut(&mut self) -> &mut Vec<Diagnostic> {
+        &mut self.diagnostics
     }
 }

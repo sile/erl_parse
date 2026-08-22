@@ -621,7 +621,7 @@ mod tests {
             run.preprocess_reason
         );
         let tree = run.tree.as_ref().expect("tree");
-        assert!(accepted(tree), "{src} errors={:?}", tree.errors());
+        assert!(accepted(tree), "{src} errors={:?}", tree.diagnostics());
     }
 
     #[test]
@@ -729,10 +729,12 @@ mod tests {
         assert!(
             accepted(tree),
             "errors={:?} first={:?}",
-            tree.errors(),
-            tree.errors()
-                .first()
-                .map(|e| (e.kind(), e.expected(), e.found().map(|t| t.kind())))
+            tree.diagnostics(),
+            tree.diagnostics().first().map(|e| (
+                e.kind(),
+                e.expected(),
+                e.found().map(|t| t.kind())
+            ))
         );
     }
 

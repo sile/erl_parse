@@ -14,7 +14,7 @@
 //! parser switched into [`ParseContext::Term`]. Restrictions specific
 //! to term position (no variables, no `=` match, no records) are
 //! enforced by the shared expression parser through structured
-//! [`ParseError`][crate::ParseError]s.
+//! [`Diagnostic`][crate::Diagnostic]s.
 
 use crate::grammar::expr::parse_expr;
 use crate::parser::{CompletedMarker, ParseContext, Parser};
@@ -84,7 +84,7 @@ mod tests {
             let root = p.next_top_node().expect("unit");
             assert_eq!(first_child_kind(&p, root), kind, "source {source}");
             assert!(
-                p.syntax_tree().errors().is_empty(),
+                p.syntax_tree().diagnostics().is_empty(),
                 "source {source} produced unexpected errors"
             );
         }
@@ -94,14 +94,14 @@ mod tests {
     fn rejects_variables_in_term_position() {
         let mut p = drive_term("X");
         let _ = p.next_top_node().expect("unit");
-        assert!(!p.syntax_tree().errors().is_empty());
+        assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
     fn rejects_match_in_term_position() {
         let mut p = drive_term("X = 1");
         let _ = p.next_top_node().expect("unit");
-        assert!(!p.syntax_tree().errors().is_empty());
+        assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -115,7 +115,7 @@ mod tests {
             let mut p = drive_term(source);
             let _ = p.next_top_node().expect("unit");
             assert!(
-                !p.syntax_tree().errors().is_empty(),
+                !p.syntax_tree().diagnostics().is_empty(),
                 "source {source} should have produced an error"
             );
         }
@@ -125,6 +125,6 @@ mod tests {
     fn rejects_remote_qualifier_in_term_position() {
         let mut p = drive_term("mod:foo");
         let _ = p.next_top_node().expect("unit");
-        assert!(!p.syntax_tree().errors().is_empty());
+        assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 }

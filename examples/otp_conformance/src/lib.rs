@@ -215,9 +215,9 @@ pub fn parse_text(
     }
 }
 
-/// True when the error list is empty and the tree has no `erl_parse::SyntaxKind::Error` node.
+/// True when the diagnostic list is empty and the tree has no `erl_parse::SyntaxKind::Error` node.
 pub fn accepted(tree: &erl_parse::SyntaxTree) -> bool {
-    tree.errors().is_empty() && !has_error_node(tree)
+    tree.diagnostics().is_empty() && !has_error_node(tree)
 }
 
 fn has_error_node(tree: &erl_parse::SyntaxTree) -> bool {
@@ -306,8 +306,8 @@ fn token_text<'a>(
     Some(token.text(source.text()))
 }
 
-/// 1-based line of a `ParseError` range start.
-pub fn error_line(tree: &erl_parse::SyntaxTree, range: erl_parse::TokenRange) -> usize {
+/// 1-based line of a `Diagnostic` range start.
+pub fn diagnostic_line(tree: &erl_parse::SyntaxTree, range: erl_parse::TokenRange) -> usize {
     let idx = range.start();
     if let Some(t) = tree.tokens().get(idx) {
         return t.start().line().get();
@@ -320,9 +320,11 @@ pub fn error_line(tree: &erl_parse::SyntaxTree, range: erl_parse::TokenRange) ->
     1
 }
 
-/// Line of the first `ParseError`, if any.
-pub fn first_error_line(tree: &erl_parse::SyntaxTree) -> Option<usize> {
-    tree.errors().first().map(|e| error_line(tree, e.range()))
+/// Line of the first `Diagnostic`, if any.
+pub fn first_diagnostic_line(tree: &erl_parse::SyntaxTree) -> Option<usize> {
+    tree.diagnostics()
+        .first()
+        .map(|e| diagnostic_line(tree, e.range()))
 }
 
 fn empty_source(name: &str) -> erl_pp::Source {
@@ -337,17 +339,18 @@ fn resolve_include(
     let raw_path = include.path.as_str();
     match erl_pp::open_include(include, include_paths, erl_libs) {
         Ok(path) => match fs::read_to_string(&path) {
-            Ok(text) => match erl_pp::Source::from_text(path.to_string_lossy().into_owned(), text)
-            {
-                Ok(source) => (source, None),
-                Err(e) => (
-                    empty_source(raw_path),
-                    Some(format!(
-                        "include scan_token failed for {}: {e}",
-                        path.display()
-                    )),
-                ),
-            },
+            Ok(text) => {
+                match erl_pp::Source::from_text(path.to_string_lossy().into_owned(), text) {
+                    Ok(source) => (source, None),
+                    Err(e) => (
+                        empty_source(raw_path),
+                        Some(format!(
+                            "include scan_token failed for {}: {e}",
+                            path.display()
+                        )),
+                    ),
+                }
+            }
             Err(e) => (
                 empty_source(raw_path),
                 Some(format!("include read failed for {}: {e}", path.display())),

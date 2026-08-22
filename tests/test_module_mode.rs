@@ -62,7 +62,7 @@ fn empty_module_emits_no_units_and_no_errors() {
     let (tree, roots) = drive("");
     assert!(roots.is_empty());
     assert!(tree.syntax().is_empty());
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn hidden_only_module_stores_tokens_but_emits_no_units() {
     let (tree, roots) = drive("   \n%% comment\n\n");
     assert!(roots.is_empty());
     assert!(!tree.tokens().is_empty());
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -91,7 +91,7 @@ fn single_bare_attribute_form() {
     // section.
     let payload = tree.syntax().entry(children[1]).expect("payload");
     assert!(payload.range().is_empty());
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn parenthesized_attribute_records_name_and_payload_ranges() {
     let payload_entry = tree.syntax().entry(children[1]).expect("payload");
     assert!(!name_entry.range().is_empty());
     assert!(!payload_entry.range().is_empty());
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -139,9 +139,9 @@ fn spec_type_record_and_export_are_uniform_attributes() {
             "source: {source}"
         );
         assert!(
-            tree.errors().is_empty(),
+            tree.diagnostics().is_empty(),
             "source: {source} produced unexpected errors: {:?}",
-            tree.errors()
+            tree.diagnostics()
         );
     }
 }
@@ -165,9 +165,9 @@ fn record_field_dot_does_not_end_the_form_mid_push() {
             "source: {source}"
         );
         assert!(
-            tree.errors().is_empty(),
+            tree.diagnostics().is_empty(),
             "source: {source} produced unexpected errors: {:?}",
-            tree.errors()
+            tree.diagnostics()
         );
     }
 }
@@ -191,7 +191,7 @@ fn unpreprocessed_directives_are_kept_as_unknown_attributes() {
             erl_parse::SyntaxKind::Attribute,
             "source: {source}"
         );
-        assert!(tree.errors().is_empty(), "source: {source}");
+        assert!(tree.diagnostics().is_empty(), "source: {source}");
     }
 }
 
@@ -203,7 +203,7 @@ fn file_attribute_is_treated_as_ordinary_attribute() {
     let (tree, roots) = drive("-file(\"other.erl\", 42).");
     assert_eq!(roots.len(), 1);
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::Attribute);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -220,7 +220,7 @@ fn function_declaration_single_clause() {
         kind_of(&tree, clauses[0]),
         erl_parse::SyntaxKind::FunctionClause
     );
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -236,14 +236,14 @@ fn function_declaration_multiple_clauses_separated_by_semicolon() {
     for c in &clauses {
         assert_eq!(kind_of(&tree, *c), erl_parse::SyntaxKind::FunctionClause);
     }
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
 fn function_declaration_with_guard_and_body() {
     let (tree, roots) = drive("abs(X) when X < 0 -> -X; abs(X) -> X.");
     assert_eq!(roots.len(), 1);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
     assert_eq!(
         kind_of(&tree, roots[0]),
         erl_parse::SyntaxKind::FunctionDecl
@@ -256,7 +256,7 @@ fn function_clause_arity_mismatch_is_not_a_syntax_error() {
     // across clauses in a form. That is a semantic concern.
     let (tree, roots) = drive("foo(1) -> ok; foo(1, 2) -> ok.");
     assert_eq!(roots.len(), 1);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -273,7 +273,7 @@ fn multiple_forms_yield_one_top_level_unit_per_form() {
             erl_parse::SyntaxKind::FunctionDecl
         ]
     );
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -286,24 +286,24 @@ fn hidden_tokens_between_forms_are_preserved_in_buffer() {
     // between-form region.
     let scanned = scan_all(source);
     assert_eq!(tree.tokens().len(), scanned.len());
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
 fn malformed_attribute_missing_close_paren_emits_error() {
     // Missing `)`: attribute payload takes tokens up to the terminating
-    // `.` and the missing close-paren surfaces as a erl_parse::ParseError.
+    // `.` and the missing close-paren surfaces as a erl_parse::Diagnostic.
     let (tree, roots) = drive("-module(mymod.");
     assert_eq!(roots.len(), 1);
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::Attribute);
-    assert!(!tree.errors().is_empty());
+    assert!(!tree.diagnostics().is_empty());
 }
 
 #[test]
 fn malformed_function_clause_missing_arrow_emits_error() {
     let (tree, roots) = drive("foo() ok.");
     assert_eq!(roots.len(), 1);
-    assert!(!tree.errors().is_empty());
+    assert!(!tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -326,7 +326,7 @@ fn independent_parser_instances_do_not_share_state() {
     let (tree_b, roots_b) = drive(source);
     assert_eq!(roots_a.len(), roots_b.len());
     assert_eq!(tree_a.syntax().len(), tree_b.syntax().len());
-    assert_eq!(tree_a.errors().len(), tree_b.errors().len());
+    assert_eq!(tree_a.diagnostics().len(), tree_b.diagnostics().len());
 }
 
 #[test]

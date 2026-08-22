@@ -270,7 +270,7 @@ fn compare_parse(
             } else {
                 None
             }
-        }) && let Some(act_line) = otp_conformance::first_error_line(tree)
+        }) && let Some(act_line) = otp_conformance::first_diagnostic_line(tree)
             && act_line != exp_line
         {
             return Compare::Error(format!("{id}: error line otp {exp_line} rust {act_line}"));
@@ -318,7 +318,7 @@ fn compare_one_parse(
     if exp == otp_conformance::Stage::Err {
         match (
             opt_usize(v, "error_line"),
-            otp_conformance::first_error_line(tree),
+            otp_conformance::first_diagnostic_line(tree),
         ) {
             (Ok(Some(exp_line)), Some(act_line)) if exp_line != act_line => {
                 return Compare::Error(format!("{id}: error line otp {exp_line} rust {act_line}"));

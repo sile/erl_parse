@@ -6,39 +6,39 @@
 //!   grammar position" sites (`parse_expr_max` and `parse_type_max`).
 //!   Consumes exactly one lexical token, wraps it as a
 //!   [`SyntaxKind::Error`] node, and emits a
-//!   [`ParseErrorKind::SkippedToken`] diagnostic whose
-//!   [`ParseError::range`] matches the node's `TokenRange`.
+//!   [`DiagnosticKind::SkippedToken`] diagnostic whose
+//!   [`Diagnostic::range`] matches the node's `TokenRange`.
 //! - [`skip_until_sync`] implements unbounded skipping up to a
 //!   caller-supplied sync token predicate. Wraps the whole skipped
 //!   span as a [`SyntaxKind::Error`] node with a matching
-//!   [`ParseErrorKind::SkippedToken`] diagnostic. Returns early
+//!   [`DiagnosticKind::SkippedToken`] diagnostic. Returns early
 //!   without emitting anything when the cursor is already at a sync
 //!   token or when the same
 //!   [`RecoveryContext`][crate::parser::RecoveryContext] has already
 //!   fired at the current cursor position without the cursor moving
 //!   — this is what stops recovery loops.
 //! - [`push_missing_token`] emits a
-//!   [`ParseErrorKind::MissingToken`] diagnostic with a zero-width
+//!   [`DiagnosticKind::MissingToken`] diagnostic with a zero-width
 //!   `TokenRange` at the current cursor position. Does not consume
 //!   tokens and does not emit any [`SyntaxKind::Error`] node — the
 //!   parser never synthesizes a fake [`erl_tokenize::Token`].
 //!
 //! All three helpers deduplicate at the append site through
-//! [`Parser::push_error`], so recovery loops that revisit the same
+//! [`Parser::push_diagnostic`], so recovery loops that revisit the same
 //! cursor position do not surface the same diagnostic twice.
 
 use erl_tokenize::Token;
 
-use crate::error::{Expected, ParseError, ParseErrorKind};
+use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::parser::{CompletedMarker, Parser, RecoveryContext};
 use crate::syntax::SyntaxKind;
 use crate::token_range::TokenRange;
 
 /// Consumes a single lexical token at the current cursor as a
 /// [`SyntaxKind::Error`] node and emits a
-/// [`ParseErrorKind::SkippedToken`] diagnostic whose `range` covers
+/// [`DiagnosticKind::SkippedToken`] diagnostic whose `range` covers
 /// the same span. When the buffer is empty at the cursor, no node
-/// is emitted and a [`ParseErrorKind::UnexpectedEof`] diagnostic is
+/// is emitted and a [`DiagnosticKind::UnexpectedEof`] diagnostic is
 /// appended at the boundary — the caller receives a zero-width
 /// [`SyntaxKind::Error`] node anchored at the cursor to keep the
 /// call site's signature uniform.
@@ -51,15 +51,15 @@ pub(crate) fn skip_one_token(p: &mut Parser, category: &'static str) -> Complete
     if consumed {
         let end = p.cursor_position();
         let node_range = TokenRange::new(start, end);
-        p.push_error(ParseError::new(
-            ParseErrorKind::SkippedToken,
+        p.push_diagnostic(Diagnostic::new(
+            DiagnosticKind::SkippedToken,
             node_range,
             Expected::Category(category),
             found,
         ));
     } else {
-        p.push_error(ParseError::new(
-            ParseErrorKind::UnexpectedEof,
+        p.push_diagnostic(Diagnostic::new(
+            DiagnosticKind::UnexpectedEof,
             TokenRange::empty_at(start),
             Expected::Category(category),
             None,
@@ -71,7 +71,7 @@ pub(crate) fn skip_one_token(p: &mut Parser, category: &'static str) -> Complete
 /// Consumes tokens up to (but not including) the first token
 /// `is_sync` accepts, wrapping the skipped span as a
 /// [`SyntaxKind::Error`] node and emitting a
-/// [`ParseErrorKind::SkippedToken`] diagnostic whose `range` matches
+/// [`DiagnosticKind::SkippedToken`] diagnostic whose `range` matches
 /// the node. Returns `None` — without emitting a node or diagnostic
 /// — when the cursor is already at a sync token / EOF, or when the
 /// same `(context, cursor position)` recovery pair has already fired
@@ -107,8 +107,8 @@ where
     if consumed {
         let end = p.cursor_position();
         let node_range = TokenRange::new(start, end);
-        p.push_error(ParseError::new(
-            ParseErrorKind::SkippedToken,
+        p.push_diagnostic(Diagnostic::new(
+            DiagnosticKind::SkippedToken,
             node_range,
             Expected::Category(category),
             None,
@@ -117,15 +117,15 @@ where
     Some(completed)
 }
 
-/// Emits a [`ParseErrorKind::MissingToken`] diagnostic at the
+/// Emits a [`DiagnosticKind::MissingToken`] diagnostic at the
 /// current cursor position (zero-width [`TokenRange`]). Never
 /// consumes tokens and never emits a [`SyntaxKind::Error`] node —
 /// the parser refuses to synthesize a fake [`Token`].
 pub(crate) fn push_missing_token(p: &mut Parser, category: &'static str) {
     let at = p.cursor_position();
     let found = p.peek_lexical(0).map(|(_, t)| t);
-    p.push_error(ParseError::new(
-        ParseErrorKind::MissingToken,
+    p.push_diagnostic(Diagnostic::new(
+        DiagnosticKind::MissingToken,
         TokenRange::empty_at(at),
         Expected::Category(category),
         found,
@@ -167,9 +167,9 @@ mod tests {
         let _ = completed;
 
         let tree = p.syntax_tree();
-        assert_eq!(tree.errors().len(), 1);
-        let err = tree.errors()[0];
-        assert_eq!(err.kind(), ParseErrorKind::SkippedToken);
+        assert_eq!(tree.diagnostics().len(), 1);
+        let err = tree.diagnostics()[0];
+        assert_eq!(err.kind(), DiagnosticKind::SkippedToken);
         // The diagnostic range and the Error node range agree.
         let node = tree
             .syntax()
@@ -198,9 +198,9 @@ mod tests {
         p.finalize_pending_units_for_test();
 
         let tree = p.syntax_tree();
-        assert_eq!(tree.errors().len(), 1);
-        let err = tree.errors()[0];
-        assert_eq!(err.kind(), ParseErrorKind::SkippedToken);
+        assert_eq!(tree.diagnostics().len(), 1);
+        let err = tree.diagnostics()[0];
+        assert_eq!(err.kind(), DiagnosticKind::SkippedToken);
         let node = tree
             .syntax()
             .entry(crate::NodeId::new(1))
@@ -231,7 +231,7 @@ mod tests {
         assert!(result.is_none());
         outer.complete(&mut p, SyntaxKind::Error);
         p.finalize_pending_units_for_test();
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -270,19 +270,19 @@ mod tests {
             "push_missing_token must not add syntax entries"
         );
         let tree = p.syntax_tree();
-        assert_eq!(tree.errors().len(), 1);
-        let err = tree.errors()[0];
-        assert_eq!(err.kind(), ParseErrorKind::MissingToken);
+        assert_eq!(tree.diagnostics().len(), 1);
+        let err = tree.diagnostics()[0];
+        assert_eq!(err.kind(), DiagnosticKind::MissingToken);
         assert!(err.range().is_empty(), "missing-token range is zero-width");
     }
 
     #[test]
-    fn push_error_deduplicates_same_kind_at_same_cursor() {
+    fn push_diagnostic_deduplicates_same_kind_at_same_cursor() {
         let mut p = load("foo");
         push_missing_token(&mut p, "a");
         // Second push at the same cursor with the same kind is
         // collapsed.
         push_missing_token(&mut p, "b");
-        assert_eq!(p.syntax_tree().errors().len(), 1);
+        assert_eq!(p.syntax_tree().diagnostics().len(), 1);
     }
 }

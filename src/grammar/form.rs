@@ -9,13 +9,13 @@
 //!
 //! An input whose first lexical token fits neither branch emits a
 //! [`SyntaxKind::Error`] node covering the tokens the driver will
-//! eventually skip over, plus a [`crate::ParseError`] anchored at the
+//! eventually skip over, plus a [`crate::Diagnostic`] anchored at the
 //! bad token; the driver runs the shared unexpected-token loop
 //! afterwards, so the form still terminates at the next `.`.
 
 use erl_tokenize::{Symbol, TokenKind};
 
-use crate::error::{Expected, ParseError, ParseErrorKind};
+use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::attribute::parse_attribute;
 use crate::grammar::function::parse_function_decl;
 use crate::parser::{CompletedMarker, Parser};
@@ -30,8 +30,8 @@ pub(crate) fn parse_form(p: &mut Parser) -> CompletedMarker {
         Some(_) => {
             let m = p.start();
             let found = p.peek_lexical(0).map(|(_, t)| t);
-            p.push_error(ParseError::new(
-                ParseErrorKind::UnexpectedToken,
+            p.push_diagnostic(Diagnostic::new(
+                DiagnosticKind::UnexpectedToken,
                 TokenRange::empty_at(p.cursor_position()),
                 Expected::Category("`-` to open an attribute or an atom to open a function"),
                 found,
@@ -40,8 +40,8 @@ pub(crate) fn parse_form(p: &mut Parser) -> CompletedMarker {
         }
         None => {
             let m = p.start();
-            p.push_error(ParseError::new(
-                ParseErrorKind::UnexpectedEof,
+            p.push_diagnostic(Diagnostic::new(
+                DiagnosticKind::UnexpectedEof,
                 TokenRange::empty_at(p.cursor_position()),
                 Expected::Category("start of a module-level form"),
                 None,

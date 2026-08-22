@@ -165,7 +165,7 @@ fn try_catch_section_holds_both_clause_and_catch_clause_shapes() {
 #[test]
 fn try_catch_class_reason_can_be_a_match_pattern() {
     let tree = parse_expr("try foo() catch throw:{error, _} = E -> E end.");
-    assert!(tree.errors().is_empty(), "{:?}", tree.errors());
+    assert!(tree.diagnostics().is_empty(), "{:?}", tree.diagnostics());
     let try_node = root_view(&tree);
     let catch = find_child(try_node, erl_parse::SyntaxKind::TryCatchSection).expect("catch");
     let inner: Vec<erl_parse::SyntaxKind> = catch.children().map(|c| c.kind()).collect();

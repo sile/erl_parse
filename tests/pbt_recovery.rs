@@ -78,13 +78,13 @@ fn tree_invariants_hold_for_mutated_input() -> noprop::TestResult {
                 n = mutated.len()
             );
         }
-        if !tree.errors().is_empty() {
+        if !tree.diagnostics().is_empty() {
             saw_errors.bump();
-            for e in tree.errors() {
-                if e.kind() == erl_parse::ParseErrorKind::SkippedToken {
+            for e in tree.diagnostics() {
+                if e.kind() == erl_parse::DiagnosticKind::SkippedToken {
                     saw_skipped.set();
                 }
-                if e.kind() == erl_parse::ParseErrorKind::MissingToken {
+                if e.kind() == erl_parse::DiagnosticKind::MissingToken {
                     saw_missing.set();
                 }
             }
@@ -123,8 +123,8 @@ fn skipped_token_range_matches_error_node_range() -> noprop::TestResult {
         };
         let mutated = mutate_delete(ctx, &scanned, 3);
         let tree = pbt_harness::parse_full(erl_parse::ParseMode::Module, &mutated);
-        for err in tree.errors() {
-            if err.kind() != erl_parse::ParseErrorKind::SkippedToken {
+        for err in tree.diagnostics() {
+            if err.kind() != erl_parse::DiagnosticKind::SkippedToken {
                 continue;
             }
             let matched = tree
@@ -170,8 +170,8 @@ fn missing_token_does_not_fabricate_tokens() -> noprop::TestResult {
             "parser fabricated a token for MissingToken (pushed={pushed}, buffer={}); source {src:?}",
             tree.tokens().len(),
         );
-        for e in tree.errors() {
-            if e.kind() == erl_parse::ParseErrorKind::MissingToken {
+        for e in tree.diagnostics() {
+            if e.kind() == erl_parse::DiagnosticKind::MissingToken {
                 assert!(
                     e.range().is_empty(),
                     "MissingToken has non-empty range {:?} in {src:?}",
@@ -189,7 +189,7 @@ fn missing_token_does_not_fabricate_tokens() -> noprop::TestResult {
     Ok(())
 }
 
-/// Consecutive `erl_parse::ParseError`s never share `(kind, range().start())`.
+/// Consecutive `erl_parse::Diagnostic`s never share `(kind, range().start())`.
 /// Non-consecutive repetition is legal — this is the adjacent
 /// dedupe contract of `push_unique_at_cursor`.
 #[test]
@@ -204,7 +204,7 @@ fn adjacent_dedupe_holds_across_mutations() -> noprop::TestResult {
         };
         let mutated = mutate_delete(ctx, &scanned, 3);
         let tree = pbt_harness::parse_full(erl_parse::ParseMode::Module, &mutated);
-        let errs = tree.errors();
+        let errs = tree.diagnostics();
         for (i, pair) in errs.windows(2).enumerate() {
             let a = pair[0];
             let b = pair[1];
@@ -242,16 +242,16 @@ fn depth_cap_surfaces_as_structured_error() -> noprop::TestResult {
         };
         let tree = pbt_harness::parse_full(erl_parse::ParseMode::Expression, &tokens);
         assert!(
-            tree.errors()
+            tree.diagnostics()
                 .iter()
-                .any(|e| e.kind() == erl_parse::ParseErrorKind::NestingDepthExceeded),
+                .any(|e| e.kind() == erl_parse::DiagnosticKind::NestingDepthExceeded),
             "deep-paren source of length {} produced no NestingDepthExceeded",
             src.len()
         );
         hits.bump();
         // Sanity: the diagnostic anchors at a valid erl_parse::TokenIndex.
-        for e in tree.errors() {
-            if e.kind() == erl_parse::ParseErrorKind::NestingDepthExceeded {
+        for e in tree.diagnostics() {
+            if e.kind() == erl_parse::DiagnosticKind::NestingDepthExceeded {
                 let end: erl_parse::TokenIndex = tree.tokens().end_index();
                 assert!(e.range().start().get() <= end.get());
             }

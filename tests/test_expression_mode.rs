@@ -28,7 +28,7 @@ fn expression_mode_emits_unit_on_dot() {
     let node = parser.next_top_node().expect("unit completed at `.`");
     let tree = parser.finish();
     assert_eq!(kind_of(&tree, node), erl_parse::SyntaxKind::BinaryOpExpr);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
     // Root plus its two integer operands.
     assert!(tree.syntax().len() >= 3);
 }
@@ -40,7 +40,7 @@ fn expression_mode_finish_flushes_input_without_trailing_dot() {
     // No unit before finish because no `.` has been seen.
     assert!(parser.next_top_node().is_none());
     let tree = parser.finish();
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
     assert!(!tree.syntax().is_empty());
     assert_eq!(
         kind_of(&tree, erl_parse::NodeId::new(0)),
@@ -57,7 +57,7 @@ fn expression_mode_emits_multiple_units_across_dots() {
     let tree = parser.finish();
     assert_eq!(kind_of(&tree, first), erl_parse::SyntaxKind::IntegerExpr);
     assert_eq!(kind_of(&tree, second), erl_parse::SyntaxKind::IntegerExpr);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]

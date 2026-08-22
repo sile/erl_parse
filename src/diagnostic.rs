@@ -1,22 +1,35 @@
-//! Parse error type.
+//! Parse diagnostic type.
+//!
+//! A [`Diagnostic`] is a report about a syntax problem at a token-buffer
+//! range. The parser accumulates these on [`crate::SyntaxTree`] rather than
+//! returning them as `Result::Err`; a parse always produces a tree, and
+//! a strict caller treats [`crate::SyntaxTree::diagnostics`] being empty
+//! as success.
+//!
+//! Every diagnostic currently produced is a syntax error. Warnings and
+//! informational notes are not emitted yet.
 
 use erl_tokenize::Token;
 
 use crate::token_range::TokenRange;
 
-/// A syntactic error surfaced by the parser.
+/// A syntax diagnostic surfaced by the parser.
+///
+/// This is a diagnostic record, not an operation-failure type: it does
+/// not implement [`std::error::Error`], and the parser never returns it
+/// as `Result::Err`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ParseError {
-    kind: ParseErrorKind,
+pub struct Diagnostic {
+    kind: DiagnosticKind,
     range: TokenRange,
     expected: Expected,
     found: Option<Token>,
 }
 
-impl ParseError {
-    /// Builds a `ParseError` from its components.
+impl Diagnostic {
+    /// Builds a `Diagnostic` from its components.
     pub const fn new(
-        kind: ParseErrorKind,
+        kind: DiagnosticKind,
         range: TokenRange,
         expected: Expected,
         found: Option<Token>,
@@ -29,13 +42,13 @@ impl ParseError {
         }
     }
 
-    /// Returns the error's kind.
-    pub const fn kind(self) -> ParseErrorKind {
+    /// Returns the diagnostic's kind.
+    pub const fn kind(self) -> DiagnosticKind {
         self.kind
     }
 
-    /// Returns the primary range the error anchors on. Empty ranges are used
-    /// for boundary errors (for example unexpected EOF).
+    /// Returns the primary range the diagnostic anchors on. Empty ranges
+    /// are used for boundary reports (for example unexpected EOF).
     pub const fn range(self) -> TokenRange {
         self.range
     }
@@ -46,31 +59,31 @@ impl ParseError {
     }
 
     /// Returns the token that was actually found, if any. `None` when the
-    /// error anchors at a boundary (unexpected EOF) or when no specific
-    /// token can be blamed.
+    /// diagnostic anchors at a boundary (unexpected EOF) or when no
+    /// specific token can be blamed.
     pub const fn found(self) -> Option<Token> {
         self.found
     }
 }
 
-/// Category of a `ParseError`.
+/// Category of a [`Diagnostic`].
 ///
 /// The enum is not marked `#[non_exhaustive]`; adding a variant is treated
 /// as a normal breaking change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ParseErrorKind {
+pub enum DiagnosticKind {
     /// A token was found where a different token was expected.
     UnexpectedToken,
     /// End of input was reached where more tokens were expected.
     UnexpectedEof,
     /// One or more tokens were skipped by error recovery. The
-    /// [`ParseError::range`] covers the skipped span and matches the
+    /// [`Diagnostic::range`] covers the skipped span and matches the
     /// [`crate::SyntaxKind::Error`] node emitted for the same span so
     /// consumers can navigate from a diagnostic to the structural
     /// hole (and vice versa).
     SkippedToken,
     /// A required token was missing at the current cursor position.
-    /// The [`ParseError::range`] is zero-width (`start == end`) at
+    /// The [`Diagnostic::range`] is zero-width (`start == end`) at
     /// the boundary where the token would have appeared. The parser
     /// does not synthesize a fake token — no
     /// [`crate::SyntaxKind::Error`] node is emitted for a missing
@@ -84,24 +97,24 @@ pub enum ParseErrorKind {
     NestingDepthExceeded,
 }
 
-/// Appends `error` to `errors` unless the immediately preceding
-/// element already carries the same `kind` and starts at the same
+/// Appends `diagnostic` unless the immediately preceding element already
+/// carries the same `kind` and starts at the same
 /// [`TokenRange::start`]. This is a lightweight deduplication that
 /// keeps a recovery loop from re-emitting the same diagnostic when
 /// it tries several alternatives against the same cursor position;
 /// it deliberately does not scan the whole vector so appending
 /// stays O(1).
-pub(crate) fn push_unique_at_cursor(errors: &mut Vec<ParseError>, error: ParseError) {
-    if let Some(last) = errors.last()
-        && last.kind() == error.kind()
-        && last.range().start() == error.range().start()
+pub(crate) fn push_unique_at_cursor(diagnostics: &mut Vec<Diagnostic>, diagnostic: Diagnostic) {
+    if let Some(last) = diagnostics.last()
+        && last.kind() == diagnostic.kind()
+        && last.range().start() == diagnostic.range().start()
     {
         return;
     }
-    errors.push(error);
+    diagnostics.push(diagnostic);
 }
 
-/// What the grammar was expecting when a `ParseError` fired.
+/// What the grammar was expecting when a [`Diagnostic`] fired.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Expected {
     /// The site did not commit to a specific expectation.

@@ -2,7 +2,7 @@
 //!
 //! The parser owns a [`SyntaxTree`] (which bundles the growing
 //! `TokenBuffer`, the append-only `SyntaxIndex`, and the accumulated
-//! `ParseError`s) plus an internal event log that grammar functions
+//! `Diagnostic`s) plus an internal event log that grammar functions
 //! extend as they run. It exposes a small feed/pull API:
 //!
 //! - [`Parser::push_token`] appends one input token.
@@ -20,7 +20,7 @@
 use erl_tokenize::Token;
 
 use crate::cursor::{CursorCheckpoint, TokenCursor};
-use crate::error::{Expected, ParseError, ParseErrorKind};
+use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::event::Event;
 use crate::grammar::expr::parse_expr;
 use crate::grammar::ty::parse_type;
@@ -139,7 +139,7 @@ pub(crate) enum RecoveryContext {
 /// Set by [`Parser::set_context`] before calling grammar entry points
 /// that layer position-specific restrictions on top of the shared
 /// expression grammar. Grammar code queries this via
-/// [`Parser::context`] and pushes a [`ParseError`] (without stalling
+/// [`Parser::context`] and pushes a [`Diagnostic`] (without stalling
 /// the cursor) when a construct is not allowed in the active context.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ParseContext {
@@ -177,7 +177,7 @@ pub struct Parser {
     /// [`Parser::enter_depth`] / [`Parser::leave_depth`]. Capped at
     /// [`Parser::MAX_NESTING_DEPTH`]: recursive grammar sites that
     /// try to descend past the cap short-circuit with a
-    /// [`ParseErrorKind::NestingDepthExceeded`] diagnostic instead
+    /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic instead
     /// of overflowing the stack.
     depth: usize,
     /// The `(context, cursor position)` of the most recent recovery
@@ -223,7 +223,7 @@ impl Parser {
     /// increment an internal counter as they descend. When a
     /// caller tries to descend past `MAX_NESTING_DEPTH`, the site
     /// returns without recursing and records a
-    /// [`ParseErrorKind::NestingDepthExceeded`] diagnostic so a
+    /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic so a
     /// pathologically nested input surfaces as a structured error
     /// rather than a stack overflow.
     ///
@@ -237,7 +237,7 @@ impl Parser {
     ///
     /// Grammar nesting is bounded by [`Self::MAX_NESTING_DEPTH`]:
     /// hitting the cap emits a
-    /// [`ParseErrorKind::NestingDepthExceeded`] diagnostic and
+    /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic and
     /// unwinds to a bounded depth instead of panicking or
     /// overflowing the stack.
     pub fn new(mode: ParseMode) -> Self {
@@ -312,8 +312,8 @@ impl Parser {
     /// [`SyntaxTree`].
     ///
     /// If a top-level unit is still in progress an
-    /// [`UnexpectedEof`][ParseErrorKind::UnexpectedEof] is appended to
-    /// the error list — its [`ParseError::range`] matches the
+    /// [`UnexpectedEof`][DiagnosticKind::UnexpectedEof] is appended to
+    /// the diagnostic list — its [`Diagnostic::range`] matches the
     /// force-closed [`SyntaxKind::Error`] node's `TokenRange` (from
     /// the unterminated unit's start to the buffer's end) — and the
     /// unit is force-closed as [`SyntaxKind::Error`] so it survives
@@ -322,9 +322,9 @@ impl Parser {
         self.advance_grammar();
         // If lexical tokens remain past the cursor (the buffer ended
         // without a terminating `.`), treat the remaining input as
-        // one final unit for the mode. Errors surfaced by the mode's
+        // one final unit for the mode. Diagnostics surfaced by the mode's
         // grammar (missing `.`, missing closing delimiter, etc.)
-        // flow into the tree's error list as usual.
+        // flow into the tree's diagnostic list as usual.
         if self.peek_lexical(0).is_some() {
             self.unit_events_cursor = self.events.len();
             let _completed = match self.mode {
@@ -341,7 +341,7 @@ impl Parser {
             // The force-closed Error node covers the unterminated unit
             // from its outer Start's `start_at` to the buffer's end.
             // Anchor the diagnostic to the same range so
-            // `ParseError::range() == Error node's TokenRange` holds
+            // `Diagnostic::range() == Error node's TokenRange` holds
             // for this force-close path as well.
             let event_index = self
                 .unit_start_event
@@ -352,10 +352,10 @@ impl Parser {
                 _ => unreachable!("unit_start_event must point at a Start event"),
             };
             let node_range = TokenRange::new(node_start, end);
-            crate::error::push_unique_at_cursor(
-                self.tree.errors_mut(),
-                ParseError::new(
-                    ParseErrorKind::UnexpectedEof,
+            crate::diagnostic::push_unique_at_cursor(
+                self.tree.diagnostics_mut(),
+                Diagnostic::new(
+                    DiagnosticKind::UnexpectedEof,
                     node_range,
                     Expected::Unspecified,
                     None,
@@ -409,20 +409,20 @@ impl Parser {
     }
 
     /// Returns the cursor's current position as a [`TokenIndex`], for use
-    /// in [`ParseError`] ranges.
+    /// in [`Diagnostic`] ranges.
     pub(crate) fn cursor_position(&self) -> TokenIndex {
         TokenIndex::new(self.at)
     }
 
-    /// Appends a [`ParseError`] to the accumulated errors,
+    /// Appends a [`Diagnostic`] to the accumulated list,
     /// deduplicating against the immediately preceding element:
-    /// consecutive attempts to append an error of the same
-    /// [`ParseErrorKind`] anchored at the same
+    /// consecutive attempts to append a diagnostic of the same
+    /// [`DiagnosticKind`] anchored at the same
     /// [`TokenRange::start`] are collapsed to a single entry so a
     /// recovery loop that tries several alternatives at the same
     /// cursor position does not surface the same diagnostic twice.
-    pub(crate) fn push_error(&mut self, error: ParseError) {
-        crate::error::push_unique_at_cursor(self.tree.errors_mut(), error);
+    pub(crate) fn push_diagnostic(&mut self, diagnostic: Diagnostic) {
+        crate::diagnostic::push_unique_at_cursor(self.tree.diagnostics_mut(), diagnostic);
     }
 
     /// Enters a nested grammar site and increments the depth
@@ -430,7 +430,7 @@ impl Parser {
     /// `false` when the site would exceed
     /// [`Self::MAX_NESTING_DEPTH`], in which case the caller must
     /// stop recursing (and typically emits a
-    /// [`ParseErrorKind::NestingDepthExceeded`] via
+    /// [`DiagnosticKind::NestingDepthExceeded`] via
     /// [`Self::push_nesting_depth_exceeded`] and abandons the
     /// deeper markers). Successful entries must be matched by
     /// [`Self::leave_depth`].
@@ -452,13 +452,13 @@ impl Parser {
         }
     }
 
-    /// Pushes a zero-width [`ParseErrorKind::NestingDepthExceeded`]
+    /// Pushes a zero-width [`DiagnosticKind::NestingDepthExceeded`]
     /// diagnostic at the current cursor position, deduplicated by
-    /// [`Self::push_error`].
+    /// [`Self::push_diagnostic`].
     pub(crate) fn push_nesting_depth_exceeded(&mut self) {
         let at = self.cursor_position();
-        self.push_error(ParseError::new(
-            ParseErrorKind::NestingDepthExceeded,
+        self.push_diagnostic(Diagnostic::new(
+            DiagnosticKind::NestingDepthExceeded,
             TokenRange::empty_at(at),
             Expected::Unspecified,
             None,
@@ -562,7 +562,7 @@ impl Parser {
         Checkpoint {
             cursor: TokenCursor::new(self.tree.tokens(), self.at).save(),
             events_len: self.events.len(),
-            errors_len: self.tree.errors().len(),
+            diagnostics_len: self.tree.diagnostics().len(),
         }
     }
 
@@ -578,7 +578,9 @@ impl Parser {
     pub(crate) fn restore(&mut self, checkpoint: Checkpoint) {
         self.at = checkpoint.cursor.at();
         self.events.truncate(checkpoint.events_len);
-        self.tree.errors_mut().truncate(checkpoint.errors_len);
+        self.tree
+            .diagnostics_mut()
+            .truncate(checkpoint.diagnostics_len);
     }
 
     /// Runs `body` inside a nesting-depth-tracked block. `body` returns the
@@ -666,7 +668,7 @@ impl Parser {
     /// the boundary dot are swept up by the recovery helper
     /// [`crate::grammar::recovery::skip_until_sync`] into a single
     /// [`SyntaxKind::Error`] node with a matching
-    /// [`ParseErrorKind::SkippedToken`] diagnostic; the boundary
+    /// [`DiagnosticKind::SkippedToken`] diagnostic; the boundary
     /// dot itself is consumed after that so the cursor never
     /// stalls. Between top-level units the in-progress state is
     /// reset to its default so a stale field cannot leak across
@@ -843,13 +845,13 @@ impl CompletedMarker {
     }
 }
 
-/// Bundle of `(cursor, events_len, errors_len)` used by grammar to unwind
+/// Bundle of `(cursor, events_len, diagnostics_len)` used by grammar to unwind
 /// after a failed alternative.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Checkpoint {
     cursor: CursorCheckpoint,
     events_len: usize,
-    errors_len: usize,
+    diagnostics_len: usize,
 }
 
 /// Zero-sized proof returned by parser-loop bodies that at least one token
@@ -1027,7 +1029,7 @@ mod tests {
         let mut p = Parser::new(ParseMode::Module);
         assert!(p.next_top_node().is_none());
         assert!(p.syntax_tree().syntax().is_empty());
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -1047,7 +1049,7 @@ mod tests {
         let node = p.next_top_node().expect("unit completed at dot");
         assert_eq!(node, NodeId::new(0));
         assert!(p.next_top_node().is_none(), "one unit only");
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -1064,7 +1066,7 @@ mod tests {
         let second = p.next_top_node().expect("second form");
         assert_ne!(first, second);
         let tree = p.finish();
-        assert!(tree.errors().is_empty());
+        assert!(tree.diagnostics().is_empty());
     }
 
     #[test]
@@ -1078,7 +1080,7 @@ mod tests {
         assert!(p.next_top_node().is_none());
         let tree = p.finish();
         assert!(!tree.syntax().is_empty());
-        assert!(!tree.errors().is_empty());
+        assert!(!tree.diagnostics().is_empty());
     }
 
     #[test]
@@ -1091,7 +1093,7 @@ mod tests {
         let ta = a.syntax_tree();
         let tb = b.syntax_tree();
         assert_eq!(ta.syntax().len(), tb.syntax().len());
-        assert_eq!(ta.errors().len(), tb.errors().len());
+        assert_eq!(ta.diagnostics().len(), tb.diagnostics().len());
         for i in 0..ta.syntax().len() {
             assert_eq!(
                 ta.syntax().entry(NodeId::new(i)),
@@ -1136,7 +1138,7 @@ mod tests {
     }
 
     #[test]
-    fn checkpoint_restores_cursor_events_and_errors() {
+    fn checkpoint_restores_cursor_events_and_diagnostics() {
         let mut p = Parser::new(ParseMode::Module);
         // Push two lexical tokens without a boundary so the stub grammar
         // consumes them into an in-progress unit; then reset the cursor
@@ -1145,28 +1147,28 @@ mod tests {
         p.at = 0;
         p.unit_in_progress = false;
         p.unit_events_cursor = p.events.len();
-        p.tree.errors_mut().clear();
+        p.tree.diagnostics_mut().clear();
 
         let ckpt = p.checkpoint();
         let before_at = p.at;
         let before_events = p.events.len();
-        // Advance the cursor and add a speculative error.
+        // Advance the cursor and add a speculative diagnostic.
         let _ = p.consume_lexical();
-        p.tree.errors_mut().push(ParseError::new(
-            ParseErrorKind::UnexpectedToken,
+        p.tree.diagnostics_mut().push(Diagnostic::new(
+            DiagnosticKind::UnexpectedToken,
             TokenRange::empty_at(TokenIndex::new(0)),
             Expected::Unspecified,
             None,
         ));
         assert!(p.at > before_at);
-        assert_eq!(p.syntax_tree().errors().len(), 1);
+        assert_eq!(p.syntax_tree().diagnostics().len(), 1);
 
         p.restore(ckpt);
         assert_eq!(p.at, before_at);
         assert_eq!(p.events.len(), before_events);
         assert!(
-            p.syntax_tree().errors().is_empty(),
-            "restored errors are dropped"
+            p.syntax_tree().diagnostics().is_empty(),
+            "restored diagnostics are dropped"
         );
     }
 

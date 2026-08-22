@@ -47,11 +47,14 @@ fn contains_error_node(tree: &erl_parse::SyntaxTree) -> bool {
         .any(|e| e.kind() == erl_parse::SyntaxKind::Error)
 }
 
-fn find_error_by_kind(
+fn find_diagnostic_by_kind(
     tree: &erl_parse::SyntaxTree,
-    kind: erl_parse::ParseErrorKind,
-) -> Option<erl_parse::ParseError> {
-    tree.errors().iter().find(|e| e.kind() == kind).copied()
+    kind: erl_parse::DiagnosticKind,
+) -> Option<erl_parse::Diagnostic> {
+    tree.diagnostics()
+        .iter()
+        .find(|e| e.kind() == kind)
+        .copied()
 }
 
 #[test]
@@ -67,19 +70,22 @@ fn malformed_form_is_followed_by_recovered_next_form() {
         erl_parse::SyntaxKind::Attribute,
         "the trailing `-ok.` still parses"
     );
-    assert!(!tree.errors().is_empty(), "the first form produced errors");
+    assert!(
+        !tree.diagnostics().is_empty(),
+        "the first form produced errors"
+    );
 }
 
 #[test]
 fn multiple_independent_errors_come_out_of_one_module() {
     // Three malformed forms and one good one. Errors are separate
-    // structured `erl_parse::ParseError`s, not one aggregated blob.
+    // structured `erl_parse::Diagnostic`s, not one aggregated blob.
     let source = "1 2 .\n) .\n( .\n-ok.";
     let (tree, _roots) = drive(erl_parse::ParseMode::Module, source);
     assert!(
-        tree.errors().len() >= 2,
+        tree.diagnostics().len() >= 2,
         "expected several errors, got {:?}",
-        tree.errors()
+        tree.diagnostics()
     );
 }
 
@@ -90,7 +96,7 @@ fn skipped_token_diagnostic_range_matches_error_node_range() {
     // SkippedToken diagnostic.
     let source = "].";
     let (tree, _roots) = drive(erl_parse::ParseMode::Expression, source);
-    let skipped = find_error_by_kind(&tree, erl_parse::ParseErrorKind::SkippedToken)
+    let skipped = find_diagnostic_by_kind(&tree, erl_parse::DiagnosticKind::SkippedToken)
         .expect("skip_one_token emits a SkippedToken");
     let error_node = tree
         .syntax()
@@ -113,7 +119,7 @@ fn missing_token_diagnostic_is_zero_width_and_no_error_node_is_added() {
     // producing an Error node for the missing token itself.
     let source = "foo(1.";
     let (tree, _roots) = drive(erl_parse::ParseMode::Expression, source);
-    let missing = find_error_by_kind(&tree, erl_parse::ParseErrorKind::MissingToken)
+    let missing = find_diagnostic_by_kind(&tree, erl_parse::DiagnosticKind::MissingToken)
         .expect("expect_symbol emits a MissingToken");
     assert!(missing.range().is_empty(), "missing token is zero-width");
     assert!(!tree.syntax().is_empty());
@@ -123,8 +129,8 @@ fn missing_token_diagnostic_is_zero_width_and_no_error_node_is_added() {
 fn recovery_dedupes_same_error_at_the_same_cursor() {
     let source = "1 2 .";
     let (tree, _roots) = drive(erl_parse::ParseMode::Module, source);
-    let mut seen: Vec<(erl_parse::ParseErrorKind, erl_parse::TokenIndex)> = Vec::new();
-    for e in tree.errors() {
+    let mut seen: Vec<(erl_parse::DiagnosticKind, erl_parse::TokenIndex)> = Vec::new();
+    for e in tree.diagnostics() {
         let key = (e.kind(), e.range().start());
         assert!(
             !seen.contains(&key),
@@ -146,7 +152,7 @@ fn top_level_recovery_produces_error_nodes_that_survive_in_the_syntax_index() {
         contains_error_node(&tree),
         "driver's skip_until_sync must leave an Error node behind"
     );
-    let skipped = find_error_by_kind(&tree, erl_parse::ParseErrorKind::SkippedToken)
+    let skipped = find_diagnostic_by_kind(&tree, erl_parse::DiagnosticKind::SkippedToken)
         .expect("skip_until_sync emits a SkippedToken");
     let error_node_range = tree
         .syntax()
@@ -186,7 +192,7 @@ fn deeply_nested_expression_hits_the_depth_cap_without_stack_overflow() {
     src.push('.');
 
     let (tree, _roots) = drive(erl_parse::ParseMode::Expression, &src);
-    let hit = find_error_by_kind(&tree, erl_parse::ParseErrorKind::NestingDepthExceeded);
+    let hit = find_diagnostic_by_kind(&tree, erl_parse::DiagnosticKind::NestingDepthExceeded);
     assert!(
         hit.is_some(),
         "expected at least one NestingDepthExceeded diagnostic"
@@ -210,18 +216,18 @@ fn parser_does_not_synthesize_a_fake_token_on_missing_close_paren() {
 
 #[test]
 fn tokenizer_lexer_errors_are_not_reported_as_parser_errors() {
-    // Only erl_parse::ParseErrorKind values the parser owns appear in the
+    // Only erl_parse::DiagnosticKind values the parser owns appear in the
     // tree's errors — a new kind would need to be added here
     // deliberately.
     let source = "1 2 .";
     let (tree, _roots) = drive(erl_parse::ParseMode::Module, source);
-    for e in tree.errors() {
+    for e in tree.diagnostics() {
         match e.kind() {
-            erl_parse::ParseErrorKind::UnexpectedToken
-            | erl_parse::ParseErrorKind::UnexpectedEof
-            | erl_parse::ParseErrorKind::SkippedToken
-            | erl_parse::ParseErrorKind::MissingToken
-            | erl_parse::ParseErrorKind::NestingDepthExceeded => {}
+            erl_parse::DiagnosticKind::UnexpectedToken
+            | erl_parse::DiagnosticKind::UnexpectedEof
+            | erl_parse::DiagnosticKind::SkippedToken
+            | erl_parse::DiagnosticKind::MissingToken
+            | erl_parse::DiagnosticKind::NestingDepthExceeded => {}
         }
     }
 }
@@ -261,7 +267,7 @@ fn term_list_recovers_a_malformed_term_and_parses_the_next() {
     let source = "{ok, 1}.\nX.\n{ok, 2}.";
     let (tree, roots) = drive(erl_parse::ParseMode::TermList, source);
     assert_eq!(roots.len(), 3, "each `.`-terminated unit yields a root");
-    assert!(!tree.errors().is_empty());
+    assert!(!tree.diagnostics().is_empty());
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::TupleExpr);
     assert_eq!(kind_of(&tree, roots[2]), erl_parse::SyntaxKind::TupleExpr);
 }
@@ -270,7 +276,11 @@ fn term_list_recovers_a_malformed_term_and_parses_the_next() {
 fn error_ranges_are_usable_as_keys_into_external_metadata() {
     let source = "1 2 .";
     let (tree, _roots) = drive(erl_parse::ParseMode::Module, source);
-    let err = tree.errors().first().copied().expect("at least one error");
+    let err = tree
+        .diagnostics()
+        .first()
+        .copied()
+        .expect("at least one error");
     let start = err.range().start();
     assert!(start.get() <= tree.tokens().end_index().get());
 }

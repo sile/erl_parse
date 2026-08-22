@@ -6,7 +6,7 @@ mod pbt_harness;
 
 /// Two fresh `erl_parse::Parser` instances driven with the same tokens in the
 /// same order produce byte-identical `SyntaxIndex` entries and
-/// `erl_parse::ParseError` sequences.
+/// `erl_parse::Diagnostic` sequences.
 #[test]
 fn determinism_across_two_parsers() -> noprop::TestResult {
     let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
@@ -31,8 +31,8 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
             "syntax indexes disagree for source {src:?}"
         );
         assert_eq!(
-            ta.errors(),
-            tb.errors(),
+            ta.diagnostics(),
+            tb.diagnostics(),
             "errors disagree for source {src:?}"
         );
         Ok(())
@@ -41,7 +41,7 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
 }
 
 /// Two parsers driven with the same tokens produce the same
-/// `SyntaxIndex` / `erl_parse::ParseError` regardless of whether the caller
+/// `SyntaxIndex` / `erl_parse::Diagnostic` regardless of whether the caller
 /// interleaves `next_top_node` / `state` / `syntax_tree`
 /// observations between `push_token` calls or defers all
 /// observation until `finish` returns.
@@ -78,8 +78,8 @@ fn observation_invariance() -> noprop::TestResult {
             "observation altered syntax entries for source {src:?}"
         );
         assert_eq!(
-            tq.errors(),
-            tn.errors(),
+            tq.diagnostics(),
+            tn.diagnostics(),
             "observation altered errors for source {src:?}"
         );
         Ok(())

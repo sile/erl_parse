@@ -109,8 +109,8 @@ fn main() -> noargs::Result<ExitCode> {
                 .tree
                 .as_ref()
                 .and_then(|tree| {
-                    let err = tree.errors().first()?;
-                    let line = otp_conformance::first_error_line(tree)?;
+                    let err = tree.diagnostics().first()?;
+                    let line = otp_conformance::first_diagnostic_line(tree)?;
                     Some(format!(
                         "{:?} at line {line}, expected {:?}, found {:?}",
                         err.kind(),

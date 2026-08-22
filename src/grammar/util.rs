@@ -2,7 +2,7 @@
 //! grammar modules.
 //!
 //! These wrap the parser core's `peek_lexical` / `consume_lexical` /
-//! `push_error` primitives with the "peek for a specific token /
+//! `push_diagnostic` primitives with the "peek for a specific token /
 //! consume-or-error" pattern that grammar productions repeat.
 
 use erl_tokenize::{Keyword, Symbol, Token, TokenKind};
@@ -36,7 +36,7 @@ pub(crate) fn is_keyword(token: Token, kw: Keyword) -> bool {
 }
 
 /// Consumes the next lexical token if it is [`Symbol`] `sym`.
-/// Otherwise emits a [`ParseErrorKind::MissingToken`] diagnostic
+/// Otherwise emits a [`DiagnosticKind::MissingToken`] diagnostic
 /// (zero-width `TokenRange` at the cursor) via
 /// [`crate::grammar::recovery::push_missing_token`] and does not
 /// advance — the parser refuses to synthesize a fake `Token`, so
@@ -51,7 +51,7 @@ pub(crate) fn expect_symbol(p: &mut Parser, sym: Symbol, msg: &'static str) {
 
 /// Consumes the next lexical token if it is [`Keyword`] `kw`.
 /// Otherwise behaves as for [`expect_symbol`]: emits a
-/// [`ParseErrorKind::MissingToken`] diagnostic and does not
+/// [`DiagnosticKind::MissingToken`] diagnostic and does not
 /// advance.
 pub(crate) fn expect_keyword(p: &mut Parser, kw: Keyword, msg: &'static str) {
     if at_keyword(p, kw) {
@@ -62,7 +62,7 @@ pub(crate) fn expect_keyword(p: &mut Parser, kw: Keyword, msg: &'static str) {
 }
 
 /// Consumes the next lexical token if it is an atom or a variable;
-/// on mismatch emits a [`ParseErrorKind::MissingToken`] diagnostic
+/// on mismatch emits a [`DiagnosticKind::MissingToken`] diagnostic
 /// (zero-width [`TokenRange`] at the cursor) and does not advance.
 pub(crate) fn consume_atom_or_var(p: &mut Parser, msg: &'static str) {
     match p.peek_lexical(0).map(|(_, t)| t.kind()) {
@@ -74,7 +74,7 @@ pub(crate) fn consume_atom_or_var(p: &mut Parser, msg: &'static str) {
 }
 
 /// Consumes the next lexical token if it is an integer or a
-/// variable; on mismatch emits a [`ParseErrorKind::MissingToken`]
+/// variable; on mismatch emits a [`DiagnosticKind::MissingToken`]
 /// diagnostic and does not advance.
 pub(crate) fn consume_integer_or_var(p: &mut Parser, msg: &'static str) {
     match p.peek_lexical(0).map(|(_, t)| t.kind()) {

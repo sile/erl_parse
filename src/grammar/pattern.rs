@@ -4,9 +4,9 @@
 //! [`crate::grammar::expr`], but switches the parser into
 //! [`ParseContext::Pattern`] so that expression-only constructs (calls,
 //! blocks, funs, comprehensions, remote qualifiers, sends, and
-//! maybe-matches) push a [`ParseError`] rather than pass silently. The
+//! maybe-matches) push a [`Diagnostic`] rather than pass silently. The
 //! shape of the syntax tree is the same as for expressions; downstream
-//! consumers see a structured node in every position, plus errors that
+//! consumers see a structured node in every position, plus diagnostics that
 //! flag positions where restrictions were violated.
 
 use crate::grammar::expr::parse_expr;
@@ -16,8 +16,8 @@ use crate::parser::{CompletedMarker, ParseContext, Parser};
 ///
 /// Delegates to [`parse_expr`][crate::grammar::expr::parse_expr] with
 /// [`ParseContext::Pattern`] active for the span; restrictions are
-/// enforced through structured [`ParseError`][crate::ParseError]s
-/// appended to the parser's error list.
+/// enforced through structured [`Diagnostic`][crate::Diagnostic]s
+/// appended to the parser's diagnostic list.
 pub(crate) fn parse_pattern(p: &mut Parser) -> CompletedMarker {
     let prev = p.set_context(ParseContext::Pattern);
     let completed = parse_expr(p);
@@ -75,7 +75,7 @@ mod tests {
             let root = p.next_top_node().expect("unit");
             assert_eq!(first_child_kind(&p, root), kind, "source {source}");
             assert!(
-                p.syntax_tree().errors().is_empty(),
+                p.syntax_tree().diagnostics().is_empty(),
                 "source {source} produced unexpected errors"
             );
         }
@@ -93,7 +93,7 @@ mod tests {
             let mut p = drive_pattern(source);
             let _ = p.next_top_node().expect("unit");
             assert!(
-                p.syntax_tree().errors().is_empty(),
+                p.syntax_tree().diagnostics().is_empty(),
                 "source {source} produced unexpected errors"
             );
         }
@@ -105,14 +105,14 @@ mod tests {
         let mut p = drive_pattern("X = {a, B}");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MatchExpr);
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
     fn rejects_call_in_pattern_position() {
         let mut p = drive_pattern("f(1)");
         let _ = p.next_top_node().expect("unit");
-        assert!(!p.syntax_tree().errors().is_empty());
+        assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -126,7 +126,7 @@ mod tests {
             let mut p = drive_pattern(source);
             let _ = p.next_top_node().expect("unit");
             assert!(
-                !p.syntax_tree().errors().is_empty(),
+                !p.syntax_tree().diagnostics().is_empty(),
                 "source {source} should have produced an error"
             );
         }
@@ -136,24 +136,24 @@ mod tests {
     fn rejects_comprehension_in_pattern_position() {
         let mut p = drive_pattern("[X || X <- L]");
         let _ = p.next_top_node().expect("unit");
-        assert!(!p.syntax_tree().errors().is_empty());
+        assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
     fn rejects_remote_qualifier_and_send_in_pattern_position() {
         let mut p = drive_pattern("mod:foo");
         let _ = p.next_top_node().expect("unit");
-        assert!(!p.syntax_tree().errors().is_empty());
+        assert!(!p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive_pattern("Pid ! msg");
         let _ = p.next_top_node().expect("unit");
-        assert!(!p.syntax_tree().errors().is_empty());
+        assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
     fn rejects_catch_prefix_in_pattern_position() {
         let mut p = drive_pattern("catch 1");
         let _ = p.next_top_node().expect("unit");
-        assert!(!p.syntax_tree().errors().is_empty());
+        assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 }

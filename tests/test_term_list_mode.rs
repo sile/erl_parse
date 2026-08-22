@@ -37,7 +37,7 @@ fn empty_term_list_emits_no_units_and_no_errors() {
     let (tree, roots) = drive("");
     assert!(roots.is_empty());
     assert!(tree.syntax().is_empty());
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -49,25 +49,25 @@ fn sequence_of_literal_terms_yields_one_unit_per_term() {
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::TupleExpr);
     assert_eq!(kind_of(&tree, roots[1]), erl_parse::SyntaxKind::TupleExpr);
     assert_eq!(kind_of(&tree, roots[2]), erl_parse::SyntaxKind::ListExpr);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
 fn variables_are_rejected_in_term_position() {
     let (tree, _roots) = drive("X.");
-    assert!(!tree.errors().is_empty());
+    assert!(!tree.diagnostics().is_empty());
 }
 
 #[test]
 fn calls_are_rejected_in_term_position() {
     let (tree, _roots) = drive("foo(1).");
-    assert!(!tree.errors().is_empty());
+    assert!(!tree.diagnostics().is_empty());
 }
 
 #[test]
 fn blocks_are_rejected_in_term_position() {
     let (tree, _roots) = drive("begin 1 end.");
-    assert!(!tree.errors().is_empty());
+    assert!(!tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -77,5 +77,5 @@ fn hidden_tokens_between_terms_are_preserved_in_buffer() {
     assert_eq!(roots.len(), 2);
     let scanned = scan_all(source);
     assert_eq!(tree.tokens().len(), scanned.len());
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }

@@ -36,7 +36,7 @@ fn type_mode_emits_unit_on_dot() {
     let (tree, roots) = drive("foo.");
     assert_eq!(roots.len(), 1);
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::AtomExpr);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -45,7 +45,7 @@ fn type_mode_finish_flushes_input_without_trailing_dot() {
     push_all(&mut parser, "list(integer())");
     assert!(parser.next_top_node().is_none());
     let tree = parser.finish();
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
     assert_eq!(
         kind_of(&tree, erl_parse::NodeId::new(0)),
         erl_parse::SyntaxKind::TypeCall
@@ -58,7 +58,7 @@ fn type_mode_emits_multiple_units_across_dots() {
     assert_eq!(roots.len(), 2);
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::TypeCall);
     assert_eq!(kind_of(&tree, roots[1]), erl_parse::SyntaxKind::TypeCall);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn type_mode_parses_union() {
     let (tree, roots) = drive("atom() | integer() | binary().");
     assert_eq!(roots.len(), 1);
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::UnionType);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -74,23 +74,29 @@ fn type_mode_parses_range() {
     let (tree, roots) = drive("1 .. 100.");
     assert_eq!(roots.len(), 1);
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::RangeType);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
 fn type_mode_parses_annotated() {
     let (tree, roots) = drive("Var :: integer().");
     assert_eq!(roots.len(), 1);
-    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::AnnotatedType);
-    assert!(tree.errors().is_empty());
+    assert_eq!(
+        kind_of(&tree, roots[0]),
+        erl_parse::SyntaxKind::AnnotatedType
+    );
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
 fn type_mode_parses_function_type() {
     let (tree, roots) = drive("fun((atom(), integer()) -> boolean()).");
     assert_eq!(roots.len(), 1);
-    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::FunctionType);
-    assert!(tree.errors().is_empty());
+    assert_eq!(
+        kind_of(&tree, roots[0]),
+        erl_parse::SyntaxKind::FunctionType
+    );
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -98,7 +104,7 @@ fn type_mode_parses_map_type() {
     let (tree, roots) = drive("#{atom() => integer()}.");
     assert_eq!(roots.len(), 1);
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::MapType);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
@@ -106,13 +112,16 @@ fn type_mode_parses_record_type() {
     let (tree, roots) = drive("#user{name :: binary()}.");
     assert_eq!(roots.len(), 1);
     assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::RecordType);
-    assert!(tree.errors().is_empty());
+    assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
 fn type_mode_parses_bitstring_type() {
     let (tree, roots) = drive("<<_:8, _:_*4>>.");
     assert_eq!(roots.len(), 1);
-    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::BitstringType);
-    assert!(tree.errors().is_empty());
+    assert_eq!(
+        kind_of(&tree, roots[0]),
+        erl_parse::SyntaxKind::BitstringType
+    );
+    assert!(tree.diagnostics().is_empty());
 }

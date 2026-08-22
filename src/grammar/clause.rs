@@ -148,7 +148,7 @@ fn is_class_qualified_try_clause_head(p: &Parser) -> bool {
 /// under [`crate::parser::RecoveryContext::Clause`] via
 /// [`crate::grammar::recovery::skip_until_sync`]: the skipped span
 /// becomes a [`SyntaxKind::Error`] node with a matching
-/// [`crate::error::ParseErrorKind::SkippedToken`] diagnostic and
+/// [`crate::diagnostic::DiagnosticKind::SkippedToken`] diagnostic and
 /// the loop resumes from the sync token. This keeps a garbled
 /// clause head from swallowing the rest of the block.
 pub(crate) fn parse_semicolon_separated<F>(p: &mut Parser, mut production: F)

@@ -452,12 +452,12 @@ pub enum InvariantViolation {
         child: erl_parse::NodeId,
         child_range: erl_parse::TokenRange,
     },
-    /// Two adjacent errors with the same `(kind, start)` appear in
-    /// `errors()` — the `push_unique_at_cursor` adjacent-dedupe
+    /// Two adjacent diagnostics with the same `(kind, start)` appear in
+    /// `diagnostics()` — the `push_unique_at_cursor` adjacent-dedupe
     /// contract was violated.
     AdjacentDuplicateError {
         first_idx: usize,
-        kind: erl_parse::ParseErrorKind,
+        kind: erl_parse::DiagnosticKind,
         start: erl_parse::TokenIndex,
     },
     /// A `SkippedToken` diagnostic did not have a matching
@@ -545,8 +545,8 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
         }
     }
 
-    // Adjacent-dedupe invariant on errors.
-    let errs = tree.errors();
+    // Adjacent-dedupe invariant on diagnostics.
+    let errs = tree.diagnostics();
     for w in errs.windows(2).enumerate() {
         let (i, pair) = w;
         let a = pair[0];
@@ -563,7 +563,7 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
     // SkippedToken / MissingToken contracts.
     for (idx, err) in errs.iter().enumerate() {
         match err.kind() {
-            erl_parse::ParseErrorKind::SkippedToken => {
+            erl_parse::DiagnosticKind::SkippedToken => {
                 let matches_node = syntax
                     .entries()
                     .iter()
@@ -575,7 +575,7 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
                     });
                 }
             }
-            erl_parse::ParseErrorKind::MissingToken if !err.range().is_empty() => {
+            erl_parse::DiagnosticKind::MissingToken if !err.range().is_empty() => {
                 violations.push(InvariantViolation::MissingTokenNotZeroWidth {
                     error_idx: idx,
                     range: err.range(),
@@ -617,10 +617,10 @@ pub fn assert_tokens_unchanged(tokens: &erl_parse::TokenBuffer, expected: &[erl_
 // examples.
 // -----------------------------------------------------------------
 
-/// Runs the adjacent-dedupe invariant on a synthetic error list to
+/// Runs the adjacent-dedupe invariant on a synthetic diagnostic list to
 /// confirm the helper's logic rejects a broken input.
-pub fn adjacent_dedupe_check(errors: &[erl_parse::ParseError]) -> Result<(), usize> {
-    for (i, pair) in errors.windows(2).enumerate() {
+pub fn adjacent_dedupe_check(diagnostics: &[erl_parse::Diagnostic]) -> Result<(), usize> {
+    for (i, pair) in diagnostics.windows(2).enumerate() {
         if pair[0].kind() == pair[1].kind() && pair[0].range().start() == pair[1].range().start() {
             return Err(i);
         }
@@ -629,10 +629,10 @@ pub fn adjacent_dedupe_check(errors: &[erl_parse::ParseError]) -> Result<(), usi
 }
 
 /// Runs the `MissingToken` zero-width invariant on a synthetic
-/// error to confirm the helper rejects a non-empty range under
+/// diagnostic to confirm the helper rejects a non-empty range under
 /// `MissingToken` kind.
-pub fn missing_zero_width_check(err: erl_parse::ParseError) -> Result<(), erl_parse::TokenRange> {
-    if err.kind() == erl_parse::ParseErrorKind::MissingToken && !err.range().is_empty() {
+pub fn missing_zero_width_check(err: erl_parse::Diagnostic) -> Result<(), erl_parse::TokenRange> {
+    if err.kind() == erl_parse::DiagnosticKind::MissingToken && !err.range().is_empty() {
         return Err(err.range());
     }
     Ok(())
@@ -642,7 +642,7 @@ pub fn missing_zero_width_check(err: erl_parse::ParseError) -> Result<(), erl_pa
 // Negative tests: verify the validation helpers actually reject a
 // broken input. `SyntaxIndex` cannot be corrupted from an
 // integration test (its `push` is `pub(crate)`), so we probe only
-// the small helpers here on hand-crafted `erl_parse::ParseError`s. `validate_tree`
+// the small helpers here on hand-crafted `erl_parse::Diagnostic`s. `validate_tree`
 // itself is exercised on real parser output by the `pbt_syntax_index`
 // tests — if the helper missed a real bug, those tests would let
 // the bug through.
@@ -651,8 +651,8 @@ pub fn missing_zero_width_check(err: erl_parse::ParseError) -> Result<(), erl_pa
 #[test]
 fn adjacent_dedupe_check_rejects_adjacent_pair_with_same_kind_and_start() {
     let at = erl_parse::TokenIndex::new(3);
-    let mk = |k: erl_parse::ParseErrorKind| {
-        erl_parse::ParseError::new(
+    let mk = |k: erl_parse::DiagnosticKind| {
+        erl_parse::Diagnostic::new(
             k,
             erl_parse::TokenRange::empty_at(at),
             erl_parse::Expected::Unspecified,
@@ -660,8 +660,8 @@ fn adjacent_dedupe_check_rejects_adjacent_pair_with_same_kind_and_start() {
         )
     };
     let bad = [
-        mk(erl_parse::ParseErrorKind::MissingToken),
-        mk(erl_parse::ParseErrorKind::MissingToken),
+        mk(erl_parse::DiagnosticKind::MissingToken),
+        mk(erl_parse::DiagnosticKind::MissingToken),
     ];
     let result = adjacent_dedupe_check(&bad);
     assert_eq!(
@@ -674,8 +674,8 @@ fn adjacent_dedupe_check_rejects_adjacent_pair_with_same_kind_and_start() {
 #[test]
 fn adjacent_dedupe_check_accepts_different_kinds_at_same_start() {
     let at = erl_parse::TokenIndex::new(3);
-    let mk = |k: erl_parse::ParseErrorKind| {
-        erl_parse::ParseError::new(
+    let mk = |k: erl_parse::DiagnosticKind| {
+        erl_parse::Diagnostic::new(
             k,
             erl_parse::TokenRange::empty_at(at),
             erl_parse::Expected::Unspecified,
@@ -683,8 +683,8 @@ fn adjacent_dedupe_check_accepts_different_kinds_at_same_start() {
         )
     };
     let ok = [
-        mk(erl_parse::ParseErrorKind::MissingToken),
-        mk(erl_parse::ParseErrorKind::UnexpectedToken),
+        mk(erl_parse::DiagnosticKind::MissingToken),
+        mk(erl_parse::DiagnosticKind::UnexpectedToken),
     ];
     assert_eq!(adjacent_dedupe_check(&ok), Ok(()));
 }
@@ -693,8 +693,8 @@ fn adjacent_dedupe_check_accepts_different_kinds_at_same_start() {
 fn adjacent_dedupe_check_accepts_non_adjacent_duplicates() {
     let at = erl_parse::TokenIndex::new(3);
     let other = erl_parse::TokenIndex::new(9);
-    let mk = |k: erl_parse::ParseErrorKind, i: erl_parse::TokenIndex| {
-        erl_parse::ParseError::new(
+    let mk = |k: erl_parse::DiagnosticKind, i: erl_parse::TokenIndex| {
+        erl_parse::Diagnostic::new(
             k,
             erl_parse::TokenRange::empty_at(i),
             erl_parse::Expected::Unspecified,
@@ -704,9 +704,9 @@ fn adjacent_dedupe_check_accepts_non_adjacent_duplicates() {
     // Same (kind, start) at positions 0 and 2 with a different
     // error at position 1 — non-adjacent, so the invariant holds.
     let ok = [
-        mk(erl_parse::ParseErrorKind::MissingToken, at),
-        mk(erl_parse::ParseErrorKind::UnexpectedToken, other),
-        mk(erl_parse::ParseErrorKind::MissingToken, at),
+        mk(erl_parse::DiagnosticKind::MissingToken, at),
+        mk(erl_parse::DiagnosticKind::UnexpectedToken, other),
+        mk(erl_parse::DiagnosticKind::MissingToken, at),
     ];
     assert_eq!(adjacent_dedupe_check(&ok), Ok(()));
 }
@@ -716,8 +716,8 @@ fn missing_zero_width_check_rejects_non_empty_missing_range() {
     let start = erl_parse::TokenIndex::new(1);
     let end = erl_parse::TokenIndex::new(4);
     let bad_range = erl_parse::TokenRange::new(start, end);
-    let bad = erl_parse::ParseError::new(
-        erl_parse::ParseErrorKind::MissingToken,
+    let bad = erl_parse::Diagnostic::new(
+        erl_parse::DiagnosticKind::MissingToken,
         bad_range,
         erl_parse::Expected::Unspecified,
         None,
@@ -728,8 +728,8 @@ fn missing_zero_width_check_rejects_non_empty_missing_range() {
 #[test]
 fn missing_zero_width_check_accepts_zero_width_missing() {
     let at = erl_parse::TokenIndex::new(2);
-    let ok = erl_parse::ParseError::new(
-        erl_parse::ParseErrorKind::MissingToken,
+    let ok = erl_parse::Diagnostic::new(
+        erl_parse::DiagnosticKind::MissingToken,
         erl_parse::TokenRange::empty_at(at),
         erl_parse::Expected::Unspecified,
         None,
@@ -743,8 +743,8 @@ fn missing_zero_width_check_ignores_other_kinds() {
     // MissingToken violation.
     let bad_range =
         erl_parse::TokenRange::new(erl_parse::TokenIndex::new(1), erl_parse::TokenIndex::new(3));
-    let other = erl_parse::ParseError::new(
-        erl_parse::ParseErrorKind::SkippedToken,
+    let other = erl_parse::Diagnostic::new(
+        erl_parse::DiagnosticKind::SkippedToken,
         bad_range,
         erl_parse::Expected::Unspecified,
         None,

@@ -27,7 +27,7 @@
 
 use erl_tokenize::{Symbol, TokenKind};
 
-use crate::error::{Expected, ParseError, ParseErrorKind};
+use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::util::expect_symbol;
 use crate::parser::{CompletedMarker, FormKind, Parser};
 use crate::syntax::SyntaxKind;
@@ -58,11 +58,11 @@ fn parse_attribute_name(p: &mut Parser) {
         }
         _ => {
             let found = p.peek_lexical(0).map(|(_, t)| t);
-            p.push_error(ParseError::new(
+            p.push_diagnostic(Diagnostic::new(
                 if found.is_some() {
-                    ParseErrorKind::UnexpectedToken
+                    DiagnosticKind::UnexpectedToken
                 } else {
-                    ParseErrorKind::UnexpectedEof
+                    DiagnosticKind::UnexpectedEof
                 },
                 TokenRange::empty_at(start_at),
                 Expected::Category("attribute name (atom) after `-`"),
@@ -83,7 +83,7 @@ fn parse_attribute_name(p: &mut Parser) {
 /// Nested `()`, `{}`, `[]`, and `<<>>` are balanced so a `.` inside
 /// a nested group does not prematurely close the form. If parens are
 /// still open at end-of-input (a truncated `-name(payload`), the
-/// unclosed-paren count surfaces as a `ParseError` and the outer
+/// unclosed-paren count surfaces as a `Diagnostic` and the outer
 /// close-paren is never expected explicitly — the balanced consumer
 /// handles both the paren-wrapped and bare-payload cases uniformly.
 fn parse_attribute_payload(p: &mut Parser) {

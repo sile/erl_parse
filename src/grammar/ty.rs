@@ -22,7 +22,7 @@
 
 use erl_tokenize::{Keyword, Symbol, TokenKind};
 
-use crate::error::{Expected, ParseError, ParseErrorKind};
+use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::operator;
 use crate::grammar::util::{
     at_symbol, consume_atom_or_var, expect_keyword, expect_symbol, is_symbol,
@@ -71,7 +71,7 @@ fn parse_top_type(p: &mut Parser) -> CompletedMarker {
 /// [`Parser::enter_depth`] / [`Parser::leave_depth`], with a
 /// short-circuit at [`Parser::MAX_NESTING_DEPTH`] that emits a
 /// zero-width [`SyntaxKind::Error`] node and a
-/// [`ParseErrorKind::NestingDepthExceeded`] diagnostic instead of
+/// [`DiagnosticKind::NestingDepthExceeded`] diagnostic instead of
 /// recursing further.
 fn parse_type_bp(p: &mut Parser, min_bp: u16) -> CompletedMarker {
     if !p.enter_depth() {
@@ -102,8 +102,8 @@ fn parse_type_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
         // Range `..` (Nonassoc 200).
         if is_symbol(token, Symbol::DoubleDot) && RANGE_LBP > min_bp {
             if last_nonassoc_bp == Some(RANGE_LBP) {
-                p.push_error(ParseError::new(
-                    ParseErrorKind::UnexpectedToken,
+                p.push_diagnostic(Diagnostic::new(
+                    DiagnosticKind::UnexpectedToken,
                     TokenRange::empty_at(p.cursor_position()),
                     Expected::Category("non-associative range operator used twice"),
                     Some(token),
@@ -167,8 +167,8 @@ fn parse_type_bp_inner(p: &mut Parser, min_bp: u16) -> CompletedMarker {
 fn parse_type_max(p: &mut Parser) -> CompletedMarker {
     let m = p.start();
     let Some((_, token)) = p.peek_lexical(0) else {
-        p.push_error(ParseError::new(
-            ParseErrorKind::UnexpectedEof,
+        p.push_diagnostic(Diagnostic::new(
+            DiagnosticKind::UnexpectedEof,
             TokenRange::empty_at(p.cursor_position()),
             Expected::Category("type expression"),
             None,
@@ -203,7 +203,7 @@ fn parse_type_max(p: &mut Parser) -> CompletedMarker {
             let _ = token;
             // Abandon the outer marker so the recovery site's Error
             // node covers only the one skipped token, giving
-            // `ParseError::range() == Error node's TokenRange`.
+            // `Diagnostic::range() == Error node's TokenRange`.
             m.abandon(p);
             crate::grammar::recovery::skip_one_token(p, "type expression")
         }
@@ -279,8 +279,8 @@ fn parse_list_type(p: &mut Parser, m: Marker) -> CompletedMarker {
         // A comma without a trailing `...` is not part of the yrl list-
         // type production; keep consuming the extra element as a plain
         // type so the tree stays navigable and record an error.
-        p.push_error(ParseError::new(
-            ParseErrorKind::UnexpectedToken,
+        p.push_diagnostic(Diagnostic::new(
+            DiagnosticKind::UnexpectedToken,
             TokenRange::empty_at(p.cursor_position()),
             Expected::Category("`...]` after list type comma"),
             p.peek_lexical(0).map(|(_, t)| t),
@@ -345,11 +345,11 @@ fn parse_map_type_field(p: &mut Parser) -> CompletedMarker {
         parse_top_type(p);
     } else {
         let found = p.peek_lexical(0).map(|(_, t)| t);
-        p.push_error(ParseError::new(
+        p.push_diagnostic(Diagnostic::new(
             if found.is_some() {
-                ParseErrorKind::UnexpectedToken
+                DiagnosticKind::UnexpectedToken
             } else {
-                ParseErrorKind::UnexpectedEof
+                DiagnosticKind::UnexpectedEof
             },
             TokenRange::empty_at(p.cursor_position()),
             Expected::Category("`=>` or `:=` in map type field"),
@@ -473,7 +473,7 @@ fn parse_type_argument_list(p: &mut Parser) -> CompletedMarker {
 /// leaves the cursor at a token that is neither `,` nor the caller-
 /// supplied `close` delimiter — the skipped span becomes a
 /// [`SyntaxKind::Error`] node with a matching
-/// [`crate::error::ParseErrorKind::SkippedToken`] diagnostic so the
+/// [`crate::diagnostic::DiagnosticKind::SkippedToken`] diagnostic so the
 /// list can continue.
 fn parse_top_types_comma(p: &mut Parser, close: Symbol) {
     parse_top_type(p);
@@ -537,11 +537,11 @@ fn parse_type_constraint(p: &mut Parser) -> CompletedMarker {
         parse_type_argument_list(p);
     } else {
         let found = p.peek_lexical(0).map(|(_, t)| t);
-        p.push_error(ParseError::new(
+        p.push_diagnostic(Diagnostic::new(
             if found.is_some() {
-                ParseErrorKind::UnexpectedToken
+                DiagnosticKind::UnexpectedToken
             } else {
-                ParseErrorKind::UnexpectedEof
+                DiagnosticKind::UnexpectedEof
             },
             TokenRange::empty_at(p.cursor_position()),
             Expected::Category("`::` or `(...)` in type constraint"),
@@ -611,9 +611,9 @@ mod tests {
             let root = p.next_top_node().expect("unit");
             assert_eq!(first_child_kind(&p, root), kind, "source {source}");
             assert!(
-                p.syntax_tree().errors().is_empty(),
+                p.syntax_tree().diagnostics().is_empty(),
                 "source {source} produced unexpected errors: {:?}",
-                p.syntax_tree().errors()
+                p.syntax_tree().diagnostics()
             );
         }
     }
@@ -631,9 +631,9 @@ mod tests {
             let root = p.next_top_node().expect("unit");
             assert_eq!(first_child_kind(&p, root), kind, "source {source}");
             assert!(
-                p.syntax_tree().errors().is_empty(),
+                p.syntax_tree().diagnostics().is_empty(),
                 "source {source} produced unexpected errors: {:?}",
-                p.syntax_tree().errors()
+                p.syntax_tree().diagnostics()
             );
         }
     }
@@ -644,13 +644,13 @@ mod tests {
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::MapType);
         assert!(tree_contains_kind(&p, SyntaxKind::MapTypeField));
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive_type("#user{name :: binary(), age :: integer()}");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RecordType);
         assert!(tree_contains_kind(&p, SyntaxKind::RecordTypeField));
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -664,9 +664,9 @@ mod tests {
                 "source {source}"
             );
             assert!(
-                p.syntax_tree().errors().is_empty(),
+                p.syntax_tree().diagnostics().is_empty(),
                 "source {source} produced unexpected errors: {:?}",
-                p.syntax_tree().errors()
+                p.syntax_tree().diagnostics()
             );
         }
     }
@@ -676,12 +676,12 @@ mod tests {
         let mut p = drive_type("list(integer())");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::TypeCall);
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
 
         let mut p = drive_type("erlang:map(atom(), integer())");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::TypeCall);
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -699,9 +699,9 @@ mod tests {
                 "source {source}"
             );
             assert!(
-                p.syntax_tree().errors().is_empty(),
+                p.syntax_tree().diagnostics().is_empty(),
                 "source {source} produced errors: {:?}",
-                p.syntax_tree().errors()
+                p.syntax_tree().diagnostics()
             );
         }
     }
@@ -712,19 +712,19 @@ mod tests {
         let mut p = drive_type("atom() | integer() | binary()");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::UnionType);
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Range.
         let mut p = drive_type("1 .. 100");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RangeType);
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
 
         // Annotated.
         let mut p = drive_type("Var :: integer()");
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::AnnotatedType);
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -736,7 +736,7 @@ mod tests {
         assert_eq!(first_child_kind(&p, root), SyntaxKind::RangeType);
         assert!(tree_contains_kind(&p, SyntaxKind::UnaryOpType));
         assert!(tree_contains_kind(&p, SyntaxKind::BinaryOpType));
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -745,7 +745,7 @@ mod tests {
         let root = p.next_top_node().expect("unit");
         assert_eq!(first_child_kind(&p, root), SyntaxKind::ParenExpr);
         assert!(tree_contains_kind(&p, SyntaxKind::UnionType));
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -768,7 +768,7 @@ mod tests {
         let _ = p.next_top_node().expect("unit");
         assert!(tree_contains_kind(&p, SyntaxKind::TypeGuard));
         assert!(tree_contains_kind(&p, SyntaxKind::TypeConstraint));
-        assert!(p.syntax_tree().errors().is_empty());
+        assert!(p.syntax_tree().diagnostics().is_empty());
     }
 
     #[test]
@@ -781,6 +781,6 @@ mod tests {
             first_child_kind(&p, root),
             SyntaxKind::Error | SyntaxKind::AtomExpr | SyntaxKind::VarExpr
         ));
-        assert!(!p.syntax_tree().errors().is_empty());
+        assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 }

@@ -19,7 +19,7 @@
 
 use erl_tokenize::{Symbol, TokenKind};
 
-use crate::error::{Expected, ParseError, ParseErrorKind};
+use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 use crate::grammar::clause::{parse_argument_list, parse_arrow_body, parse_clause_guard_opt};
 use crate::grammar::util::at_symbol;
 use crate::parser::{CompletedMarker, FormKind, Parser};
@@ -61,11 +61,11 @@ fn parse_function_clause(p: &mut Parser) -> CompletedMarker {
         p.in_progress_mut().function_name = Some(TokenRange::new(name_start, name_end));
     } else {
         let found = p.peek_lexical(0).map(|(_, t)| t);
-        p.push_error(ParseError::new(
+        p.push_diagnostic(Diagnostic::new(
             if found.is_some() {
-                ParseErrorKind::UnexpectedToken
+                DiagnosticKind::UnexpectedToken
             } else {
-                ParseErrorKind::UnexpectedEof
+                DiagnosticKind::UnexpectedEof
             },
             TokenRange::empty_at(name_start),
             Expected::Category("function name (atom) at the start of a function clause"),
@@ -89,7 +89,7 @@ fn parse_function_clause(p: &mut Parser) -> CompletedMarker {
 /// `top_level_commas + 1`. Nested `()`, `{}`, `[]`, and `<<>>` are
 /// tracked so that a comma inside a nested group does not inflate
 /// the count. Falls back to `0` on unterminated input; the malformed
-/// list will surface a `ParseError` via [`parse_argument_list`].
+/// list will surface a `Diagnostic` via [`parse_argument_list`].
 fn peek_arity(p: &Parser) -> usize {
     let Some((_, open)) = p.peek_lexical(0) else {
         return 0;

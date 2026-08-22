@@ -3,7 +3,7 @@
 //! This crate exposes an incremental parser that a caller drives by pushing
 //! [`erl_tokenize::Token`] values one at a time and pulling completed
 //! top-level units back out. The parser holds the input token buffer, a
-//! flat preorder syntax index, and the accumulated parse errors bundled
+//! flat preorder syntax index, and the accumulated diagnostics bundled
 //! together as a [`SyntaxTree`] that survives past the parser instance.
 //! Grammar coverage is added by subsequent crates and modules; the
 //! machinery kept here is grammar-agnostic.
@@ -15,10 +15,11 @@
 //!   / [`Parser::next_top_node`] / [`Parser::state`] /
 //!   [`Parser::syntax_tree`] / [`Parser::finish`].
 //! - [`SyntaxTree`] bundles the token buffer, the syntax index, and the
-//!   parse errors so callers can keep the parse result around after the
+//!   diagnostics so callers can keep the parse result around after the
 //!   parser goes away.
-//! - [`ParseError`], [`ParseErrorKind`], and [`Expected`] describe a
-//!   grammar error.
+//! - [`Diagnostic`], [`DiagnosticKind`], and [`Expected`] describe a
+//!   syntax diagnostic. Every diagnostic currently produced is an error;
+//!   warnings and notes are not emitted yet.
 //! - [`TokenIndex`] and [`TokenRange`] describe positions and half-open
 //!   spans over the token buffer.
 //! - [`TokenBuffer`] is the append-only container that stores the pushed
@@ -34,7 +35,7 @@
 #![forbid(unsafe_code)]
 
 mod cursor;
-mod error;
+mod diagnostic;
 mod event;
 mod grammar;
 mod node;
@@ -44,7 +45,7 @@ mod syntax_tree;
 mod token_buffer;
 mod token_range;
 
-pub use crate::error::{Expected, ParseError, ParseErrorKind};
+pub use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 pub use crate::node::{Cursor, NodeView};
 pub use crate::parser::{FormKind, InProgressState, ParseMode, Parser};
 pub use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
