@@ -1,0 +1,12 @@
+[package]
+name = "otp_conformance"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+erl_parse = { path = "../.." }
+erl_pp = "0.3"
+erl_tokenize = "0.11"
+noargs = "0.4"
+nojson = "0.3"

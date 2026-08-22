@@ -1,0 +1,739 @@
+//! Shared tokenize / preprocess / parse driver for OTP conformance binaries.
+//!
+//! Skip lists and include-path assembly follow `erl_pp`'s OTP smoke example.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use erl_parse::{
+    NodeId, NodeView, ParseMode, Parser, SyntaxKind, SyntaxTree, TokenIndex, TokenRange,
+};
+use erl_tokenize::{Token, TokenKind};
+
+/// Outcome of one pipeline stage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stage {
+    /// The stage succeeded.
+    Ok,
+    /// The stage failed.
+    Err,
+}
+
+impl Stage {
+    /// Returns `"ok"` or `"err"`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Err => "err",
+        }
+    }
+
+    /// Parses `"ok"` / `"err"`.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "ok" => Some(Self::Ok),
+            "err" => Some(Self::Err),
+            _ => None,
+        }
+    }
+}
+
+/// Which auxiliary `Parser::parse_*_range` entry point to run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuxKind {
+    /// `Parser::parse_pattern_range`.
+    Pattern,
+    /// `Parser::parse_guard_range`.
+    Guard,
+    /// `Parser::parse_type_range`.
+    Type,
+    /// `Parser::parse_term_range`.
+    Term,
+    /// `Parser::parse_expression_range`.
+    Expression,
+}
+
+impl AuxKind {
+    /// Parses a fixture `aux_kind` string.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "pattern" => Some(Self::Pattern),
+            "guard" => Some(Self::Guard),
+            "type" => Some(Self::Type),
+            "term" => Some(Self::Term),
+            "expression" => Some(Self::Expression),
+            _ => None,
+        }
+    }
+}
+
+/// Result of driving tokenize / preprocess / parse on one input.
+pub struct ParseRun {
+    /// Tokenize stage.
+    pub tokenize: Stage,
+    /// Preprocess stage (`erl_pp`).
+    pub preprocess: Stage,
+    /// Parse stage. [`Stage::Err`] if an earlier stage failed.
+    pub parse: Stage,
+    /// Finished tree. `None` when tokenize failed.
+    pub tree: Option<SyntaxTree>,
+    /// Top-level units returned by `next_top_node`.
+    pub roots: Vec<NodeId>,
+    /// Lexical token count (hidden tokens excluded).
+    pub token_count: usize,
+    /// `Event::Diagnostic` warnings.
+    pub preprocess_warnings: usize,
+    /// `Event::Diagnostic` errors.
+    pub preprocess_diagnostics_error: usize,
+    /// Tokenize failure message.
+    pub tokenize_reason: Option<String>,
+    /// Preprocess failure message.
+    pub preprocess_reason: Option<String>,
+    /// Original input text (used with `Token::text` when there are no includes).
+    pub source: String,
+}
+
+/// Scans `text` to EOF.
+pub fn scan_source(text: &str) -> Result<Vec<Token>, String> {
+    let mut tokens = Vec::new();
+    let mut pos = erl_tokenize::Position::new();
+    loop {
+        match erl_tokenize::scan_token(text, pos) {
+            Ok(Some(t)) => {
+                pos = t.end();
+                tokens.push(t);
+            }
+            Ok(None) => return Ok(tokens),
+            Err(e) => return Err(format!("{e}")),
+        }
+    }
+}
+
+/// Tokenize, preprocess with `erl_pp`, then parse.
+pub fn parse_text(
+    mode: ParseMode,
+    display: &str,
+    text: String,
+    include_paths: &[PathBuf],
+    erl_libs: &[PathBuf],
+) -> ParseRun {
+    let tokens = match scan_source(&text) {
+        Ok(t) => t,
+        Err(reason) => {
+            return ParseRun {
+                tokenize: Stage::Err,
+                preprocess: Stage::Err,
+                parse: Stage::Err,
+                tree: None,
+                roots: Vec::new(),
+                token_count: 0,
+                preprocess_warnings: 0,
+                preprocess_diagnostics_error: 0,
+                tokenize_reason: Some(reason),
+                preprocess_reason: None,
+                source: text,
+            };
+        }
+    };
+    let source = erl_pp::Source::new(display.to_string(), text.clone(), tokens);
+    let mut pp = erl_pp::Preprocessor::new([source]);
+    let mut parser = Parser::new(mode);
+    let mut roots = Vec::new();
+    let mut token_count = 0usize;
+    let mut warnings = 0usize;
+    let mut diag_errors = 0usize;
+    let mut preprocess_reason = None;
+
+    loop {
+        let event = pp
+            .step()
+            .expect("Preprocessor::step must not return ProtocolError");
+        match event {
+            erl_pp::Event::Token(t) => {
+                token_count += 1;
+                parser.push_token(*t.token());
+                while let Some(id) = parser.next_top_node() {
+                    roots.push(id);
+                }
+            }
+            erl_pp::Event::MacroDefined(_) | erl_pp::Event::MacroUndefined(_) => {}
+            erl_pp::Event::AwaitingInclude(req) => {
+                let (included, load_failure) = resolve_include(&req, include_paths, erl_libs);
+                if let Some(reason) = load_failure
+                    && preprocess_reason.is_none()
+                {
+                    preprocess_reason = Some(reason);
+                }
+                pp.resume_include(included)
+                    .expect("resume_include after AwaitingInclude");
+            }
+            erl_pp::Event::AwaitingConditional(req) => {
+                let branch = match req {
+                    erl_pp::Conditional::Ifdef(d) | erl_pp::Conditional::Ifndef(d) => d.recommended,
+                    erl_pp::Conditional::If(_) | erl_pp::Conditional::Elif(_) => {
+                        erl_pp::Branch::Else
+                    }
+                };
+                pp.resume_conditional(branch)
+                    .expect("resume_conditional after AwaitingConditional");
+            }
+            erl_pp::Event::AwaitingMacroExpansion(_) => {
+                // Predefined macros such as ?MODULE are caller-owned; expand to empty.
+                pp.resume_macro_expansion(empty_source("<caller-driven>"))
+                    .expect("resume_macro_expansion after AwaitingMacroExpansion");
+            }
+            erl_pp::Event::BranchBoundary(_) => {}
+            erl_pp::Event::Diagnostic(d) => match d.severity {
+                erl_pp::Severity::Error => diag_errors += 1,
+                erl_pp::Severity::Warning => warnings += 1,
+            },
+            erl_pp::Event::PreprocessError(e) => {
+                if preprocess_reason.is_none() {
+                    preprocess_reason = Some(format!("preprocess: {e:?}"));
+                }
+            }
+            erl_pp::Event::Complete => break,
+        }
+    }
+
+    while let Some(id) = parser.next_top_node() {
+        roots.push(id);
+    }
+    let tree = parser.finish();
+    let preprocess = if preprocess_reason.is_none() {
+        Stage::Ok
+    } else {
+        Stage::Err
+    };
+    let parse = if preprocess == Stage::Ok && accepted(&tree) {
+        Stage::Ok
+    } else {
+        Stage::Err
+    };
+    ParseRun {
+        tokenize: Stage::Ok,
+        preprocess,
+        parse,
+        tree: Some(tree),
+        roots,
+        token_count,
+        preprocess_warnings: warnings,
+        preprocess_diagnostics_error: diag_errors,
+        tokenize_reason: None,
+        preprocess_reason,
+        source: text,
+    }
+}
+
+/// True when the error list is empty and the tree has no `SyntaxKind::Error` node.
+pub fn accepted(tree: &SyntaxTree) -> bool {
+    tree.errors().is_empty() && !has_error_node(tree)
+}
+
+fn has_error_node(tree: &SyntaxTree) -> bool {
+    tree.syntax()
+        .entries()
+        .iter()
+        .any(|e| e.kind() == SyntaxKind::Error)
+}
+
+/// Maps a module-mode root to OTP's attribute / function / error classification.
+pub fn form_category(kind: SyntaxKind) -> &'static str {
+    match kind {
+        SyntaxKind::Attribute => "attribute",
+        SyntaxKind::FunctionDecl => "function",
+        SyntaxKind::Error => "error",
+        _ => "other",
+    }
+}
+
+/// Classifies each root in `roots`.
+pub fn form_categories(tree: &SyntaxTree, roots: &[NodeId]) -> Vec<&'static str> {
+    roots
+        .iter()
+        .filter_map(|id| tree.syntax().entry(*id).map(|e| form_category(e.kind())))
+        .collect()
+}
+
+/// 1-based line of a `ParseError` range start.
+pub fn error_line(tree: &SyntaxTree, range: TokenRange) -> usize {
+    let idx = range.start();
+    if let Some(t) = tree.tokens().get(idx) {
+        return t.start().line().get();
+    }
+    if idx.get() > 0
+        && let Some(t) = tree.tokens().get(TokenIndex::new(idx.get() - 1))
+    {
+        return t.start().line().get();
+    }
+    1
+}
+
+/// Line of the first `ParseError`, if any.
+pub fn first_error_line(tree: &SyntaxTree) -> Option<usize> {
+    tree.errors().first().map(|e| error_line(tree, e.range()))
+}
+
+fn empty_source(name: &str) -> erl_pp::Source {
+    erl_pp::Source::new(name.to_string(), String::new(), Vec::new())
+}
+
+fn resolve_include(
+    include: &erl_pp::IncludeDirective,
+    include_paths: &[PathBuf],
+    erl_libs: &[PathBuf],
+) -> (erl_pp::Source, Option<String>) {
+    let raw_path = include.path.as_str();
+    match erl_pp::open_include(include, include_paths, erl_libs) {
+        Ok(path) => match fs::read_to_string(&path) {
+            Ok(text) => match scan_source(&text) {
+                Ok(tokens) => (
+                    erl_pp::Source::new(path.to_string_lossy().into_owned(), text, tokens),
+                    None,
+                ),
+                Err(e) => (
+                    empty_source(raw_path),
+                    Some(format!(
+                        "include scan_token failed for {}: {e}",
+                        path.display()
+                    )),
+                ),
+            },
+            Err(e) => (
+                empty_source(raw_path),
+                Some(format!("include read failed for {}: {e}", path.display())),
+            ),
+        },
+        Err(e) => (
+            empty_source(raw_path),
+            Some(format!("open_include({raw_path}): {e}")),
+        ),
+    }
+}
+
+/// Builds the `open_include` search list. `extra` is CLI `-I`.
+pub fn build_include_paths(
+    target: &Path,
+    root: &Path,
+    globals: &[PathBuf],
+    extra: &[PathBuf],
+) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for e in extra {
+        if !paths.iter().any(|p| p == e) {
+            paths.push(e.clone());
+        }
+    }
+    if let Some(dir) = target.parent() {
+        paths.push(dir.to_path_buf());
+        if let Some(parent) = dir.parent() {
+            let include = parent.join("include");
+            if include != *dir {
+                paths.push(include);
+            }
+        }
+    }
+    if let Some(app_src) = find_app_src(target) {
+        for sub in walk_dirs(&app_src) {
+            if !paths.iter().any(|p| p == &sub) {
+                paths.push(sub);
+            }
+        }
+    }
+    if target.to_string_lossy().contains("/erts/preloaded/src/") {
+        let kernel_src = root.join("lib").join("kernel").join("src");
+        if kernel_src.is_dir() && !paths.iter().any(|p| p == &kernel_src) {
+            paths.push(kernel_src);
+        }
+    }
+    for g in globals {
+        if !paths.iter().any(|p| p == g) {
+            paths.push(g.clone());
+        }
+    }
+    paths
+}
+
+fn find_app_src(target: &Path) -> Option<PathBuf> {
+    let mut cur = target.parent()?;
+    loop {
+        if cur.file_name().and_then(|n| n.to_str()) == Some("src") {
+            return Some(cur.to_path_buf());
+        }
+        cur = cur.parent()?;
+    }
+}
+
+fn walk_dirs(root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if root.is_dir() {
+        out.push(root.to_path_buf());
+        if let Ok(entries) = fs::read_dir(root) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    out.extend(walk_dirs(&p));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Collects `otp/lib/<app>/include/` for every application.
+pub fn collect_app_include_dirs(root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let lib = root.join("lib");
+    if let Ok(entries) = fs::read_dir(&lib) {
+        for entry in entries.flatten() {
+            let include = entry.path().join("include");
+            if include.is_dir() {
+                out.push(include);
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Recursively collects `.erl` / `.hrl` files.
+pub fn collect_erl_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                collect_erl_files(&p, out);
+            } else if let Some(ext) = p.extension().and_then(|e| e.to_str())
+                && (ext == "erl" || ext == "hrl")
+            {
+                out.push(p);
+            }
+        }
+    }
+}
+
+/// OTP application source plus preloaded ERTS modules.
+pub fn is_target(path: &Path) -> bool {
+    let s = path.to_string_lossy();
+    let in_lib_src_or_include = s.contains("/lib/")
+        && (s.contains("/src/") || s.contains("/include/"))
+        && !s.contains("/test/");
+    let in_erts_preloaded = s.contains("/erts/preloaded/src/");
+    in_lib_src_or_include || in_erts_preloaded
+}
+
+/// Files that cannot be tokenized or preprocessed from a plain OTP checkout.
+pub fn is_skipped(path: &Path) -> bool {
+    let s = path.to_string_lossy();
+    // wxWidgets binding templates embed `~s,` placeholders, not Erlang.
+    if s.contains("/lib/wx/api_gen/wx_extra/") {
+        return true;
+    }
+    // Literal NUL bytes; `erl_scan` also rejects this file.
+    if s.ends_with("/lib/kernel/test/socket_sctp_SUITE.erl") {
+        return true;
+    }
+    // Need headers produced by the OTP build (codegen / MIB / asn1).
+    if s.contains("/lib/wx/")
+        || s.contains("/lib/snmp/")
+        || s.contains("/lib/public_key/src/")
+        || s.contains("/lib/eldap/src/")
+    {
+        return true;
+    }
+    const INDIVIDUAL_SKIPS: &[&str] = &[
+        "/lib/compiler/src/beam_ssa_alias.erl",       // -if / -elif
+        "/lib/compiler/src/beam_ssa_alias_debug.hrl", // -if / -elif
+        "/lib/compiler/src/beam_ssa_ss.erl",          // -if / -elif
+        "/lib/stdlib/src/graph.erl",                  // -if / -elif
+        "/lib/stdlib/src/peer.erl",                   // -if / -elif
+        "/lib/compiler/src/beam_asm.erl",             // generated beam_opcodes.hrl
+        "/lib/compiler/src/beam_disasm.erl",          // generated beam_opcodes.hrl
+        "/lib/kernel/src/inet_dns.erl",               // generated inet_dns_record_adts.hrl
+        "/lib/common_test/src/ct_snmp.erl",           // snmp_types.hrl (snmp app is skipped)
+    ];
+    INDIVIDUAL_SKIPS.iter().any(|suffix| s.ends_with(suffix))
+}
+
+/// Resolves a dotted extract path such as
+/// `form[0].function_decl.clause[0].argument_list[0]`.
+///
+/// For `-spec` types, a trailing `after_arrow` takes the tokens after the
+/// first `->` in the current range (the payload is `f() -> Type`, not `Type`).
+pub fn extract_range(tree: &SyntaxTree, roots: &[NodeId], path: &str) -> Option<TokenRange> {
+    let mut segs = path.split('.');
+    let first = segs.next()?;
+    let i = parse_indexed("form", first)?;
+    let mut node = roots
+        .get(i)
+        .copied()
+        .and_then(|id| NodeView::new(tree.tokens(), tree.syntax(), id))?;
+    let mut range = node.range();
+    for seg in segs {
+        if seg == "after_arrow" {
+            range = range_after_arrow(tree, range)?;
+            continue;
+        }
+        node = step_path(node, seg)?;
+        range = node.range();
+    }
+    Some(range)
+}
+
+fn parse_indexed(prefix: &str, seg: &str) -> Option<usize> {
+    let rest = seg.strip_prefix(prefix)?;
+    let inside = rest.strip_prefix('[')?.strip_suffix(']')?;
+    inside.parse().ok()
+}
+
+fn step_path<'a>(node: NodeView<'a>, seg: &str) -> Option<NodeView<'a>> {
+    if let Some(i) = parse_indexed("clause", seg) {
+        return children_of_kind(node, SyntaxKind::FunctionClause).nth(i);
+    }
+    if let Some(i) = parse_indexed("argument_list", seg) {
+        let list = child_of_kind(node, SyntaxKind::ArgumentList)?;
+        return list.children().nth(i);
+    }
+    match seg {
+        "function_decl" => {
+            if node.kind() == SyntaxKind::FunctionDecl {
+                Some(node)
+            } else {
+                child_of_kind(node, SyntaxKind::FunctionDecl)
+            }
+        }
+        "argument_list" => child_of_kind(node, SyntaxKind::ArgumentList),
+        "guard_sequence" => child_of_kind(node, SyntaxKind::GuardSequence),
+        "attribute" => {
+            if node.kind() == SyntaxKind::Attribute {
+                Some(node)
+            } else {
+                child_of_kind(node, SyntaxKind::Attribute)
+            }
+        }
+        "payload" => child_of_kind(node, SyntaxKind::AttributePayload),
+        _ => None,
+    }
+}
+
+fn children_of_kind(node: NodeView<'_>, kind: SyntaxKind) -> impl Iterator<Item = NodeView<'_>> {
+    node.children().filter(move |c| c.kind() == kind)
+}
+
+fn child_of_kind(node: NodeView<'_>, kind: SyntaxKind) -> Option<NodeView<'_>> {
+    node.children().find(|c| c.kind() == kind)
+}
+
+fn range_after_arrow(tree: &SyntaxTree, payload: TokenRange) -> Option<TokenRange> {
+    let mut arrow = None;
+    for (idx, t) in tree.tokens().iter_range(payload) {
+        if t.kind() == TokenKind::Symbol(erl_tokenize::Symbol::RightArrow) {
+            arrow = Some(idx);
+            break;
+        }
+    }
+    let start = TokenIndex::new(arrow?.get() + 1);
+    if start.get() >= payload.end().get() {
+        return None;
+    }
+    Some(TokenRange::new(start, payload.end()))
+}
+
+/// Re-parses `tokens` and runs an auxiliary entry point. `true` if it adds no errors.
+pub fn parse_aux(
+    mode: ParseMode,
+    tokens: &[Token],
+    aux_kind: AuxKind,
+    extract_path: &str,
+) -> Result<bool, String> {
+    let mut parser = Parser::new(mode);
+    for t in tokens {
+        parser.push_token(*t);
+    }
+    let mut roots = Vec::new();
+    while let Some(id) = parser.next_top_node() {
+        roots.push(id);
+    }
+    let range = extract_range(parser.syntax_tree(), &roots, extract_path)
+        .ok_or_else(|| format!("extract_path {extract_path} did not resolve"))?;
+    let before = parser.syntax_tree().errors().len();
+    let id = match aux_kind {
+        AuxKind::Pattern => parser.parse_pattern_range(range),
+        AuxKind::Guard => parser.parse_guard_range(range),
+        AuxKind::Type => parser.parse_type_range(range),
+        AuxKind::Term => parser.parse_term_range(range),
+        AuxKind::Expression => parser.parse_expression_range(range),
+    }
+    .map_err(|_| "aux parse ProtocolError (unit still in progress)".to_string())?;
+    let tree = parser.syntax_tree();
+    let extra_errors = tree.errors().len() > before;
+    let error_node = tree
+        .syntax()
+        .entry(id)
+        .is_some_and(|e| e.kind() == SyntaxKind::Error);
+    Ok(!extra_errors && !error_node)
+}
+
+/// Number of non-`Error` roots after the first `SyntaxKind::Error` root.
+pub fn later_forms_after_error(tree: &SyntaxTree, roots: &[NodeId]) -> usize {
+    let mut seen_error = false;
+    let mut later = 0usize;
+    for id in roots {
+        let Some(entry) = tree.syntax().entry(*id) else {
+            continue;
+        };
+        if entry.kind() == SyntaxKind::Error {
+            seen_error = true;
+            continue;
+        }
+        if seen_error {
+            later += 1;
+        }
+    }
+    later
+}
+
+/// Nested JSON array used to compare operator precedence (not pretty-print).
+pub fn tree_shape(tree: &SyntaxTree, source: &str, id: NodeId) -> Option<String> {
+    let view = NodeView::new(tree.tokens(), tree.syntax(), id)?;
+    Some(shape_node(tree, source, view))
+}
+
+fn unwrap_paren(node: NodeView<'_>) -> NodeView<'_> {
+    let mut cur = node;
+    while cur.kind() == SyntaxKind::ParenExpr
+        && let Some(child) = cur.first_child()
+    {
+        cur = child;
+    }
+    cur
+}
+
+fn shape_node(tree: &SyntaxTree, source: &str, node: NodeView<'_>) -> String {
+    let node = unwrap_paren(node);
+    match node.kind() {
+        SyntaxKind::BinaryOpExpr
+        | SyntaxKind::MatchExpr
+        | SyntaxKind::SendExpr
+        | SyntaxKind::MaybeMatchExpr => {
+            let mut kids = node.children();
+            let Some(left) = kids.next() else {
+                return "[]".to_string();
+            };
+            let Some(right) = kids.next() else {
+                return "[]".to_string();
+            };
+            let op = operator_between(tree, source, left.range().end(), right.range().start())
+                .unwrap_or_else(|| "_".to_string());
+            format!(
+                "[\"binop\",\"{}\",{},{}]",
+                json_escape(&op),
+                shape_node(tree, source, left),
+                shape_node(tree, source, right)
+            )
+        }
+        SyntaxKind::UnaryOpExpr | SyntaxKind::CatchExpr => {
+            let Some(child) = node.first_child() else {
+                return "[]".to_string();
+            };
+            let op = operator_between(tree, source, node.range().start(), child.range().start())
+                .unwrap_or_else(|| "_".to_string());
+            format!(
+                "[\"unary\",\"{}\",{}]",
+                json_escape(&op),
+                shape_node(tree, source, child)
+            )
+        }
+        SyntaxKind::IntegerExpr => "[\"integer\"]".to_string(),
+        SyntaxKind::AtomExpr => "[\"atom\"]".to_string(),
+        SyntaxKind::VarExpr => "[\"var\"]".to_string(),
+        SyntaxKind::FloatExpr => "[\"float\"]".to_string(),
+        SyntaxKind::CharExpr => "[\"char\"]".to_string(),
+        other => format!("[\"{other:?}\"]"),
+    }
+}
+
+fn operator_between(
+    tree: &SyntaxTree,
+    source: &str,
+    start: TokenIndex,
+    end: TokenIndex,
+) -> Option<String> {
+    if start.get() >= end.get() {
+        return None;
+    }
+    let mut ops = Vec::new();
+    for (_, t) in tree.tokens().iter_range(TokenRange::new(start, end)) {
+        if t.kind().is_lexical() {
+            ops.push(t.text(source).to_string());
+        }
+    }
+    if ops.is_empty() {
+        None
+    } else {
+        Some(ops.join(" "))
+    }
+}
+
+fn json_escape(s: &str) -> String {
+    let mut out = String::new();
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Intentional OTP divergences; matching `id` is excluded from ERROR.
+pub fn named_divergence(id: &str) -> Option<&'static str> {
+    const TABLE: &[(&str, &str)] = &[
+        (
+            "syn:expr-mode:comma-seq",
+            "expression mode top-level does not accept expression lists",
+        ),
+        (
+            "syn:err:missing-dot",
+            "finish flushes an unterminated last unit; OTP parse_form reports an error",
+        ),
+    ];
+    TABLE
+        .iter()
+        .find(|(prefix, _)| id == *prefix)
+        .map(|(_, reason)| *reason)
+}
+
+/// Parses a fixture `mode` string.
+pub fn parse_mode_from_str(s: &str) -> Option<ParseMode> {
+    match s {
+        "module" => Some(ParseMode::Module),
+        "term_list" => Some(ParseMode::TermList),
+        "expression" => Some(ParseMode::Expression),
+        _ => None,
+    }
+}
+
+/// OTP checkout tag from `OTP_TAG`. Empty or unset is `None`.
+pub fn otp_tag_from_env() -> Option<String> {
+    match std::env::var("OTP_TAG") {
+        Ok(s) if !s.is_empty() => Some(s),
+        _ => None,
+    }
+}
+
+/// Infers the OTP checkout root from a path recorded in the fixture.
+pub fn otp_root_from_path(path: &Path) -> Option<PathBuf> {
+    let s = path.to_string_lossy();
+    for marker in ["/lib/", "/erts/"] {
+        if let Some(i) = s.find(marker) {
+            let root = &s[..i];
+            if root.is_empty() {
+                return Some(PathBuf::from("."));
+            }
+            return Some(PathBuf::from(root));
+        }
+    }
+    None
+}
