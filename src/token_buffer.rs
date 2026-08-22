@@ -11,10 +11,8 @@ use crate::token_range::{TokenIndex, TokenRange};
 /// Append-only token buffer.
 ///
 /// Backed by a `Vec<Token>` without pre-allocating capacity via
-/// `Vec::with_capacity`; `Token` is `Copy`, so `push` is cheap and `Clone`
-/// is a straight `Vec::clone`. The `push` mutator is `pub(crate)` and
-/// reachable only from in-crate callers (the parser core and unit tests);
-/// external callers reach it through the higher-level parser API.
+/// `Vec::with_capacity`; `Token` is `Copy`, so appending is cheap and
+/// `Clone` is a straight `Vec::clone`.
 #[derive(Debug, Default, Clone)]
 pub struct TokenBuffer {
     tokens: Vec<Token>,
@@ -70,9 +68,8 @@ impl TokenBuffer {
     /// Appends a token to the end of the buffer and returns the
     /// [`TokenIndex`] at which the token now lives. The returned index
     /// can be passed to [`Self::get`] to recover the same token.
-    ///
-    /// Callable only from within this crate; the parser core drives this
-    /// mutator.
+    // `pub(crate)`: only the parser core and in-crate tests call this.
+    // External callers feed tokens through `Parser::feed_token`.
     pub(crate) fn push(&mut self, token: Token) -> TokenIndex {
         let index = TokenIndex::new(self.tokens.len());
         self.tokens.push(token);
