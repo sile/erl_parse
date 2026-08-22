@@ -124,8 +124,8 @@ They are related but not 1:1.
   stack.
 
 Tokenizer / lexer failures never appear as parser diagnostics. The
-caller tokenizes ([`erl_tokenize::scan_tokens`]) and feeds tokens;
-only `DiagnosticKind` variants this crate owns land on the tree.
+caller tokenizes and feeds tokens; only `DiagnosticKind` variants this
+crate owns land on the tree.
 
 ## End of input
 

@@ -1,14 +1,16 @@
 //! Erlang source parser for language tools.
 //!
-//! The caller tokenizes ([`erl_tokenize::scan_tokens`]) and feeds every
-//! token, including whitespace and comments. This crate does not read
-//! files, tokenize, preprocess, or resolve names. For preprocessing
-//! (macros, includes, conditionals), use [erl_pp](https://docs.rs/erl_pp).
-//! The grammar tracks OTP 29's `erl_parse.yrl` (CI checks against
-//! OTP-29.0.5). It records syntax
-//! problems as [`Diagnostic`]s and always returns a [`SyntaxTree`]
-//! rather than `Result::Err`. The recovery contract is
-//! [`docs::diagnostics`]; walking the tree is [`docs::navigation`].
+//! You feed tokens; this crate does not read files, tokenize, preprocess,
+//! or resolve names. Whitespace and comments stay in the stream. A parse
+//! always produces a [`SyntaxTree`]; syntax problems are [`Diagnostic`]s
+//! rather than `Result::Err`. The grammar tracks OTP 29's `erl_parse.yrl`
+//! (CI checks against OTP-29.0.5).
+//!
+//! Tokenize with [erl_tokenize](https://docs.rs/erl_tokenize). For macros,
+//! includes, and conditionals, preprocess first with
+//! [erl_pp](https://docs.rs/erl_pp).
+//! Recovery is [`docs::diagnostics`]; walking the tree is
+//! [`docs::navigation`].
 //!
 //! # Minimal loop
 //!

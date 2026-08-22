@@ -6,14 +6,12 @@ erl_parse
 [![Actions Status](https://github.com/sile/erl_parse/workflows/CI/badge.svg)](https://github.com/sile/erl_parse/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Erlang source parser for language tools. The caller tokenizes
-(`erl_tokenize::scan_tokens`) and feeds every token, including whitespace
-and comments. This crate does not read files, tokenize, or preprocess;
-for macros, includes, and conditionals, use [erl_pp](https://github.com/sile/erl_pp)
-upstream — the `otp_conformance` workspace crate is an end-to-end driver.
-The grammar tracks OTP 29's `erl_parse.yrl` (CI checks against OTP-29.0.5).
-A parse always produces a syntax tree; syntax problems are recorded as
-diagnostics.
+Erlang source parser for language tools.
+
+- You feed tokens; this crate does not read files, tokenize, or preprocess
+- Whitespace and comments stay in the token stream
+- A parse always produces a syntax tree; syntax problems are diagnostics
+- Grammar tracks OTP 29 (`erl_parse.yrl`; CI checks against OTP-29.0.5)
 
 Examples
 --------
@@ -35,6 +33,11 @@ fn main() -> Result<(), erl_tokenize::Error> {
     Ok(())
 }
 ```
+
+The snippet tokenizes with [erl_tokenize](https://github.com/sile/erl_tokenize).
+For macros, includes, and conditionals, preprocess first with
+[erl_pp](https://github.com/sile/erl_pp); [`otp_conformance`](examples/otp_conformance/) in this repo is an
+end-to-end example of that pipeline.
 
 [`ParseMode`](https://docs.rs/erl_parse/erl_parse/enum.ParseMode.html)
 selects the top-level construct. Recovery is
