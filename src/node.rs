@@ -69,20 +69,6 @@ impl<'a> NodeView<'a> {
         self.entry_ref().subtree_end().get()
     }
 
-    /// Returns the first direct child, or `None` when this node is a leaf.
-    pub fn first_child(self) -> Option<NodeView<'a>> {
-        let candidate = self.node_id.get() + 1;
-        if candidate >= self.subtree_fence() {
-            None
-        } else {
-            Some(Self {
-                tokens: self.tokens,
-                index: self.index,
-                node_id: NodeId::new(candidate),
-            })
-        }
-    }
-
     /// Returns an iterator that walks direct children in preorder.
     pub fn children(self) -> impl Iterator<Item = NodeView<'a>> {
         Children {

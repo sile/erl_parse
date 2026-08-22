@@ -541,7 +541,7 @@ pub fn tree_shape(
 fn unwrap_paren(node: erl_parse::NodeView<'_>) -> erl_parse::NodeView<'_> {
     let mut cur = node;
     while cur.kind() == erl_parse::SyntaxKind::ParenExpr
-        && let Some(child) = cur.first_child()
+        && let Some(child) = cur.children().next()
     {
         cur = child;
     }
@@ -572,7 +572,7 @@ fn shape_node(tree: &erl_parse::SyntaxTree, source: &str, node: erl_parse::NodeV
             )
         }
         erl_parse::SyntaxKind::UnaryOpExpr | erl_parse::SyntaxKind::CatchExpr => {
-            let Some(child) = node.first_child() else {
+            let Some(child) = node.children().next() else {
                 return "[]".to_string();
             };
             let op = operator_between(tree, source, node.range().start(), child.range().start())
