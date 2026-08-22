@@ -330,10 +330,10 @@ impl FormScan {
                 self.nest = self.nest.saturating_sub(1);
                 self.hash = HashState::Off;
             }
-            erl_tokenize::TokenKind::Atom => {
-                if let erl_tokenize::TokenValue::Atom(a) = token.value() {
-                    self.on_atom(a.as_ref(), module, enabled);
-                }
+            erl_tokenize::TokenKind::Atom
+                if let erl_tokenize::TokenValue::Atom(a) = token.value() =>
+            {
+                self.on_atom(a.as_ref(), module, enabled);
             }
             erl_tokenize::TokenKind::Variable => {
                 if self.hash == HashState::SawHash {

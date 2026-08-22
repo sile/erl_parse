@@ -9,7 +9,7 @@ keywords = ["erlang", "parser"]
 categories = ["parser-implementations"]
 license = "MIT"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.96"
 
 [workspace]
 members = ["examples/otp_conformance"]

@@ -175,8 +175,7 @@ where
 
 fn at_clause_boundary(p: &Parser) -> bool {
     p.peek_lexical(0)
-        .map(|(_, t)| is_clause_boundary(t))
-        .unwrap_or(true)
+        .is_none_or(|(_, t)| is_clause_boundary(t))
 }
 
 fn is_clause_boundary(token: erl_tokenize::Token) -> bool {

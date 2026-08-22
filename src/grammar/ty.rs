@@ -554,6 +554,7 @@ fn parse_type_constraint(p: &mut Parser) -> CompletedMarker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::assert_matches;
     use crate::syntax::{NodeId, SyntaxKind};
     use crate::{ParseMode, Parser};
     use erl_tokenize::{Position, Token, scan_token};
@@ -777,10 +778,10 @@ mod tests {
         let root = p.next_node().expect("unit");
         // The outer Error wrapper is the root; the type parser
         // completes an inner Error for the unrecognized `)`.
-        assert!(matches!(
+        assert_matches!(
             first_child_kind(&p, root),
             SyntaxKind::Error | SyntaxKind::AtomExpr | SyntaxKind::VarExpr
-        ));
+        );
         assert!(!p.syntax_tree().diagnostics().is_empty());
     }
 }

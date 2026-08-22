@@ -135,6 +135,7 @@ pub(crate) fn push_missing_token(p: &mut Parser, category: &'static str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::assert_matches;
     use crate::{ParseMode, Parser};
     use erl_tokenize::{Position, scan_token};
 
@@ -207,10 +208,10 @@ mod tests {
             .expect("skip_until_sync node");
         assert_eq!(err.range(), node.range());
         // Cursor stopped at `.`, not past it.
-        assert!(matches!(
+        assert_matches!(
             p.peek_lexical(0).map(|(_, t)| t.kind()),
             Some(erl_tokenize::TokenKind::Symbol(erl_tokenize::Symbol::Dot))
-        ));
+        );
     }
 
     #[test]
