@@ -155,9 +155,9 @@ pub enum SyntaxKind {
     RemoteFunRef,
 
     // Comprehensions and qualifiers.
-    /// A list comprehension, written `[Expr || Qualifier, ...]`.
+    /// A list comprehension, written `[Expr, ... || Qualifier, ...]`.
     ListComprehension,
-    /// A map comprehension, written `#{K => V || Qualifier, ...}`.
+    /// A map comprehension, written `#{Field, ... || Qualifier, ...}`.
     MapComprehension,
     /// A binary comprehension, written `<<Elem || Qualifier, ...>>`.
     BinaryComprehension,
