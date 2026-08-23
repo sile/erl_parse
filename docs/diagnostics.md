@@ -1,7 +1,7 @@
 # Diagnostics and error recovery
 
-erl_parse never aborts a parse with `Result::Err`. Pushing tokens and
-calling [`Parser::finish`](crate::Parser::finish) always yields a
+erl_parse never aborts a parse with `Result::Err`.
+[`parse`](crate::parse) always yields a
 [`SyntaxTree`](crate::SyntaxTree). Syntax problems are recorded as
 [`Diagnostic`](crate::Diagnostic)s on that tree, and the grammar
 recovers to the next sync point so later forms, terms, or elements
@@ -35,10 +35,8 @@ as `Result::Err`. Callers read the records from the tree; they do not
 construct them. Every diagnostic currently produced is a syntax
 error; warnings and notes are not emitted yet.
 
-There is no public "please recover" API. Recovery runs as
-[`Parser::feed_token`](crate::Parser::feed_token),
-[`Parser::next_node`](crate::Parser::next_node), and
-[`Parser::finish`](crate::Parser::finish) drive the grammar.
+There is no public "please recover" API. Recovery runs as part of
+[`parse`](crate::parse).
 
 ## What happens at a problem site
 
@@ -50,7 +48,7 @@ Three recovery shapes cover the grammar:
 with a zero-width range at the cursor and does not advance. It does
 not invent a fake [`erl_tokenize::Token`], so
 [`SyntaxTree::tokens`](crate::SyntaxTree::tokens) stays a faithful
-copy of what the caller fed. There is no `SyntaxKind::Error` node
+copy of what the caller passed. There is no `SyntaxKind::Error` node
 for the missing token itself.
 
 **Skip one token.** An atomic expression or type position sees a
@@ -119,25 +117,24 @@ They are related but not 1:1.
   on a force-closed unit (see [End of input](#end-of-input) below).
 - [`NestingDepthExceeded`](crate::DiagnosticKind::NestingDepthExceeded)
   is a zero-width boundary diagnostic. The parser stops descending
-  past [`Parser::MAX_NESTING_DEPTH`](crate::Parser::MAX_NESTING_DEPTH)
+  past [`MAX_NESTING_DEPTH`](crate::MAX_NESTING_DEPTH)
   (256) and continues recovery from there instead of overflowing the
   stack.
 
 Tokenizer / lexer failures never appear as parser diagnostics. The
-caller tokenizes and feeds tokens; only `DiagnosticKind` variants this
+caller tokenizes and passes tokens; only `DiagnosticKind` variants this
 crate owns land on the tree.
 
 ## End of input
 
 Top-level units are `.`-terminated.
-[`Parser::finish`](crate::Parser::finish) still parses leftover
-lexical tokens when the buffer ended without a `.`, as one last unit
-for the mode. Diagnostics for a missing `.` or a missing closer flow
-into the tree as usual.
+[`parse`](crate::parse) still parses leftover lexical tokens when the
+input ended without a `.`, as one last unit for the mode. Diagnostics
+for a missing `.` or a missing closer flow into the tree as usual.
 
-If a top-level unit is still open at `finish`, it is force-closed as
-`SyntaxKind::Error` covering the unterminated span, with a matching
-`UnexpectedEof` diagnostic on the same range.
+If a top-level unit is still open at the end of input, it is
+force-closed as `SyntaxKind::Error` covering the unterminated span,
+with a matching `UnexpectedEof` diagnostic on the same range.
 
 ## Example
 
@@ -147,37 +144,26 @@ second form still lands; the tree carries diagnostics for the first.
 ```rust
 # fn main() -> Result<(), erl_tokenize::Error> {
 let source = "1 2 3.\n-ok.";
-let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-for token in erl_tokenize::scan_tokens(source)? {
-    parser.feed_token(token);
-}
-
-let mut roots = Vec::new();
-while let Some(id) = parser.next_node() {
-    roots.push(id);
-}
-let tree = parser.finish();
+let tokens = erl_tokenize::scan_tokens(source)?;
+let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Module);
+let roots: Vec<_> = tree.roots().collect();
 
 assert!(roots.len() >= 2);
 assert!(!tree.diagnostics().is_empty());
 let last = roots[roots.len() - 1];
-assert_eq!(
-    tree.view(last).map(|v| v.kind()),
-    Some(erl_parse::SyntaxKind::Attribute),
-);
+assert_eq!(last.kind(), erl_parse::SyntaxKind::Attribute);
 # Ok(())
 # }
 ```
 
 A strict caller would treat that tree as a failed parse
 (`!diagnostics().is_empty()`). A best-effort caller would still walk
-`roots[1]` as `-ok.`.
+the last root as `-ok.`.
 
 ## What this crate does not do
 
 - Invent tokens to "repair" the input.
-- Expose a skip-to-next-form or rewind API. Continue driving
-  `feed_token` / `next_node`, or drop the [`Parser`](crate::Parser).
+- Expose a skip-to-next-form or rewind API.
 - Emit warnings or notes. Every diagnostic is currently an error.
 - Report preprocessor or tokenizer problems. Those belong to `erl_pp`
   / `erl_tokenize` (and to the driver that sits between them).
@@ -189,14 +175,14 @@ A strict caller would treat that tree as a failed parse
 
 Within the design above:
 
-- [`Parser::finish`](crate::Parser::finish) returns a `SyntaxTree` for
-  every input the caller fed.
+- [`parse`](crate::parse) returns a `SyntaxTree` for every token
+  slice the caller passed.
 - Hidden tokens around recovered spans stay in
   [`SyntaxTree::tokens`](crate::SyntaxTree::tokens).
 - A `SkippedToken` diagnostic's range equals the corresponding
   `Error` node's range.
 - A `MissingToken` diagnostic's range is empty, and the token count
-  of the tree equals the number of tokens the caller fed.
+  of the tree equals the number of tokens the caller passed.
 - Hitting the nesting-depth cap surfaces `NestingDepthExceeded`
   rather than panicking or overflowing the stack.
 - Recovery at a given site makes forward progress or refuses to
@@ -209,5 +195,5 @@ a bug.
 [`DiagnosticKind`](crate::DiagnosticKind),
 [`SyntaxKind::Error`](crate::SyntaxKind::Error),
 [`SyntaxTree::diagnostics`](crate::SyntaxTree::diagnostics),
-[`Parser::finish`](crate::Parser::finish),
-[`Parser::MAX_NESTING_DEPTH`](crate::Parser::MAX_NESTING_DEPTH).
+[`parse`](crate::parse),
+[`MAX_NESTING_DEPTH`](crate::MAX_NESTING_DEPTH).

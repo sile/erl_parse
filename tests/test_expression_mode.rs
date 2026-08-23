@@ -11,77 +11,63 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     out
 }
 
-fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
-    for t in scan_all(source) {
-        parser.feed_token(t);
-    }
-}
-
 fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
     tree.view(id).expect("entry exists").kind()
 }
 
+fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
+    let tokens = scan_all(source);
+    let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Expression);
+    let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
+    (tree, roots)
+}
+
 #[test]
 fn expression_mode_emits_unit_on_dot() {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    feed_all(&mut parser, "1 + 2.");
-    let node = parser.next_node().expect("unit completed at `.`");
-    let tree = parser.finish();
-    assert_eq!(kind_of(&tree, node), erl_parse::SyntaxKind::BinaryOpExpr);
+    let (tree, roots) = drive("1 + 2.");
+    assert_eq!(roots.len(), 1);
+    assert_eq!(
+        kind_of(&tree, roots[0]),
+        erl_parse::SyntaxKind::BinaryOpExpr
+    );
     assert!(tree.diagnostics().is_empty());
     // Root plus its two integer operands.
-    let root = tree.view(node).expect("root");
+    let root = tree.view(roots[0]).expect("root");
     assert!(1 + root.descendants().count() >= 3);
 }
 
 #[test]
-fn expression_mode_finish_flushes_input_without_trailing_dot() {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    feed_all(&mut parser, "foo(1, 2)");
-    // No unit before finish because no `.` has been seen.
-    assert!(parser.next_node().is_none());
-    let tree = parser.finish();
+fn expression_mode_parses_input_without_trailing_dot() {
+    let (tree, roots) = drive("foo(1, 2)");
     assert!(tree.diagnostics().is_empty());
-    assert!(tree.roots().next().is_some());
-    let root = tree.roots().next().expect("finish flushed a unit");
-    assert_eq!(root.kind(), erl_parse::SyntaxKind::CallExpr);
+    assert_eq!(roots.len(), 1);
+    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::CallExpr);
 }
 
 #[test]
 fn expression_mode_emits_multiple_units_across_dots() {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    feed_all(&mut parser, "1. 2.");
-    let first = parser.next_node().expect("first unit");
-    let second = parser.next_node().expect("second unit");
-    let tree = parser.finish();
-    assert_eq!(kind_of(&tree, first), erl_parse::SyntaxKind::IntegerExpr);
-    assert_eq!(kind_of(&tree, second), erl_parse::SyntaxKind::IntegerExpr);
+    let (tree, roots) = drive("1. 2.");
+    assert_eq!(roots.len(), 2);
+    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::IntegerExpr);
+    assert_eq!(kind_of(&tree, roots[1]), erl_parse::SyntaxKind::IntegerExpr);
     assert!(tree.diagnostics().is_empty());
 }
 
 #[test]
-fn feed_token_returns_index_of_added_token() {
+fn token_index_matches_input_order() {
     // Include a comment so hidden tokens participate in the index
     // stream on the same footing as lexical tokens.
     let source = "foo % note\n bar";
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
     let scanned = scan_all(source);
-    let mut returned = Vec::new();
-    for t in &scanned {
-        returned.push(parser.feed_token(*t));
-    }
-    let tree = parser.finish();
-    for (i, (index, expected)) in returned.iter().zip(scanned.iter()).enumerate() {
-        assert_eq!(
-            *index,
-            erl_parse::TokenIndex::new(i),
-            "feed_token {i} returned unexpected index"
-        );
+    let tree = erl_parse::parse(&scanned, erl_parse::ParseMode::Module);
+    assert_eq!(tree.tokens().len(), scanned.len());
+    for (i, expected) in scanned.iter().enumerate() {
+        let index = erl_parse::TokenIndex::new(i);
         let got = tree
             .tokens()
             .get(index.get())
             .copied()
-            .expect("returned index recovers the fed token");
+            .expect("input index recovers the same token");
         assert_eq!(got, *expected, "get({index:?}) mismatch");
     }
 }

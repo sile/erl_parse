@@ -307,8 +307,8 @@ pub enum SyntaxKind {
     // with an [`AttributeName`][Self::AttributeName] child and, when a
     // parenthesized payload is present, an
     // [`AttributePayload`][Self::AttributePayload] child. Callers pull
-    // the attribute name from the token buffer and, when needed, feed
-    // the payload's `TokenRange` back through a fresh parser in
+    // the attribute name from the token buffer and, when needed, pass
+    // the payload's token slice to [`crate::parse`] with
     // [`crate::ParseMode::Type`], [`crate::ParseMode::TermList`], or
     // [`crate::ParseMode::Expression`] when they want a structured
     // reading of the payload.
@@ -376,8 +376,8 @@ pub struct NodeId(usize);
 impl NodeId {
     /// Constructs a `NodeId` from a raw index.
     // `pub(crate)`: a raw slot is a preorder fence, not a caller-facing
-    // handle. External ids come from `Parser::next_node`,
-    // `SyntaxTree::roots`, and `NodeView` iterators.
+    // handle. External ids come from `SyntaxTree::roots` and `NodeView`
+    // iterators.
     pub(crate) const fn new(index: usize) -> Self {
         Self(index)
     }

@@ -50,7 +50,7 @@ pub struct ParseRun {
     pub parse: Stage,
     /// Finished tree. `None` when tokenize failed.
     pub tree: Option<erl_parse::SyntaxTree>,
-    /// Top-level units returned by `next_node`.
+    /// Top-level units from [`erl_parse::SyntaxTree::roots`].
     pub roots: Vec<erl_parse::NodeId>,
     /// Lexical token count (hidden tokens excluded).
     pub token_count: usize,
@@ -99,9 +99,8 @@ pub fn parse_text(
         }
     };
     let mut pp = erl_pp::Preprocessor::new([source]);
-    let mut parser = erl_parse::Parser::new(mode);
+    let mut tokens = Vec::new();
     let mut predef = predef::PredefContext::new(otp_release);
-    let mut roots = Vec::new();
     let mut token_sources = Vec::new();
     let mut token_count = 0usize;
     let mut warnings = 0usize;
@@ -117,10 +116,7 @@ pub fn parse_text(
                 token_count += 1;
                 predef.on_token(&t);
                 token_sources.push(Arc::clone(t.source()));
-                parser.feed_token(*t.token());
-                while let Some(id) = parser.next_node() {
-                    roots.push(id);
-                }
+                tokens.push(*t.token());
             }
             erl_pp::Event::MacroDefined(_) | erl_pp::Event::MacroUndefined(_) => {}
             erl_pp::Event::AwaitingInclude(req) => {
@@ -187,10 +183,8 @@ pub fn parse_text(
         }
     }
 
-    while let Some(id) = parser.next_node() {
-        roots.push(id);
-    }
-    let tree = parser.finish();
+    let tree = erl_parse::parse(&tokens, mode);
+    let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
     let preprocess = if preprocess_reason.is_none() {
         Stage::Ok
     } else {

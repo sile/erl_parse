@@ -16,11 +16,8 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
 /// Parses `source` in Expression mode (which uses the real block-
 /// expression grammar) and returns the completed `erl_parse::SyntaxTree`.
 fn parse_expr(source: &str) -> erl_parse::SyntaxTree {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-    for t in scan_all(source) {
-        parser.feed_token(t);
-    }
-    parser.finish()
+    let tokens = scan_all(source);
+    erl_parse::parse(&tokens, erl_parse::ParseMode::Expression)
 }
 
 /// Returns a `erl_parse::NodeView` for the tree's first root node.

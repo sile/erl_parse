@@ -13,37 +13,26 @@
 //! [`ParseMode`] selects the top-level construct; recovery and tree
 //! walking are in [`docs::diagnostics`] and [`docs::navigation`].
 //!
-//! # Minimal loop
+//! # Minimal parse
 //!
-//! This example tokenizes a minimal Erlang module, feeds its tokens to the
-//! parser, and collects the completed top-level nodes.
+//! This example tokenizes a minimal Erlang module and parses the
+//! tokens in one call.
 //!
 //! ```
 //! # fn main() -> Result<(), erl_tokenize::Error> {
 //! let source = "-module(foo).";
-//! let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-//! for token in erl_tokenize::scan_tokens(source)? {
-//!     parser.feed_token(token);
-//! }
-//! let mut roots = Vec::new();
-//! while let Some(id) = parser.next_node() {
-//!     roots.push(id);
-//! }
-//! let tree = parser.finish();
+//! let tokens = erl_tokenize::scan_tokens(source)?;
+//! let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Module);
+//! let roots: Vec<_> = tree.roots().collect();
 //! assert!(tree.diagnostics().is_empty());
 //! assert_eq!(roots.len(), 1);
-//! assert_eq!(
-//!     tree.view(roots[0]).map(|v| v.kind()),
-//!     Some(erl_parse::SyntaxKind::Attribute),
-//! );
+//! assert_eq!(roots[0].kind(), erl_parse::SyntaxKind::Attribute);
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! Construct a [`Parser`] for a [`ParseMode`], feed tokens, pull completed
-//! `.`-terminated units with [`Parser::next_node`], then
-//! [`Parser::finish`]. Strict success is
-//! [`SyntaxTree::diagnostics`] being empty.
+//! Pass every token, including whitespace and comments, to [`parse`].
+//! Strict success is [`SyntaxTree::diagnostics`] being empty.
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 
@@ -60,7 +49,9 @@ mod token_range;
 
 pub use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
 pub use crate::node::NodeView;
-pub use crate::parser::{ParseMode, Parser};
+#[cfg(test)]
+pub(crate) use crate::parser::Parser;
+pub use crate::parser::{MAX_NESTING_DEPTH, ParseMode, parse};
 pub use crate::syntax::{NodeId, SyntaxKind};
 pub use crate::syntax_tree::SyntaxTree;
 pub use crate::token_range::{TokenIndex, TokenRange};

@@ -1,20 +1,15 @@
 //! Bundled output of a completed parse.
 //!
-//! A [`SyntaxTree`] owns everything the caller needs to keep around after
-//! the parser goes away: the tokens they fed, the flat preorder syntax
-//! index, and the accumulated [`Diagnostic`]s. Tokens and nodes
-//! reference each other through [`TokenIndex`](crate::TokenIndex)
-//! and [`NodeId`](crate::NodeId), so [`NodeView`](crate::NodeView) works
-//! on a `SyntaxTree` in the same way it does against a live
-//! [`Parser`](crate::Parser). Forest-level walks
+//! A [`SyntaxTree`] owns everything the caller needs after [`parse`](crate::parse):
+//! the tokens they passed, the flat preorder syntax index, and the
+//! accumulated [`Diagnostic`]s. Tokens and nodes reference each
+//! other through [`TokenIndex`](crate::TokenIndex) and
+//! [`NodeId`](crate::NodeId). Forest-level walks
 //! ([`SyntaxTree::roots`], [`SyntaxTree::innermost_containing`]) and
 //! [`SyntaxTree::view`] keep the tokens and index paired. See
 //! [`docs::navigation`](crate::docs::navigation).
 //!
-//! `SyntaxTree` is `Clone` (all sub-components are `Clone`), so callers
-//! can also snapshot the parser mid-parse via
-//! [`Parser::syntax_tree`](crate::Parser::syntax_tree) and clone the result
-//! if they want to decouple the snapshot from the running parser.
+//! `SyntaxTree` is `Clone` (all sub-components are `Clone`).
 
 use crate::diagnostic::Diagnostic;
 use crate::node::NodeView;
@@ -43,8 +38,8 @@ pub struct SyntaxTree {
 
 impl SyntaxTree {
     /// Creates an empty tree.
-    // `pub(crate)`: callers receive a tree from `Parser::finish` /
-    // `Parser::syntax_tree`. An empty tree has no tokens to pair with.
+    // `pub(crate)`: callers receive a tree from `parse`. An empty
+    // tree has no tokens to pair with.
     pub(crate) const fn new() -> Self {
         Self {
             tokens: TokenBuffer::new(),
@@ -53,11 +48,10 @@ impl SyntaxTree {
         }
     }
 
-    /// Tokens the caller fed, in feed order.
+    /// Tokens passed to [`parse`](crate::parse), in input order.
     ///
-    /// The sequence is append-only: a [`TokenIndex`] obtained earlier
-    /// still names the same token after later feeds. Index a single
-    /// token with [`TokenIndex::get`]; slice a span with
+    /// [`TokenIndex`] `i` names `tokens[i]`. Index a single token
+    /// with [`TokenIndex::get`]; slice a span with
     /// [`TokenRange::as_range`](crate::TokenRange::as_range).
     pub fn tokens(&self) -> &[erl_tokenize::Token] {
         self.tokens.as_slice()

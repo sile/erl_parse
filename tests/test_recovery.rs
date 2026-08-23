@@ -1,5 +1,5 @@
 //! Integration tests for the error-recovery pass. Every assertion
-//! goes through the public [`erl_parse::Parser`] API — no test-only internal
+//! goes through the public [`erl_parse::parse`] API — no test-only internal
 //! hooks — so what these tests observe is what real consumers see.
 //!
 //! Test inputs deliberately use tokens the scanner accepts but the
@@ -17,23 +17,14 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     out
 }
 
-fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
-    for t in scan_all(source) {
-        parser.feed_token(t);
-    }
-}
-
 fn drive(
     mode: erl_parse::ParseMode,
     source: &str,
 ) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
-    let mut p = erl_parse::Parser::new(mode);
-    feed_all(&mut p, source);
-    let mut roots = Vec::new();
-    while let Some(id) = p.next_node() {
-        roots.push(id);
-    }
-    (p.finish(), roots)
+    let tokens = scan_all(source);
+    let tree = erl_parse::parse(&tokens, mode);
+    let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
+    (tree, roots)
 }
 
 fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
@@ -172,7 +163,7 @@ fn recovery_loop_makes_forward_progress_and_terminates() {
 
 #[test]
 fn deeply_nested_expression_hits_the_depth_cap_without_stack_overflow() {
-    // Well beyond `erl_parse::Parser::MAX_NESTING_DEPTH` = 256. Recovery must
+    // Well beyond `erl_parse::MAX_NESTING_DEPTH` = 256. Recovery must
     // report a `NestingDepthExceeded` diagnostic instead of
     // recursing until the stack blows.
     let depth = 4096;

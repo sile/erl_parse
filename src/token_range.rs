@@ -10,20 +10,20 @@ use core::ops::Range;
 ///
 /// Unlike [`NodeId`](crate::NodeId), this is the caller's address space:
 /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens) is the sequence they
-/// fed via [`Parser::feed_token`](crate::Parser::feed_token). Constructing
-/// from a slice position or from arithmetic on [`TokenIndex::get`] is
-/// expected. "Existing element" and "boundary" are not separate types
-/// here: missing-token, EOF, and empty-range cases dominate on the
-/// token side.
+/// passed to [`parse`](crate::parse). Constructing from a slice
+/// position or from arithmetic on [`TokenIndex::get`] is expected.
+/// "Existing element" and "boundary" are not separate types here:
+/// missing-token, EOF, and empty-range cases dominate on the token
+/// side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TokenIndex(usize);
 
 impl TokenIndex {
     /// Constructs a [`TokenIndex`] from a buffer offset in `0..=len`.
     ///
-    /// [`Parser::feed_token`](crate::Parser::feed_token) returns the
-    /// index of the token just appended. Callers also mint one from a
-    /// slice position or from arithmetic on [`TokenIndex::get`].
+    /// [`parse`](crate::parse) assigns index `i` to `tokens[i]`.
+    /// Callers also mint one from a slice position or from
+    /// arithmetic on [`TokenIndex::get`].
     pub const fn new(index: usize) -> Self {
         Self(index)
     }
@@ -31,9 +31,9 @@ impl TokenIndex {
     /// Returns the offset as a `usize`.
     ///
     /// Use this to index [`SyntaxTree::tokens`](crate::SyntaxTree::tokens)
-    /// (`tokens[index.get()]`), a parallel table kept beside the feed,
-    /// or to compute a neighbouring index and wrap it with
-    /// [`TokenIndex::new`].
+    /// (`tokens[index.get()]`), a parallel table kept beside the
+    /// input slice, or to compute a neighbouring index and wrap it
+    /// with [`TokenIndex::new`].
     pub const fn get(self) -> usize {
         self.0
     }

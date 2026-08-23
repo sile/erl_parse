@@ -222,7 +222,7 @@ fn adjacent_dedupe_holds_across_mutations() -> noprop::TestResult {
     Ok(())
 }
 
-/// Inputs whose nesting exceeds `erl_parse::Parser::MAX_NESTING_DEPTH` produce
+/// Inputs whose nesting exceeds `erl_parse::MAX_NESTING_DEPTH` produce
 /// a `NestingDepthExceeded` diagnostic instead of overflowing the
 /// stack.
 #[test]
@@ -259,6 +259,6 @@ fn depth_cap_surfaces_as_structured_error() -> noprop::TestResult {
         "no case ran the depth-cap generator\n{runner}"
     );
     // The public contract is a fixed value at test time.
-    assert_eq!(erl_parse::Parser::MAX_NESTING_DEPTH, 256);
+    assert_eq!(erl_parse::MAX_NESTING_DEPTH, 256);
     Ok(())
 }

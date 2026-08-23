@@ -1,7 +1,7 @@
 # Walking a syntax tree
 
 A finished [`SyntaxTree`](crate::SyntaxTree) is the tokens the
-caller fed plus a flat preorder array of nodes. Nothing in that
+caller passed plus a flat preorder array of nodes. Nothing in that
 pair is a "current position". Forest-level questions live on the
 tree; [`NodeView`](crate::NodeView) answers questions about **one
 node**.
@@ -31,7 +31,7 @@ the whole file: each `.`-terminated unit is its own root.
 ```text
 source:  {1, 2}.
 
-Tokens (every token the caller fed, hidden ones included):
+Tokens (every token the caller passed, hidden ones included):
   0 `{`   1 `1`   2 `,`   3 ` `   4 `2`   5 `}`   6 `.`
 
 Preorder:
@@ -45,23 +45,20 @@ the token buffer and show up through
 [`NodeView::tokens_in_range`](crate::NodeView::tokens_in_range).
 `children` / `descendants` only yield grammar nonterminals.
 
-[`Parser::next_node`](crate::Parser::next_node) returns the
-[`NodeId`](crate::NodeId) of slot `0` in that picture (the unit
-root). Nested slots stay in the index; you walk them from the
-root, you do not pull them one by one.
+[`SyntaxTree::roots`](crate::SyntaxTree::roots) yields the
+[`NodeView`](crate::NodeView) for slot `0` in that picture (the
+unit root). Nested slots stay in the index; you walk them from the
+root.
 
-## After `finish`
+## After `parse`
 
 Roots are `NodeView`s borrowed from the tree.
 
 ```rust
 # fn main() -> Result<(), erl_tokenize::Error> {
 let source = "{1, 2}.";
-let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Expression);
-for token in erl_tokenize::scan_tokens(source)? {
-    parser.feed_token(token);
-}
-let tree = parser.finish();
+let tokens = erl_tokenize::scan_tokens(source)?;
+let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Expression);
 
 let roots: Vec<_> = tree.roots().collect();
 assert_eq!(roots.len(), 1);
@@ -94,44 +91,24 @@ A [`NodeId`](crate::NodeId) or [`TokenIndex`](crate::TokenIndex) from
 another tree is still the caller's problem: `roots` / `view` /
 `innermost_containing` only keep this tree's buffer and index paired.
 
-## During a pull parse
-
-[`Parser::next_node`](crate::Parser::next_node) yields the same
-root ids that [`SyntaxTree::roots`](crate::SyntaxTree::roots) will
-yield after [`Parser::finish`](crate::Parser::finish). Wrap each id
-with [`SyntaxTree::view`](crate::SyntaxTree::view) while the parser
-is still alive, or collect the ids and wrap them on the finished
-tree.
+Several `.`-terminated units become several roots, in input order.
 
 ```rust
 # fn main() -> Result<(), erl_tokenize::Error> {
 let source = "{1}. {2}.";
-let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::TermList);
-for token in erl_tokenize::scan_tokens(source)? {
-    parser.feed_token(token);
-}
-
-let mut root_ids = Vec::new();
-while let Some(id) = parser.next_node() {
-    root_ids.push(id);
-}
-let tree = parser.finish();
-assert_eq!(root_ids.len(), 2);
-
-assert_eq!(
-    tree.view(root_ids[0]).map(|v| v.kind()),
-    Some(erl_parse::SyntaxKind::TupleExpr),
-);
-
-let via_roots: Vec<erl_parse::NodeId> = tree.roots().map(|v| v.node_id()).collect();
-assert_eq!(via_roots, root_ids);
+let tokens = erl_tokenize::scan_tokens(source)?;
+let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::TermList);
+let roots: Vec<_> = tree.roots().collect();
+assert_eq!(roots.len(), 2);
+assert_eq!(roots[0].kind(), erl_parse::SyntaxKind::TupleExpr);
+assert_eq!(roots[1].kind(), erl_parse::SyntaxKind::TupleExpr);
 # Ok(())
 # }
 ```
 
 [`SyntaxTree::view`](crate::SyntaxTree::view) returns `None` when
-the id is past the end of the index. Ids from `next_node` on that
-same tree are always in range.
+the id is past the end of the index. Ids from `roots` on that same
+tree are always in range.
 
 ## Choosing a walk
 
