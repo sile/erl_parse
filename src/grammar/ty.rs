@@ -67,7 +67,7 @@ fn parse_top_type(p: &mut Parser) -> CompletedMarker {
 
 /// Same depth-guard shape as `parse_expr_bp`: bounded recursion via
 /// [`Parser::enter_depth`] / [`Parser::leave_depth`], with a
-/// short-circuit at [`Parser::MAX_NESTING_DEPTH`] that emits a
+/// short-circuit at [`crate::MAX_NESTING_DEPTH`] that emits a
 /// zero-width [`SyntaxKind::Error`] node and a
 /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic instead of
 /// recursing further.

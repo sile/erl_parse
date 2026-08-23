@@ -46,7 +46,7 @@ pub(crate) fn parse_expr(p: &mut Parser) -> CompletedMarker {
 /// operator ends the loop and hands control back to the caller.
 ///
 /// Entry increments the parser's nesting-depth counter; when the
-/// counter has already reached [`Parser::MAX_NESTING_DEPTH`] the
+/// counter has already reached [`crate::MAX_NESTING_DEPTH`] the
 /// call short-circuits with a zero-width [`SyntaxKind::Error`] node
 /// and a [`DiagnosticKind::NestingDepthExceeded`] diagnostic instead
 /// of recursing (a pathologically nested input surfaces as a

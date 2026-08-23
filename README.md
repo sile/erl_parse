@@ -21,23 +21,16 @@ language tooling. It works directly on token streams:
 Examples
 --------
 
-This example tokenizes a minimal Erlang module, feeds its tokens to the parser,
-and collects the completed top-level nodes:
+This example tokenizes a minimal Erlang module and parses the tokens in one
+call:
 
 ```rust
 fn main() -> Result<(), erl_tokenize::Error> {
     let source = "-module(foo).";
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-    for token in erl_tokenize::scan_tokens(source)? {
-        parser.feed_token(token);
-    }
-    let mut roots = Vec::new();
-    while let Some(id) = parser.next_node() {
-        roots.push(id);
-    }
-    let tree = parser.finish();
+    let tokens = erl_tokenize::scan_tokens(source)?;
+    let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Module);
     assert!(tree.diagnostics().is_empty());
-    assert_eq!(roots.len(), 1);
+    assert_eq!(tree.roots().count(), 1);
     Ok(())
 }
 ```

@@ -12,24 +12,15 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     out
 }
 
-fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
-    for t in scan_all(source) {
-        parser.feed_token(t);
-    }
+fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
+    let tokens = scan_all(source);
+    let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Module);
+    let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
+    (tree, roots)
 }
 
 fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
     tree.view(id).expect("entry exists").kind()
-}
-
-fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
-    let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-    feed_all(&mut p, source);
-    let mut roots = Vec::new();
-    while let Some(id) = p.next_node() {
-        roots.push(id);
-    }
-    (p.finish(), roots)
 }
 
 fn direct_children(
@@ -135,8 +126,8 @@ fn spec_type_record_and_export_are_uniform_attributes() {
 #[test]
 fn record_field_dot_does_not_end_the_form_mid_push() {
     // The field-access `.` is the same token as a form terminator.
-    // Incremental `feed_token` must not start `parse_one` when that
-    // `.` is pushed, because the field name is not in the buffer yet.
+    // Parsing the whole token slice must not split the form at that
+    // `.` before the field name is seen.
     for source in [
         "f(X) -> X#r.f.",
         "f() -> #r.f.",
@@ -293,15 +284,11 @@ fn malformed_function_clause_missing_arrow_emits_error() {
 }
 
 #[test]
-fn missing_form_terminating_dot_flushes_via_finish() {
-    // `-module(m)` never sees a boundary `.`, so no unit completes
-    // during push; `finish` force-parses the trailing input as one
-    // final unit whose contents include the parsed attribute plus
-    // whatever the mode's grammar can extract.
-    let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-    feed_all(&mut p, "-module(m)");
-    assert!(p.next_node().is_none());
-    let tree = p.finish();
+fn missing_form_terminating_dot_still_yields_a_root() {
+    // `-module(m)` never sees a boundary `.`. parse still treats the
+    // trailing input as one final unit.
+    let (tree, roots) = drive("-module(m)");
+    assert_eq!(roots.len(), 1);
     assert!(tree.roots().next().is_some());
 }
 

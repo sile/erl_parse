@@ -1,11 +1,11 @@
 //! Property-based tests that exercise the parser at the mode /
-//! entry-point level: determinism and observation-invariance.
+//! entry-point level: determinism and termination.
 
 #[expect(dead_code, reason = "shared harness; this binary uses only a subset")]
 mod pbt_harness;
 
-/// Two fresh `erl_parse::Parser` instances driven with the same tokens in the
-/// same order produce matching preorder `(kind, range)` sequences and
+/// Two calls to [`erl_parse::parse`] with the same tokens in the same
+/// mode produce matching preorder `(kind, range)` sequences and
 /// `erl_parse::Diagnostic` sequences.
 #[test]
 fn determinism_across_two_parsers() -> noprop::TestResult {
@@ -17,14 +17,8 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
         let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
-        let mut a = erl_parse::Parser::new(mode);
-        let mut b = erl_parse::Parser::new(mode);
-        for t in &tokens {
-            a.feed_token(*t);
-            b.feed_token(*t);
-        }
-        let ta = a.finish();
-        let tb = b.finish();
+        let ta = erl_parse::parse(&tokens, mode);
+        let tb = erl_parse::parse(&tokens, mode);
         assert_eq!(
             pbt_harness::preorder_kind_and_range(&ta),
             pbt_harness::preorder_kind_and_range(&tb),
@@ -40,57 +34,7 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
     Ok(())
 }
 
-/// Two parsers driven with the same tokens produce the same
-/// syntax tree / `erl_parse::Diagnostic` regardless of whether the caller
-/// interleaves `next_node` / `syntax_tree` observations between
-/// `feed_token` calls or defers all observation until `finish`
-/// returns.
-#[test]
-fn observation_invariance() -> noprop::TestResult {
-    let seed = noprop::seed_from_env_or_time(pbt_harness::SEED_ENV)?;
-    let saw_observation = pbt_harness::Counter::new();
-    let mut runner = noprop::Runner::new(seed);
-    runner.run(pbt_harness::CASES, |ctx| {
-        let src = pbt_harness::sample_module_source(ctx);
-        let Some(tokens) = pbt_harness::scan_all(&src) else {
-            return Ok(());
-        };
-        let mut quiet = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-        let mut noisy = erl_parse::Parser::new(erl_parse::ParseMode::Module);
-        for (i, t) in tokens.iter().enumerate() {
-            quiet.feed_token(*t);
-            noisy.feed_token(*t);
-            // Interleave observations at pseudo-random points.
-            if i.is_multiple_of(3) {
-                let _ = noisy.next_node();
-                let _ = noisy.syntax_tree();
-                saw_observation.bump();
-            }
-        }
-        // Drain any remaining pending units on the noisy side.
-        while noisy.next_node().is_some() {}
-        let tq = quiet.finish();
-        let tn = noisy.finish();
-        assert_eq!(
-            pbt_harness::preorder_kind_and_range(&tq),
-            pbt_harness::preorder_kind_and_range(&tn),
-            "observation altered the syntax tree for source {src:?}"
-        );
-        assert_eq!(
-            tq.diagnostics(),
-            tn.diagnostics(),
-            "observation altered errors for source {src:?}"
-        );
-        Ok(())
-    })?;
-    assert!(
-        saw_observation.get() > 0,
-        "no case interleaved observation calls\n{runner}"
-    );
-    Ok(())
-}
-
-/// For any input in any of the four modes, `erl_parse::Parser::finish`
+/// For any input in any of the four modes, [`erl_parse::parse`]
 /// returns without panicking or hanging: parsing terminates.
 #[test]
 fn parser_always_terminates_across_modes() -> noprop::TestResult {
@@ -103,11 +47,7 @@ fn parser_always_terminates_across_modes() -> noprop::TestResult {
         let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
-        let mut p = erl_parse::Parser::new(mode);
-        for t in &tokens {
-            p.feed_token(*t);
-        }
-        let _tree = p.finish();
+        let _tree = erl_parse::parse(&tokens, mode);
         touched.set();
         Ok(())
     })?;

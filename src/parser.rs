@@ -1,20 +1,11 @@
 //! Sans I/O parser core.
 //!
-//! The parser owns a [`SyntaxTree`] (which bundles the growing
-//! `TokenBuffer`, the append-only `SyntaxIndex`, and the accumulated
-//! `Diagnostic`s) plus an internal event log that grammar functions
-//! extend as they run. It exposes a small feed/pull API:
-//!
-//! - [`Parser::feed_token`] feeds one input token.
-//! - [`Parser::next_node`] pulls the next completed `.`-terminated unit.
-//! - [`Parser::syntax_tree`] borrows the accumulated tree for reading.
-//! - [`Parser::finish`] consumes the parser and hands back the finished
-//!   [`SyntaxTree`].
-//!
-//! Grammar functions (added in subsequent changes) consume tokens through
-//! an internal cursor and emit start/finish events via [`Marker`] and
-//! [`CompletedMarker`]; the parser drains completed top-level units into
-//! the syntax index at boundaries.
+//! The public entry is [`parse`]: a token slice and a [`ParseMode`]
+//! yield a [`SyntaxTree`]. [`Parser`] is the crate-internal engine
+//! that owns the growing tree, the event log, and the `.`-driven
+//! grammar loop. Grammar functions consume tokens through an internal
+//! cursor and emit start/finish events via [`Marker`] and
+//! [`CompletedMarker`].
 
 use crate::cursor::{CursorCheckpoint, TokenCursor};
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};
@@ -26,11 +17,11 @@ use crate::syntax_tree::SyntaxTree;
 use crate::token_buffer::TokenBuffer;
 use crate::token_range::{TokenIndex, TokenRange};
 
-/// Selects the top-level construct the parser recognizes.
+/// Selects the top-level construct [`parse`] recognizes.
 ///
-/// Fixed at [`Parser::new`]. Every mode uses the same feed / pull
-/// loop and emits one root per terminating `.`. There is no
-/// grand-root wrapping the whole input.
+/// Passed as the second argument to [`parse`]. Every mode emits one
+/// root per terminating `.`. There is no grand-root wrapping the
+/// whole input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParseMode {
     /// A `.erl` module: attributes and function declarations.
@@ -47,8 +38,8 @@ pub enum ParseMode {
     TermList,
     /// An `erl_eval`-style expression.
     ///
-    /// Each expression ends with `.`. Feeding several dotted
-    /// expressions yields several roots.
+    /// Each expression ends with `.`. Several dotted expressions
+    /// yield several roots.
     Expression,
     /// A type (`-spec` / `-type` payload style).
     ///
@@ -56,6 +47,50 @@ pub enum ParseMode {
     /// constructors are accepted; general expression constructs are
     /// not.
     Type,
+}
+
+/// Upper bound on the grammar's nesting depth.
+///
+/// Grammar sites that recurse (block expressions, container
+/// literals, function calls, type constructors, and so on)
+/// increment an internal counter as they descend. When a
+/// production would go past `MAX_NESTING_DEPTH`, the site
+/// returns without recursing and records a
+/// [`DiagnosticKind::NestingDepthExceeded`] diagnostic so a
+/// pathologically nested input surfaces as a structured error
+/// rather than a stack overflow.
+///
+/// The exact value is an implementation detail chosen well above
+/// what hand-written Erlang source realistically nests; treat it
+/// as an upper bound the parser is guaranteed not to exceed
+/// rather than as a limit callers should design around.
+pub const MAX_NESTING_DEPTH: usize = 256;
+
+/// Parses `tokens` under `mode` and returns a [`SyntaxTree`].
+///
+/// Always returns a tree. Syntax problems are recorded as
+/// [`Diagnostic`](crate::Diagnostic)s on that tree rather than
+/// `Result::Err`. Pass every token the tokenizer yielded, including
+/// whitespace and comments. [`TokenIndex`] `i` names `tokens[i]` and
+/// the same slot of [`SyntaxTree::tokens`].
+///
+/// Each `.`-terminated unit becomes one root
+/// ([`SyntaxTree::roots`]). Input that ends without a `.` is still
+/// parsed as a final unit for `mode`.
+///
+/// Grammar nesting is bounded by [`MAX_NESTING_DEPTH`]: hitting the
+/// cap emits [`DiagnosticKind::NestingDepthExceeded`] instead of
+/// overflowing the stack.
+///
+/// To read an attribute payload as a type, term, or expression, slice
+/// [`SyntaxTree::tokens`] with the payload's [`TokenRange`] and call
+/// `parse` again with the matching [`ParseMode`].
+pub fn parse(tokens: &[erl_tokenize::Token], mode: ParseMode) -> SyntaxTree {
+    let mut parser = Parser::new(mode);
+    for &token in tokens {
+        parser.feed_token(token);
+    }
+    parser.finish()
 }
 
 /// Identifies the grammar site that ran the most recent recovery
@@ -116,14 +151,13 @@ pub(crate) enum ParseContext {
     Type,
 }
 
-/// Incremental parser driven by [`Parser::feed_token`].
+/// Crate-internal `.`-driven parser engine.
 ///
-/// Construct with [`Parser::new`], feed every token the tokenizer
-/// yields (including hidden ones), pull completed `.`-terminated
-/// units with [`Parser::next_node`], and take the finished
-/// [`SyntaxTree`] with [`Parser::finish`].
+/// Public callers use [`parse`]. This type owns the growing
+/// [`SyntaxTree`], the event log, and the cursor grammar functions
+/// consume.
 #[derive(Debug)]
-pub struct Parser {
+pub(crate) struct Parser {
     mode: ParseMode,
     tree: SyntaxTree,
     events: Vec<Event>,
@@ -131,7 +165,7 @@ pub struct Parser {
     at: usize,
     /// Nesting depth counter maintained by grammar loops via
     /// [`Parser::enter_depth`] / [`Parser::leave_depth`]. Capped at
-    /// [`Parser::MAX_NESTING_DEPTH`]: recursive grammar sites that
+    /// [`MAX_NESTING_DEPTH`]: recursive grammar sites that
     /// try to descend past the cap short-circuit with a
     /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic instead
     /// of overflowing the stack.
@@ -167,31 +201,8 @@ pub struct Parser {
 }
 
 impl Parser {
-    /// Public upper bound on the grammar's nesting depth.
-    ///
-    /// Grammar sites that recurse (block expressions, container
-    /// literals, function calls, type constructors, and so on)
-    /// increment an internal counter as they descend. When a
-    /// caller tries to descend past `MAX_NESTING_DEPTH`, the site
-    /// returns without recursing and records a
-    /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic so a
-    /// pathologically nested input surfaces as a structured error
-    /// rather than a stack overflow.
-    ///
-    /// The exact value is an implementation detail chosen well above
-    /// what hand-written Erlang source realistically nests; treat it
-    /// as an upper bound the parser is guaranteed not to exceed
-    /// rather than as a limit callers should design around.
-    pub const MAX_NESTING_DEPTH: usize = 256;
-
     /// Creates a parser for `mode`.
-    ///
-    /// Feed every token from the tokenizer, including whitespace and
-    /// comments. Grammar nesting is bounded by
-    /// [`Parser::MAX_NESTING_DEPTH`]: hitting the cap emits a
-    /// [`DiagnosticKind::NestingDepthExceeded`] diagnostic instead of
-    /// overflowing the stack.
-    pub fn new(mode: ParseMode) -> Self {
+    pub(crate) fn new(mode: ParseMode) -> Self {
         Self {
             mode,
             tree: SyntaxTree::new(),
@@ -207,11 +218,6 @@ impl Parser {
         }
     }
 
-    /// Returns the mode this parser was constructed with.
-    pub fn mode(&self) -> ParseMode {
-        self.mode
-    }
-
     /// Feeds one token into the parser and returns the [`TokenIndex`]
     /// at which it was placed in the buffer.
     ///
@@ -225,7 +231,7 @@ impl Parser {
     /// The return value can be discarded when the caller does not need
     /// to associate the token with any external metadata; the method is
     /// intentionally not marked `#[must_use]`.
-    pub fn feed_token(&mut self, token: erl_tokenize::Token) -> TokenIndex {
+    pub(crate) fn feed_token(&mut self, token: erl_tokenize::Token) -> TokenIndex {
         let index = self.tree.tokens_mut().push(token);
         self.advance_grammar();
         index
@@ -236,8 +242,8 @@ impl Parser {
     /// call. Nested nodes stay in the syntax index; wrap this id with
     /// [`SyntaxTree::view`](crate::SyntaxTree::view), or collect the
     /// same roots later via [`SyntaxTree::roots`](crate::SyntaxTree::roots).
-    /// See [`docs::navigation`](crate::docs::navigation).
-    pub fn next_node(&mut self) -> Option<NodeId> {
+    #[cfg(test)]
+    pub(crate) fn next_node(&mut self) -> Option<NodeId> {
         // Attempt to make grammar progress in case the previous feed_token
         // paused at a partial unit.
         self.advance_grammar();
@@ -246,7 +252,8 @@ impl Parser {
 
     /// Borrows the accumulated syntax tree (tokens, syntax index, and
     /// diagnostics) for reading during parsing.
-    pub fn syntax_tree(&self) -> &SyntaxTree {
+    #[cfg(test)]
+    pub(crate) fn syntax_tree(&self) -> &SyntaxTree {
         &self.tree
     }
 
@@ -260,7 +267,7 @@ impl Parser {
     /// the unterminated unit's start to the buffer's end) — and the
     /// unit is force-closed as [`SyntaxKind::Error`] so it survives
     /// in the returned tree.
-    pub fn finish(mut self) -> SyntaxTree {
+    pub(crate) fn finish(mut self) -> SyntaxTree {
         self.advance_grammar();
         // If lexical tokens remain past the cursor (the buffer ended
         // without a terminating `.`), treat the remaining input as
@@ -369,14 +376,14 @@ impl Parser {
     /// Enters a nested grammar site and increments the depth
     /// counter. Returns `true` when the site may recurse; returns
     /// `false` when the site would exceed
-    /// [`Self::MAX_NESTING_DEPTH`], in which case the caller must
+    /// [`MAX_NESTING_DEPTH`], in which case the caller must
     /// stop recursing (and typically emits a
     /// [`DiagnosticKind::NestingDepthExceeded`] via
     /// [`Self::push_nesting_depth_exceeded`] and abandons the
     /// deeper markers). Successful entries must be matched by
     /// [`Self::leave_depth`].
     pub(crate) fn enter_depth(&mut self) -> bool {
-        if self.depth >= Self::MAX_NESTING_DEPTH {
+        if self.depth >= MAX_NESTING_DEPTH {
             return false;
         }
         self.depth += 1;

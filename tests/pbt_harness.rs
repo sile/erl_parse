@@ -26,7 +26,7 @@ pub const MAX_SOURCE_LEN: usize = 256;
 /// Kept low so ordinary cases finish quickly (a naive depth of 6
 /// with a branching factor near 3 explodes into thousands of
 /// tokens per case); a dedicated deep-nesting generator exceeds
-/// `erl_parse::Parser::MAX_NESTING_DEPTH` on purpose for the cap-check test.
+/// `erl_parse::MAX_NESTING_DEPTH` on purpose for the cap-check test.
 pub const MAX_GEN_DEPTH: usize = 3;
 
 /// Upper bound on comma-separated child count inside a compound
@@ -324,10 +324,10 @@ fn sample_form(ctx: &mut noprop::TestCaseContext) -> String {
 }
 
 /// Draws a deeply nested paren expression that intentionally exceeds
-/// `erl_parse::Parser::MAX_NESTING_DEPTH` so the depth-cap path is exercised.
+/// `erl_parse::MAX_NESTING_DEPTH` so the depth-cap path is exercised.
 pub fn sample_deep_paren_source(ctx: &mut noprop::TestCaseContext) -> String {
     let extra = noprop::sample_usize_in(ctx, 8..=64);
-    let depth = erl_parse::Parser::MAX_NESTING_DEPTH + extra;
+    let depth = erl_parse::MAX_NESTING_DEPTH + extra;
     let mut s = String::with_capacity(depth * 2 + 4);
     for _ in 0..depth {
         s.push('(');
@@ -363,17 +363,12 @@ pub fn scan_all(source: &str) -> Option<Vec<erl_tokenize::Token>> {
     }
 }
 
-/// Drives a parser end-to-end with the supplied tokens in the given
-/// mode. Returns the finished `erl_parse::SyntaxTree`.
+/// Parses `tokens` in `mode` via the public [`erl_parse::parse`] entry.
 pub fn parse_full(
     mode: erl_parse::ParseMode,
     tokens: &[erl_tokenize::Token],
 ) -> erl_parse::SyntaxTree {
-    let mut p = erl_parse::Parser::new(mode);
-    for t in tokens {
-        p.feed_token(*t);
-    }
-    p.finish()
+    erl_parse::parse(tokens, mode)
 }
 
 /// All public [`erl_parse::ParseMode`] variants, in a stable order

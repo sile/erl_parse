@@ -11,24 +11,15 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     out
 }
 
-fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
-    for t in scan_all(source) {
-        parser.feed_token(t);
-    }
+fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
+    let tokens = scan_all(source);
+    let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Type);
+    let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
+    (tree, roots)
 }
 
 fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
     tree.view(id).expect("entry exists").kind()
-}
-
-fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
-    let mut p = erl_parse::Parser::new(erl_parse::ParseMode::Type);
-    feed_all(&mut p, source);
-    let mut roots = Vec::new();
-    while let Some(id) = p.next_node() {
-        roots.push(id);
-    }
-    (p.finish(), roots)
 }
 
 #[test]
@@ -40,14 +31,11 @@ fn type_mode_emits_unit_on_dot() {
 }
 
 #[test]
-fn type_mode_finish_flushes_input_without_trailing_dot() {
-    let mut parser = erl_parse::Parser::new(erl_parse::ParseMode::Type);
-    feed_all(&mut parser, "list(integer())");
-    assert!(parser.next_node().is_none());
-    let tree = parser.finish();
+fn type_mode_parses_input_without_trailing_dot() {
+    let (tree, roots) = drive("list(integer())");
     assert!(tree.diagnostics().is_empty());
-    let root = tree.roots().next().expect("finish flushed a unit");
-    assert_eq!(root.kind(), erl_parse::SyntaxKind::TypeCall);
+    assert_eq!(roots.len(), 1);
+    assert_eq!(kind_of(&tree, roots[0]), erl_parse::SyntaxKind::TypeCall);
 }
 
 #[test]

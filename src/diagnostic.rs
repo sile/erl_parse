@@ -95,7 +95,7 @@ pub enum DiagnosticKind {
     /// token.
     MissingToken,
     /// The grammar's nesting depth exceeded
-    /// [`Parser::MAX_NESTING_DEPTH`](crate::Parser::MAX_NESTING_DEPTH) at this position. The
+    /// [`MAX_NESTING_DEPTH`](crate::MAX_NESTING_DEPTH) at this position. The
     /// parser stops recursing (instead of panicking or overflowing
     /// the stack), unwinds to a bounded depth, and continues
     /// recovery.

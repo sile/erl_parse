@@ -12,24 +12,15 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
     out
 }
 
-fn feed_all(parser: &mut erl_parse::Parser, source: &str) {
-    for t in scan_all(source) {
-        parser.feed_token(t);
-    }
+fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
+    let tokens = scan_all(source);
+    let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::TermList);
+    let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
+    (tree, roots)
 }
 
 fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::SyntaxKind {
     tree.view(id).expect("entry exists").kind()
-}
-
-fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
-    let mut p = erl_parse::Parser::new(erl_parse::ParseMode::TermList);
-    feed_all(&mut p, source);
-    let mut roots = Vec::new();
-    while let Some(id) = p.next_node() {
-        roots.push(id);
-    }
-    (p.finish(), roots)
 }
 
 #[test]

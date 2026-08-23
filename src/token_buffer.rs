@@ -10,7 +10,7 @@ use crate::token_range::{TokenIndex, TokenRange};
 ///
 /// Not part of the public API: callers read
 /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens). Tokens are
-/// appended only through [`Parser::feed_token`](crate::Parser::feed_token).
+/// appended only through the crate-internal parser.
 /// Already-stored tokens are never removed, reordered, or mutated, so a
 /// [`TokenIndex`] stays valid for the rest of the parse and on the
 /// finished tree.
@@ -58,7 +58,7 @@ impl TokenBuffer {
     /// [`TokenIndex`] at which the token now lives. The returned index
     /// can be passed to [`Self::get`] to recover the same token.
     // `pub(crate)`: only the parser core and in-crate tests call this.
-    // External callers feed tokens through `Parser::feed_token`.
+    // Tokens enter through the crate-internal parser.
     pub(crate) fn push(&mut self, token: erl_tokenize::Token) -> TokenIndex {
         let index = TokenIndex::new(self.tokens.len());
         self.tokens.push(token);
