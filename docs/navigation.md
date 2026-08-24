@@ -120,7 +120,7 @@ tree are always in range.
 | Every node, preorder, roots included | [`SyntaxTree::nodes`](crate::SyntaxTree::nodes) |
 | Direct children of one node | [`NodeView::children`](crate::NodeView::children) |
 | Every nested node, preorder, excluding self | [`NodeView::descendants`](crate::NodeView::descendants) |
-| Enclosing nodes, **outermost first** (root toward the parent) | [`NodeView::ancestors`](crate::NodeView::ancestors) |
+| Enclosing nodes, **innermost first** (direct parent toward the root) | [`NodeView::ancestors`](crate::NodeView::ancestors) |
 | Tokens in this span, including whitespace and comments | [`NodeView::tokens_in_range`](crate::NodeView::tokens_in_range) |
 | Tightest node whose non-empty range contains this token | [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing) |
 
@@ -132,10 +132,10 @@ click-to-node starts at `innermost_containing`. Reprinting a span
 walks `tokens_in_range`, not `children`, so hidden tokens and
 punctuation are not dropped.
 
-[`NodeView::ancestors`](crate::NodeView::ancestors) does **not**
-start at the parent. The first item is the root that contains the
-node; the last item is the direct parent. The node itself is not
-in the sequence.
+[`NodeView::ancestors`](crate::NodeView::ancestors) starts at the
+direct parent. The first item is the closest enclosing node; the
+last item is the root that contains the node. The node itself is
+not in the sequence.
 
 ## Empty ranges
 
