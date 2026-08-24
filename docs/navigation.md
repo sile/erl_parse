@@ -168,7 +168,7 @@ The first element sits at `range().start()`. When you keep a side
 table parallel to [`SyntaxTree::tokens`](crate::SyntaxTree::tokens),
 map the `i`-th element of the slice back to the buffer with
 `TokenIndex::new(node.range().start().get() + i)`, or zip the slice
-with the range itself: `node.tokens().iter().zip(node.range())`
+with the range itself: `node.tokens().iter().copied().zip(node.range())`
 yields `(Token, TokenIndex)` pairs.
 
 An `erl_tokenize::Token` alone has no spelling: it records where it
@@ -196,6 +196,8 @@ recovery uses that shape; see
 - They do not mutate the tree or the token buffer.
 - Iterator-returning methods hand back opaque `impl Iterator`
   values. Name them with `for` / `.map` / `.collect`, not a
-  concrete struct.
+  concrete struct. The one concrete iterator is a
+  [`TokenRange`](crate::TokenRange): it is `Copy` and iterates the
+  span's [`TokenIndex`](crate::TokenIndex)es, like `std::ops::Range`.
 - If you already have a [`NodeId`](crate::NodeId), start with
   [`SyntaxTree::view`](crate::SyntaxTree::view).
