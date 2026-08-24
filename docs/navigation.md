@@ -152,8 +152,14 @@ let tokens = erl_tokenize::scan_tokens(source)?;
 let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Expression);
 let root = tree.roots().next().expect("one root");
 
-assert_eq!(root.tokens(), &tree.tokens()[root.range().as_range()]);
+assert_eq!(root.tokens(), &tree.tokens()[root.range().as_slice_index()]);
 assert_eq!(root.tokens().len(), root.range().len());
+
+// Zip the slice with its indices: a `TokenRange` iterates the
+// `TokenIndex`es of the span.
+let pairs: Vec<(erl_tokenize::Token, erl_parse::TokenIndex)> =
+    root.tokens().iter().copied().zip(root.range()).collect();
+assert_eq!(pairs.len(), root.range().len());
 # Ok(())
 # }
 ```
@@ -161,7 +167,9 @@ assert_eq!(root.tokens().len(), root.range().len());
 The first element sits at `range().start()`. When you keep a side
 table parallel to [`SyntaxTree::tokens`](crate::SyntaxTree::tokens),
 map the `i`-th element of the slice back to the buffer with
-`TokenIndex::new(node.range().start().get() + i)`.
+`TokenIndex::new(node.range().start().get() + i)`, or zip the slice
+with the range itself: `node.tokens().iter().zip(node.range())`
+yields `(Token, TokenIndex)` pairs.
 
 An `erl_tokenize::Token` alone has no spelling: it records where it
 was scanned, not the source text. Pass the original source string to

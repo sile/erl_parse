@@ -95,17 +95,18 @@ impl<'a> NodeView<'a> {
     ///
     /// This is the same buffer as
     /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens): the node's
-    /// slice is `&tree.tokens()[self.range().as_range()]`. The first
-    /// token sits at [`TokenRange::start`](TokenRange::start), so a
-    /// position in the buffer is `TokenIndex::new(self.range().start().get() + i)`
-    /// for the `i`-th element. Read a token's spelling or decoded
+    /// slice is `&tree.tokens()[self.range().as_slice_index()]`. The
+    /// first token sits at [`TokenRange::start`](TokenRange::start), so
+    /// a position in the buffer is
+    /// `TokenIndex::new(self.range().start().get() + i)` for the `i`-th
+    /// element. Read a token's spelling or decoded
     /// value with [`erl_tokenize::Token::text`] /
     /// [`erl_tokenize::Token::value`] and the original source string.
     ///
     /// An empty node (a missing token or a zero-width entry) yields an
     /// empty slice; `range().start()` still names the anchor position.
     pub fn tokens(self) -> &'a [erl_tokenize::Token] {
-        &self.tokens.as_slice()[self.range().as_range()]
+        &self.tokens.as_slice()[self.range().as_slice_index()]
     }
 
     /// Returns an iterator over ancestors starting from the direct

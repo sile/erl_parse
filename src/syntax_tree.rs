@@ -53,7 +53,7 @@ impl SyntaxTree {
     ///
     /// [`TokenIndex`] `i` names `tokens[i]`. Index a single token
     /// with [`TokenIndex::get`]; slice a span with
-    /// [`TokenRange::as_range`](crate::TokenRange::as_range). Read
+    /// [`TokenRange::as_slice_index`](crate::TokenRange::as_slice_index). Read
     /// the span of a specific node through
     /// [`NodeView::tokens`](crate::NodeView::tokens), which borrows
     /// this same slice.
