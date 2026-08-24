@@ -32,8 +32,7 @@ fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::Sy
 }
 
 fn all_views<'a>(tree: &'a erl_parse::SyntaxTree) -> impl Iterator<Item = erl_parse::NodeView<'a>> {
-    tree.roots()
-        .flat_map(|root| std::iter::once(root).chain(root.descendants()))
+    tree.nodes()
 }
 
 fn contains_error_node(tree: &erl_parse::SyntaxTree) -> bool {

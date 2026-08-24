@@ -455,12 +455,11 @@ pub enum InvariantViolation {
 }
 
 /// Walks every node through the public forest: each root, then its
-/// descendants.
+/// descendants ([`erl_parse::SyntaxTree::nodes`]).
 pub fn all_views<'a>(
     tree: &'a erl_parse::SyntaxTree,
 ) -> impl Iterator<Item = erl_parse::NodeView<'a>> {
-    tree.roots()
-        .flat_map(|root| std::iter::once(root).chain(root.descendants()))
+    tree.nodes()
 }
 
 /// Number of nodes reachable from the forest roots.
