@@ -649,7 +649,10 @@ fn is_dot(token: erl_tokenize::Token) -> bool {
     )
 }
 
-fn prev_lexical(tokens: &[erl_tokenize::Token], index: usize) -> Option<(usize, erl_tokenize::Token)> {
+fn prev_lexical(
+    tokens: &[erl_tokenize::Token],
+    index: usize,
+) -> Option<(usize, erl_tokenize::Token)> {
     let mut i = index;
     while i > 0 {
         i -= 1;
