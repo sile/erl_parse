@@ -11,7 +11,6 @@
 //! borrows share a single lifetime.
 
 use crate::syntax::{NodeId, SyntaxIndex, SyntaxKind};
-use crate::token_buffer::TokenBuffer;
 use crate::token_range::{TokenIndex, TokenRange};
 
 /// Lightweight navigation view anchored on a specific [`NodeId`].
@@ -23,7 +22,7 @@ use crate::token_range::{TokenIndex, TokenRange};
 /// an existing view. See [`docs::navigation`](crate::docs::navigation).
 #[derive(Debug, Clone, Copy)]
 pub struct NodeView<'a> {
-    tokens: &'a TokenBuffer,
+    tokens: &'a [erl_tokenize::Token],
     index: &'a SyntaxIndex,
     node_id: NodeId,
 }
@@ -31,10 +30,10 @@ pub struct NodeView<'a> {
 impl<'a> NodeView<'a> {
     /// Creates a view for a specific [`NodeId`]. Returns `None` when the id
     /// does not refer to an existing entry.
-    // `pub(crate)`: pairing a buffer with an index is easy to get
+    // `pub(crate)`: pairing a token slice with an index is easy to get
     // wrong across trees. External callers use `SyntaxTree::view`.
     pub(crate) fn new(
-        tokens: &'a TokenBuffer,
+        tokens: &'a [erl_tokenize::Token],
         index: &'a SyntaxIndex,
         node_id: NodeId,
     ) -> Option<Self> {
@@ -93,11 +92,11 @@ impl<'a> NodeView<'a> {
     /// slice, in buffer order. Hidden tokens (whitespace and comments)
     /// are included, so the slice is 1:1 with the range.
     ///
-    /// This is the same buffer as
+    /// This is the same slice as
     /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens): the node's
     /// slice is `&tree.tokens()[self.range().as_slice_index()]`. The
     /// first token sits at [`TokenRange::start`](TokenRange::start), so
-    /// a position in the buffer is
+    /// a position in the slice is
     /// `TokenIndex::new(self.range().start().get() + i)` for the `i`-th
     /// element. Read a token's spelling or decoded
     /// value with [`erl_tokenize::Token::text`] /
@@ -106,7 +105,7 @@ impl<'a> NodeView<'a> {
     /// An empty node (a missing token or a zero-width entry) yields an
     /// empty slice; `range().start()` still names the anchor position.
     pub fn tokens(self) -> &'a [erl_tokenize::Token] {
-        &self.tokens.as_slice()[self.range().as_slice_index()]
+        &self.tokens[self.range().as_slice_index()]
     }
 
     /// Returns an iterator over ancestors starting from the direct
@@ -131,7 +130,7 @@ impl<'a> NodeView<'a> {
 }
 
 struct Children<'a> {
-    tokens: &'a TokenBuffer,
+    tokens: &'a [erl_tokenize::Token],
     index: &'a SyntaxIndex,
     cursor: usize,
     parent_end: usize,
@@ -160,7 +159,7 @@ impl<'a> Iterator for Children<'a> {
 }
 
 struct Descendants<'a> {
-    tokens: &'a TokenBuffer,
+    tokens: &'a [erl_tokenize::Token],
     index: &'a SyntaxIndex,
     cursor: usize,
     end: usize,
@@ -184,7 +183,7 @@ impl<'a> Iterator for Descendants<'a> {
 }
 
 struct Ancestors<'a> {
-    tokens: &'a TokenBuffer,
+    tokens: &'a [erl_tokenize::Token],
     index: &'a SyntaxIndex,
     child: NodeId,
     cursor: usize,
@@ -222,7 +221,7 @@ impl<'a> Iterator for Ancestors<'a> {
 
 /// Iterator over root-level nodes of `tokens` / `index`.
 pub(crate) fn root_views<'a>(
-    tokens: &'a TokenBuffer,
+    tokens: &'a [erl_tokenize::Token],
     index: &'a SyntaxIndex,
 ) -> impl Iterator<Item = NodeView<'a>> {
     Roots {
@@ -234,7 +233,7 @@ pub(crate) fn root_views<'a>(
 
 /// Innermost node whose non-empty range contains `target`.
 pub(crate) fn innermost_containing<'a>(
-    tokens: &'a TokenBuffer,
+    tokens: &'a [erl_tokenize::Token],
     index: &'a SyntaxIndex,
     target: TokenIndex,
 ) -> Option<NodeView<'a>> {
@@ -263,7 +262,7 @@ pub(crate) fn innermost_containing<'a>(
 }
 
 struct Roots<'a> {
-    tokens: &'a TokenBuffer,
+    tokens: &'a [erl_tokenize::Token],
     index: &'a SyntaxIndex,
     at: usize,
 }
@@ -297,18 +296,18 @@ mod tests {
         TokenRange::new(TokenIndex::new(start), TokenIndex::new(end))
     }
 
-    fn build_sample() -> (TokenBuffer, SyntaxIndex) {
+    fn build_sample() -> (Vec<erl_tokenize::Token>, SyntaxIndex) {
         // Scan "foo bar" into a buffer of three tokens: atom, whitespace,
         // atom (i.e. two lexical + one hidden token).
         let source = "foo bar";
-        let mut tokens = TokenBuffer::new();
+        let mut tokens = Vec::new();
         let mut pos = erl_tokenize::Position::new();
         while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid Erlang source")
         {
             tokens.push(token);
             pos = token.end();
         }
-        assert_eq!(tokens.as_slice().len(), 3, "foo, whitespace, bar");
+        assert_eq!(tokens.len(), 3, "foo, whitespace, bar");
 
         // Syntax index layout:
         //   0: parent      kind=Error  range=0..3  subtree_end=3
@@ -333,7 +332,7 @@ mod tests {
         (tokens, index)
     }
 
-    fn build_deep_sample() -> (TokenBuffer, SyntaxIndex) {
+    fn build_deep_sample() -> (Vec<erl_tokenize::Token>, SyntaxIndex) {
         // Same token buffer as `build_sample` (three tokens); the syntax
         // index is a 3-level tree:
         //   0: root      range=0..4  subtree_end=4
@@ -341,14 +340,14 @@ mod tests {
         //       2: leaf   range=0..1  subtree_end=3
         //     3: sibling  range=2..4  subtree_end=4
         let source = "foo bar";
-        let mut tokens = TokenBuffer::new();
+        let mut tokens = Vec::new();
         let mut pos = erl_tokenize::Position::new();
         while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid Erlang source")
         {
             tokens.push(token);
             pos = token.end();
         }
-        assert_eq!(tokens.as_slice().len(), 3, "foo, whitespace, bar");
+        assert_eq!(tokens.len(), 3, "foo, whitespace, bar");
 
         let mut index = SyntaxIndex::new();
         let _root = index.push(SyntaxEntry::new(
@@ -446,7 +445,7 @@ mod tests {
         // `innermost_containing` never selects it: an empty range does not
         // contain any position.
         let source = "foo";
-        let mut tokens = TokenBuffer::new();
+        let mut tokens = Vec::new();
         let mut pos = erl_tokenize::Position::new();
         while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid Erlang source")
         {

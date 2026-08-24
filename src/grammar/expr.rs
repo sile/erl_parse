@@ -1042,7 +1042,7 @@ mod tests {
         out
     }
 
-    /// Constructs a parser, pushes every token in `source`, resets the
+    /// Constructs a parser, loads every token in `source`, resets the
     /// stub-grammar state so `parse_expr` can drive the cursor from the
     /// beginning, then wraps the result in a synthetic top-level unit so
     /// `next_node` returns it.
@@ -1051,12 +1051,10 @@ mod tests {
     /// expression-mode wiring is in place.
     fn drive(source: &str) -> Parser {
         // Use Module mode so the accumulating stub-grammar doesn't
-        // eagerly invoke the real grammar on push; the drive() body
+        // eagerly invoke the real grammar on load; the drive() body
         // then resets state and drives the grammar under test directly.
         let mut p = Parser::new(ParseMode::Module);
-        for t in scan_all(source) {
-            p.feed_token_without_grammar_for_test(t);
-        }
+        p.load_tokens(&scan_all(source));
         // Reset stub-grammar state; the stub will have consumed the whole
         // buffer as a single Error unit ending at the first `.`.
         p.reset_for_test();

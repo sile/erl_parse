@@ -44,7 +44,6 @@ mod node;
 mod parser;
 mod syntax;
 mod syntax_tree;
-mod token_buffer;
 mod token_range;
 
 pub use crate::diagnostic::{Diagnostic, DiagnosticKind, Expected};

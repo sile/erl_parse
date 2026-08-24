@@ -14,7 +14,6 @@ use crate::grammar::expr::parse_expr;
 use crate::grammar::ty::parse_type;
 use crate::syntax::{EntryIndex, NodeId, SyntaxEntry, SyntaxIndex, SyntaxKind};
 use crate::syntax_tree::SyntaxTree;
-use crate::token_buffer::TokenBuffer;
 use crate::token_range::{TokenIndex, TokenRange};
 
 /// Selects the top-level construct [`parse`] recognizes.
@@ -87,9 +86,7 @@ pub const MAX_NESTING_DEPTH: usize = 256;
 /// `parse` again with the matching [`ParseMode`].
 pub fn parse(tokens: &[erl_tokenize::Token], mode: ParseMode) -> SyntaxTree {
     let mut parser = Parser::new(mode);
-    for &token in tokens {
-        parser.feed_token(token);
-    }
+    parser.load_tokens(tokens);
     parser.finish()
 }
 
@@ -218,23 +215,13 @@ impl Parser {
         }
     }
 
-    /// Feeds one token into the parser and returns the [`TokenIndex`]
-    /// at which it was placed in the buffer.
-    ///
-    /// The returned index is a real (in-range) index —
-    /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens) at
-    /// [`TokenIndex::get`] recovers the same token. Hidden tokens
-    /// are indexed alongside lexical tokens, so a caller feeding
-    /// every token they receive from `erl_tokenize` gets a
-    /// strictly-increasing sequence starting at `TokenIndex::new(0)`.
-    ///
-    /// The return value can be discarded when the caller does not need
-    /// to associate the token with any external metadata; the method is
-    /// intentionally not marked `#[must_use]`.
-    pub(crate) fn feed_token(&mut self, token: erl_tokenize::Token) -> TokenIndex {
-        let index = self.tree.tokens_mut().push(token);
-        self.advance_grammar();
-        index
+    /// Loads the full token slice the caller fed, without running the
+    /// top-level grammar. [`parse`](crate::parse) loads the input and
+    /// then lets [`Self::finish`] drive the grammar over the whole
+    /// slice; grammar-module tests load tokens and then drive a
+    /// specific production manually.
+    pub(crate) fn load_tokens(&mut self, tokens: &[erl_tokenize::Token]) {
+        self.tree.tokens_mut().extend_from_slice(tokens);
     }
 
     /// Returns the [`NodeId`] of the next completed `.`-terminated
@@ -244,7 +231,7 @@ impl Parser {
     /// same roots later via [`SyntaxTree::roots`](crate::SyntaxTree::roots).
     #[cfg(test)]
     pub(crate) fn next_node(&mut self) -> Option<NodeId> {
-        // Attempt to make grammar progress in case the previous feed_token
+        // Attempt to make grammar progress in case the previous load
         // paused at a partial unit.
         self.advance_grammar();
         self.pending_pull.pop_front()
@@ -285,7 +272,7 @@ impl Parser {
             self.finalize_pending_units();
         }
         if self.unit_in_progress {
-            let end = self.tree.token_buffer().end_index();
+            let end = TokenIndex::new(self.tree.tokens().len());
             // The force-closed Error node covers the unterminated unit
             // from its outer Start's `start_at` to the buffer's end.
             // Anchor the diagnostic to the same range so
@@ -343,7 +330,7 @@ impl Parser {
     /// hidden tokens into the consumed span. Returns the boundary the
     /// cursor advanced to, or `None` when no lexical token is available.
     pub(crate) fn consume_lexical(&mut self) -> Option<TokenIndex> {
-        let mut cursor = TokenCursor::new(self.tree.token_buffer(), self.at);
+        let mut cursor = TokenCursor::new(self.tree.tokens(), self.at);
         let end = cursor.advance_lexical()?;
         self.at = end.get();
         Some(end)
@@ -351,9 +338,9 @@ impl Parser {
 
     /// Peeks the nth lexical token from the cursor position (0-based),
     /// skipping hidden tokens. Returns `None` when the requested lookahead
-    /// is beyond the tokens that have been pushed so far.
+    /// is beyond the loaded token slice.
     pub(crate) fn peek_lexical(&self, offset: usize) -> Option<(TokenIndex, erl_tokenize::Token)> {
-        TokenCursor::new(self.tree.token_buffer(), self.at).peek_lexical(offset)
+        TokenCursor::new(self.tree.tokens(), self.at).peek_lexical(offset)
     }
 
     /// Returns the cursor's current position as a [`TokenIndex`], for use
@@ -455,20 +442,6 @@ impl Parser {
         self.pending_pull.clear();
     }
 
-    /// Appends a token to the internal buffer WITHOUT running the
-    /// top-level driver. Test-only helper used by grammar modules'
-    /// unit tests when they want to load a token buffer and then
-    /// drive a specific grammar production manually — production
-    /// callers use [`Self::feed_token`], which triggers grammar
-    /// dispatch as tokens arrive.
-    #[cfg(test)]
-    pub(crate) fn feed_token_without_grammar_for_test(
-        &mut self,
-        token: erl_tokenize::Token,
-    ) -> TokenIndex {
-        self.tree.tokens_mut().push(token)
-    }
-
     /// Drains completed top-level units into the syntax index, exposed
     /// for grammar-module tests that construct units manually.
     #[cfg(test)]
@@ -476,8 +449,8 @@ impl Parser {
         self.finalize_pending_units();
     }
 
-    /// Returns `true` when the cursor has reached the end of the currently
-    /// pushed buffer. Combine with [`Parser::is_finished`] to distinguish
+    /// Returns `true` when the cursor has reached the end of the loaded
+    /// token slice. Combine with [`Parser::is_finished`] to distinguish
     /// "waiting for more input" from "true EOF".
     #[cfg_attr(
         not(test),
@@ -501,7 +474,7 @@ impl Parser {
     )]
     pub(crate) fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
-            cursor: TokenCursor::new(self.tree.token_buffer(), self.at).save(),
+            cursor: TokenCursor::new(self.tree.tokens(), self.at).save(),
             events_len: self.events.len(),
             diagnostics_len: self.tree.diagnostics().len(),
         }
@@ -638,17 +611,17 @@ impl Parser {
         }
     }
 
-    /// Scans the pending buffer for a lexical `.` that can terminate a
+    /// Scans the loaded token slice for a lexical `.` that can terminate a
     /// top-level unit, without moving the cursor.
     ///
     /// Record field dots (`#Name.Field`, `Expr#Name.Field`, `Expr#_.Field`)
     /// are skipped: they use the same token as a form terminator but
     /// appear in the middle of a form, so treating them as a boundary
-    /// would start `parse_one` before the field name has been pushed.
+    /// would start `parse_one` before the field name is reached.
     fn has_lexical_dot_after_cursor(&self) -> bool {
-        let tokens = self.tree.token_buffer();
+        let tokens = self.tree.tokens();
         let mut i = self.at;
-        while let Some(t) = tokens.get(TokenIndex::new(i)) {
+        while let Some(t) = tokens.get(i).copied() {
             if t.kind().is_lexical() && is_dot(t) && !is_record_field_dot(tokens, i) {
                 return true;
             }
@@ -676,11 +649,11 @@ fn is_dot(token: erl_tokenize::Token) -> bool {
     )
 }
 
-fn prev_lexical(tokens: &TokenBuffer, index: usize) -> Option<(usize, erl_tokenize::Token)> {
+fn prev_lexical(tokens: &[erl_tokenize::Token], index: usize) -> Option<(usize, erl_tokenize::Token)> {
     let mut i = index;
     while i > 0 {
         i -= 1;
-        let t = tokens.get(TokenIndex::new(i))?;
+        let t = tokens.get(i).copied()?;
         if t.kind().is_lexical() {
             return Some((i, t));
         }
@@ -688,7 +661,7 @@ fn prev_lexical(tokens: &TokenBuffer, index: usize) -> Option<(usize, erl_tokeni
     None
 }
 
-fn is_record_field_dot(tokens: &TokenBuffer, dot_index: usize) -> bool {
+fn is_record_field_dot(tokens: &[erl_tokenize::Token], dot_index: usize) -> bool {
     let Some((prev_i, prev)) = prev_lexical(tokens, dot_index) else {
         return false;
     };
@@ -956,9 +929,7 @@ mod tests {
     }
 
     fn feed_all(parser: &mut Parser, source: &str) {
-        for t in scan_all(source) {
-            parser.feed_token(t);
-        }
+        parser.load_tokens(&scan_all(source));
     }
 
     #[test]
@@ -1009,7 +980,7 @@ mod tests {
     #[test]
     fn finish_flushes_incomplete_unit_as_error() {
         // Missing terminating `.` after the attribute — no unit
-        // completes during push, but `finish` force-parses the
+        // completes during load, but `finish` force-parses the
         // trailing input as one final unit that carries the grammar's
         // error diagnostics.
         let mut p = Parser::new(ParseMode::Module);
@@ -1062,11 +1033,11 @@ mod tests {
     }
 
     #[test]
-    fn trailing_hidden_tokens_pushed_after_boundary_are_not_folded_in() {
+    fn trailing_hidden_tokens_after_boundary_are_not_folded_in() {
         let mut p = Parser::new(ParseMode::Module);
-        // Whitespace pushed after the closing dot cannot be folded into a
-        // unit that already completed; it stays in the buffer past the
-        // unit's end.
+        // Whitespace after the closing dot cannot be folded into a
+        // unit that already completed; it stays in the token slice past
+        // the unit's end.
         feed_all(&mut p, "-foo . ");
         let node = p.next_node().expect("unit completed");
         let tree = p.syntax_tree();

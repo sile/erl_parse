@@ -55,8 +55,8 @@ impl TokenIndex {
 /// # Panics
 ///
 /// [`TokenRange::new`] panics if `start > end`. Callers are responsible for
-/// preserving the ordering; token indices in the buffer never shrink after a
-/// push, so a reversed range only occurs on an implementation bug.
+/// preserving the ordering; token indices in the slice never shrink, so a
+/// reversed range only occurs on an implementation bug.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TokenRange {
     start: TokenIndex,

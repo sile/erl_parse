@@ -15,7 +15,6 @@
 use crate::diagnostic::Diagnostic;
 use crate::node::NodeView;
 use crate::syntax::{NodeId, SyntaxIndex};
-use crate::token_buffer::TokenBuffer;
 use crate::token_range::TokenIndex;
 
 /// The full result of a parse: input tokens, syntax nodes, and
@@ -32,7 +31,7 @@ use crate::token_range::TokenIndex;
 /// tree.
 #[derive(Debug, Clone)]
 pub struct SyntaxTree {
-    tokens: TokenBuffer,
+    tokens: Vec<erl_tokenize::Token>,
     syntax: SyntaxIndex,
     diagnostics: Vec<Diagnostic>,
 }
@@ -43,7 +42,7 @@ impl SyntaxTree {
     // tree has no tokens to pair with.
     pub(crate) const fn new() -> Self {
         Self {
-            tokens: TokenBuffer::new(),
+            tokens: Vec::new(),
             syntax: SyntaxIndex::new(),
             diagnostics: Vec::new(),
         }
@@ -58,11 +57,6 @@ impl SyntaxTree {
     /// [`NodeView::tokens`](crate::NodeView::tokens), which borrows
     /// this same slice.
     pub fn tokens(&self) -> &[erl_tokenize::Token] {
-        self.tokens.as_slice()
-    }
-
-    /// Borrows the crate-internal token buffer.
-    pub(crate) fn token_buffer(&self) -> &TokenBuffer {
         &self.tokens
     }
 
@@ -113,8 +107,8 @@ impl SyntaxTree {
         &self.diagnostics
     }
 
-    /// Mutable access to the token buffer, for the in-crate parser core.
-    pub(crate) fn tokens_mut(&mut self) -> &mut TokenBuffer {
+    /// Mutable access to the token list, for the in-crate parser core.
+    pub(crate) fn tokens_mut(&mut self) -> &mut Vec<erl_tokenize::Token> {
         &mut self.tokens
     }
 

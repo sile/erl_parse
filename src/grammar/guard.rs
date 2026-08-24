@@ -33,9 +33,7 @@ mod tests {
 
     fn drive_guard(source: &str) -> Parser {
         let mut p = Parser::new(ParseMode::Module);
-        for t in scan_all(source) {
-            p.feed_token_without_grammar_for_test(t);
-        }
+        p.load_tokens(&scan_all(source));
         p.reset_for_test();
         let outer = p.start();
         parse_guard_sequence(&mut p);

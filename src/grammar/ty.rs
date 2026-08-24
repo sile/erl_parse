@@ -634,13 +634,11 @@ mod tests {
     }
 
     fn drive_type(source: &str) -> Parser {
-        // Push tokens without triggering the module-mode top-level
+        // Load tokens without triggering the module-mode top-level
         // driver so `drive_type` can reset state and invoke
-        // `parse_type` directly on the accumulated buffer.
+        // `parse_type` directly on the accumulated token list.
         let mut p = Parser::new(ParseMode::Module);
-        for t in scan_all(source) {
-            p.feed_token_without_grammar_for_test(t);
-        }
+        p.load_tokens(&scan_all(source));
         p.reset_for_test();
         let outer = p.start();
         parse_type(&mut p);
@@ -815,13 +813,11 @@ mod tests {
 
     #[test]
     fn parses_type_guard_when_clause() {
-        // Drive parse_type_guard directly by feeding tokens for a bare
+        // Drive parse_type_guard directly by loading tokens for a bare
         // `when` clause.
         let source = "when X :: integer(), Y :: atom()";
         let mut p = Parser::new(ParseMode::Module);
-        for t in scan_all(source) {
-            p.feed_token_without_grammar_for_test(t);
-        }
+        p.load_tokens(&scan_all(source));
         p.reset_for_test();
         let outer = p.start();
         // Type guard runs under Type context like top-level type parse.
