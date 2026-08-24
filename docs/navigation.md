@@ -44,7 +44,7 @@ Preorder:
 
 Punctuation and whitespace are **not** child nodes. They live on
 the token buffer and show up through
-[`NodeView::tokens_in_range`](crate::NodeView::tokens_in_range).
+[`NodeView::tokens`](crate::NodeView::tokens).
 `children` / `descendants` only yield grammar nonterminals.
 
 [`SyntaxTree::roots`](crate::SyntaxTree::roots) yields the
@@ -121,7 +121,7 @@ tree are always in range.
 | Direct children of one node | [`NodeView::children`](crate::NodeView::children) |
 | Every nested node, preorder, excluding self | [`NodeView::descendants`](crate::NodeView::descendants) |
 | Enclosing nodes, **innermost first** (direct parent toward the root) | [`NodeView::ancestors`](crate::NodeView::ancestors) |
-| Tokens in this span, including whitespace and comments | [`NodeView::tokens_in_range`](crate::NodeView::tokens_in_range) |
+| Tokens in this span, including whitespace and comments | [`NodeView::tokens`](crate::NodeView::tokens) |
 | Tightest node whose non-empty range contains this token | [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing) |
 
 A formatter or linter typically starts at `roots`, then
@@ -129,7 +129,7 @@ A formatter or linter typically starts at `roots`, then
 [`SyntaxTree::nodes`](crate::SyntaxTree::nodes) when it wants every
 node (roots included) in one pass. A hover or
 click-to-node starts at `innermost_containing`. Reprinting a span
-walks `tokens_in_range`, not `children`, so hidden tokens and
+walks `tokens`, not `children`, so hidden tokens and
 punctuation are not dropped.
 
 [`NodeView::ancestors`](crate::NodeView::ancestors) starts at the
@@ -137,11 +137,46 @@ direct parent. The first item is the closest enclosing node; the
 last item is the root that contains the node. The node itself is
 not in the sequence.
 
+## Reading a node's tokens
+
+[`NodeView::tokens`](crate::NodeView::tokens) returns the raw tokens
+inside a node's span as a slice, in buffer order. Hidden tokens
+(whitespace and comments) are included, so the slice is 1:1 with the
+node's [`TokenRange`](crate::TokenRange). It is the same buffer as
+[`SyntaxTree::tokens`](crate::SyntaxTree::tokens):
+
+```rust
+# fn main() -> Result<(), erl_tokenize::Error> {
+let source = "{1, 2}.";
+let tokens = erl_tokenize::scan_tokens(source)?;
+let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Expression);
+let root = tree.roots().next().expect("one root");
+
+assert_eq!(root.tokens(), &tree.tokens()[root.range().as_range()]);
+assert_eq!(root.tokens().len(), root.range().len());
+# Ok(())
+# }
+```
+
+The first element sits at `range().start()`. When you keep a side
+table parallel to [`SyntaxTree::tokens`](crate::SyntaxTree::tokens),
+map the `i`-th element of the slice back to the buffer with
+`TokenIndex::new(node.range().start().get() + i)`.
+
+An `erl_tokenize::Token` alone has no spelling: it records where it
+was scanned, not the source text. Pass the original source string to
+`erl_tokenize::Token::text(source)` or
+`erl_tokenize::Token::value(source)` to read the spelling or the
+decoded value. The source must be the one the tokens were scanned
+from; see the [erl_tokenize](https://docs.rs/erl_tokenize)
+documentation for the contract.
+
 ## Empty ranges
 
 A zero-width node is a real index entry: `children` can yield it,
-and you can wrap its [`NodeId`](crate::NodeId). It yields no
-tokens through `tokens_in_range`.
+and you can wrap its [`NodeId`](crate::NodeId). Its
+[`NodeView::tokens`](crate::NodeView::tokens) slice is empty, while
+`range().start()` still names the anchor position.
 [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing)
 never selects it, because an empty `[start, start)` does not
 contain any [`TokenIndex`](crate::TokenIndex). Missing-token

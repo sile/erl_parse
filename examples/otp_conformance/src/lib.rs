@@ -261,9 +261,14 @@ pub fn is_epp_consumed_feature_attribute(
     let Some(name_node) = child_of_kind(view, erl_parse::SyntaxKind::AttributeName) else {
         return false;
     };
-    for (idx, t) in name_node.tokens_in_range() {
+    let start = name_node.range().start();
+    for (i, t) in name_node.tokens().iter().enumerate() {
         if t.kind().is_lexical()
-            && let Some(text) = token_text(tree, token_sources, idx)
+            && let Some(text) = token_text(
+                tree,
+                token_sources,
+                erl_parse::TokenIndex::new(start.get() + i),
+            )
         {
             return text == "feature";
         }
