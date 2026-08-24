@@ -95,14 +95,15 @@ impl<'a> NodeView<'a> {
         self.tokens.iter_range(self.range())
     }
 
-    /// Returns an iterator over ancestors starting from the root, moving
-    /// toward the direct parent. The node itself is not included.
+    /// Returns an iterator over ancestors starting from the direct
+    /// parent, moving toward the root. The node itself is not
+    /// included.
     pub fn ancestors(self) -> impl Iterator<Item = NodeView<'a>> {
         Ancestors {
             tokens: self.tokens,
             index: self.index,
             child: self.node_id,
-            cursor: 0,
+            cursor: self.node_id.get(),
         }
     }
 
@@ -180,12 +181,15 @@ impl<'a> Iterator for Ancestors<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // An ancestor is any entry that precedes the child and whose subtree
-        // strictly contains it. Scanning cursor forward from the start
-        // yields ancestors in outermost-first order (root, then successively
-        // closer ancestors).
-        while self.cursor < self.child.get() {
+        // strictly contains it. Scanning cursor backward from just before
+        // the child yields the direct parent first, then successively
+        // closer-root ancestors: entries between an ancestor and the child
+        // sit inside earlier siblings and end before the child, so the
+        // first containing entry found going backward is always the
+        // nearest ancestor not yet yielded.
+        while self.cursor > 0 {
+            self.cursor -= 1;
             let candidate = NodeId::new(self.cursor);
-            self.cursor += 1;
             let entry = self
                 .index
                 .entry(candidate)
@@ -315,6 +319,47 @@ mod tests {
         (tokens, index)
     }
 
+    fn build_deep_sample() -> (TokenBuffer, SyntaxIndex) {
+        // Same token buffer as `build_sample` (three tokens); the syntax
+        // index is a 3-level tree:
+        //   0: root      range=0..4  subtree_end=4
+        //     1: mid      range=0..2  subtree_end=3
+        //       2: leaf   range=0..1  subtree_end=3
+        //     3: sibling  range=2..4  subtree_end=4
+        let source = "foo bar";
+        let mut tokens = TokenBuffer::new();
+        let mut pos = erl_tokenize::Position::new();
+        while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid Erlang source")
+        {
+            tokens.push(token);
+            pos = token.end();
+        }
+        assert_eq!(tokens.as_slice().len(), 3, "foo, whitespace, bar");
+
+        let mut index = SyntaxIndex::new();
+        let _root = index.push(SyntaxEntry::new(
+            SyntaxKind::Error,
+            range(0, 4),
+            EntryIndex::new(4),
+        ));
+        let _mid = index.push(SyntaxEntry::new(
+            SyntaxKind::Error,
+            range(0, 2),
+            EntryIndex::new(3),
+        ));
+        let _leaf = index.push(SyntaxEntry::new(
+            SyntaxKind::Error,
+            range(0, 1),
+            EntryIndex::new(3),
+        ));
+        let _sibling = index.push(SyntaxEntry::new(
+            SyntaxKind::Error,
+            range(2, 4),
+            EntryIndex::new(4),
+        ));
+        (tokens, index)
+    }
+
     #[test]
     fn out_of_bounds_view_is_none() {
         let (tokens, index) = build_sample();
@@ -340,12 +385,12 @@ mod tests {
     }
 
     #[test]
-    fn ancestors_walk_returns_containing_nodes_in_root_first_order() {
-        let (tokens, index) = build_sample();
-        let child = NodeView::new(&tokens, &index, NodeId::new(2))
+    fn ancestors_walk_returns_containing_nodes_in_parent_first_order() {
+        let (tokens, index) = build_deep_sample();
+        let leaf = NodeView::new(&tokens, &index, NodeId::new(2))
             .expect("node id refers to an existing entry");
-        let ids: Vec<usize> = child.ancestors().map(|v| v.node_id().get()).collect();
-        assert_eq!(ids, vec![0]);
+        let ids: Vec<usize> = leaf.ancestors().map(|v| v.node_id().get()).collect();
+        assert_eq!(ids, vec![1, 0]);
     }
 
     #[test]
