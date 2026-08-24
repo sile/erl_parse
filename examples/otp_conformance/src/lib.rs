@@ -261,9 +261,9 @@ pub fn is_epp_consumed_feature_attribute(
     let Some(name_node) = child_of_kind(view, erl_parse::SyntaxKind::AttributeName) else {
         return false;
     };
-    for (idx, t) in name_node.tokens_in_range() {
+    for (t, i) in name_node.tokens().iter().zip(name_node.range()) {
         if t.kind().is_lexical()
-            && let Some(text) = token_text(tree, token_sources, idx)
+            && let Some(text) = token_text(tree, token_sources, i)
         {
             return text == "feature";
         }
@@ -598,7 +598,7 @@ fn operator_between(
         return None;
     }
     let mut ops = Vec::new();
-    for t in &tree.tokens()[erl_parse::TokenRange::new(start, end).as_range()] {
+    for t in &tree.tokens()[erl_parse::TokenRange::new(start, end).as_slice_index()] {
         if t.kind().is_lexical() {
             ops.push(t.text(source).to_string());
         }

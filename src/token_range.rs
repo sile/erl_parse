@@ -1,5 +1,6 @@
 //! Index and range types over the token buffer.
 
+use core::iter::FusedIterator;
 use core::ops::Range;
 
 /// A position in the token buffer.
@@ -46,6 +47,11 @@ impl TokenIndex {
 /// boundary. The range is expressed in logical token indices; it is not a
 /// source byte range.
 ///
+/// A [`TokenRange`] is itself an iterator over the [`TokenIndex`]es in
+/// the span (`start` through `end - 1`), mirroring
+/// `std::ops::Range`. Iteration consumes a copy, so `for i in range`
+/// leaves the caller's `range` untouched.
+///
 /// # Panics
 ///
 /// [`TokenRange::new`] panics if `start > end`. Callers are responsible for
@@ -64,7 +70,7 @@ impl TokenRange {
     /// not already a node's or diagnostic's range — for example the
     /// tokens between two child ranges — and slice
     /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens) with
-    /// [`TokenRange::as_range`].
+    /// [`TokenRange::as_slice_index`].
     ///
     /// Panics if `start > end`.
     pub fn new(start: TokenIndex, end: TokenIndex) -> Self {
@@ -88,11 +94,20 @@ impl TokenRange {
     }
 
     /// Returns the start boundary of the range.
+    ///
+    /// While this value is being iterated in place (via
+    /// `Iterator::next`), this is the remaining cursor; `Copy` means
+    /// `for` loops iterate a copy and never change the caller's value.
     pub const fn start(self) -> TokenIndex {
         self.start
     }
 
     /// Returns the end boundary of the range.
+    ///
+    /// While this value is being iterated in place (via
+    /// `DoubleEndedIterator::next_back`), this is the remaining cursor;
+    /// `Copy` means `for` loops iterate a copy and never change the
+    /// caller's value.
     pub const fn end(self) -> TokenIndex {
         self.end
     }
@@ -103,21 +118,72 @@ impl TokenRange {
     }
 
     /// Returns the number of tokens covered by the range.
+    ///
+    /// While this value is being iterated in place, this is the number
+    /// of items remaining; `Copy` means `for` loops iterate a copy and
+    /// never change the caller's value.
     pub const fn len(self) -> usize {
         self.end.0 - self.start.0
     }
 
-    /// Returns the range as `Range<usize>`, suitable for slicing
-    /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens).
-    pub const fn as_range(self) -> Range<usize> {
+    /// Returns this span as a `Range<usize>`, suitable for indexing a
+    /// slice of [`SyntaxTree::tokens`](crate::SyntaxTree::tokens).
+    ///
+    /// The [`TokenIndex`]es are dereferenced to `usize` positions.
+    /// Iterate the [`TokenIndex`]es directly with `for i in range`
+    /// instead; this conversion is only for indexing a slice.
+    pub const fn as_slice_index(self) -> Range<usize> {
         self.start.0..self.end.0
     }
+}
 
-    /// Returns `true` when this range fully contains `other`.
-    pub const fn contains_range(self, other: TokenRange) -> bool {
-        self.start.0 <= other.start.0 && other.end.0 <= self.end.0
+/// Iterating a [`TokenRange`] walks the [`TokenIndex`]es in the span,
+/// `start` through `end - 1`, mirroring `std::ops::Range`. Because
+/// `TokenRange` is `Copy`, a `for` loop iterates a copy and leaves the
+/// caller's value unchanged; calling `next` on a `mut` value advances
+/// its boundaries in place, exactly like `std::ops::Range`.
+impl Iterator for TokenRange {
+    type Item = TokenIndex;
+
+    fn next(&mut self) -> Option<TokenIndex> {
+        if self.start < self.end {
+            let index = self.start;
+            self.start = TokenIndex::new(self.start.get() + 1);
+            Some(index)
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // Call the inherent `len` explicitly: `self.len()` would resolve
+        // to `ExactSizeIterator::len`, whose default consults `size_hint`
+        // and would recurse. `std::ops::Range` has no inherent `len`, so
+        // it never hits this collision.
+        let len = TokenRange::len(*self);
+        (len, Some(len))
     }
 }
+
+impl DoubleEndedIterator for TokenRange {
+    fn next_back(&mut self) -> Option<TokenIndex> {
+        if self.start < self.end {
+            self.end = TokenIndex::new(self.end.get() - 1);
+            Some(self.end)
+        } else {
+            None
+        }
+    }
+}
+
+impl ExactSizeIterator for TokenRange {
+    fn len(&self) -> usize {
+        // See the comment in `Iterator::size_hint`; same collision.
+        TokenRange::len(*self)
+    }
+}
+
+impl FusedIterator for TokenRange {}
 
 #[cfg(test)]
 mod tests {
@@ -143,12 +209,65 @@ mod tests {
     }
 
     #[test]
-    fn contains_range() {
-        let outer = TokenRange::new(TokenIndex::new(0), TokenIndex::new(10));
-        let inner = TokenRange::new(TokenIndex::new(2), TokenIndex::new(5));
-        assert!(outer.contains_range(inner));
-        assert!(outer.contains_range(outer));
-        assert!(!inner.contains_range(outer));
+    fn iteration_yields_span_indices() {
+        let range = TokenRange::new(TokenIndex::new(2), TokenIndex::new(5));
+        let indices: Vec<TokenIndex> = range.collect();
+        assert_eq!(
+            indices,
+            vec![TokenIndex::new(2), TokenIndex::new(3), TokenIndex::new(4),]
+        );
+        assert_eq!(indices.len(), range.len());
+    }
+
+    #[test]
+    fn iteration_consumes_a_copy() {
+        let range = TokenRange::new(TokenIndex::new(1), TokenIndex::new(4));
+        for i in range {
+            assert!(range.start() <= i && i < range.end());
+        }
+        assert_eq!(range.start(), TokenIndex::new(1));
+        assert_eq!(range.end(), TokenIndex::new(4));
+    }
+
+    #[test]
+    fn empty_range_iteration_yields_nothing() {
+        let range = TokenRange::empty_at(TokenIndex::new(4));
+        assert_eq!(range.len(), 0);
+        let mut fwd = range;
+        let mut back = range;
+        assert_eq!(fwd.next(), None);
+        assert_eq!(back.next_back(), None);
+    }
+
+    #[test]
+    fn iteration_reports_exact_size() {
+        let range = TokenRange::new(TokenIndex::new(1), TokenIndex::new(6));
+        assert_eq!(range.len(), 5);
+        assert_eq!(range.size_hint(), (5, Some(5)));
+        assert_eq!(ExactSizeIterator::len(&range), 5);
+    }
+
+    #[test]
+    fn double_ended_iteration_walks_from_both_ends() {
+        let range = TokenRange::new(TokenIndex::new(1), TokenIndex::new(4));
+        let mut fwd = range;
+        let mut back = range;
+        assert_eq!(fwd.next(), Some(TokenIndex::new(1)));
+        assert_eq!(back.next_back(), Some(TokenIndex::new(3)));
+        assert_eq!(fwd.next(), Some(TokenIndex::new(2)));
+        assert_eq!(back.next_back(), Some(TokenIndex::new(2)));
+        assert_eq!(fwd.next(), Some(TokenIndex::new(3)));
+        assert_eq!(back.next_back(), Some(TokenIndex::new(1)));
+        assert_eq!(fwd.next(), None);
+        assert_eq!(back.next_back(), None);
+    }
+
+    #[test]
+    fn iteration_stays_fused_after_exhaustion() {
+        let mut range = TokenRange::new(TokenIndex::new(0), TokenIndex::new(1));
+        assert_eq!(range.next(), Some(TokenIndex::new(0)));
+        assert_eq!(range.next(), None);
+        assert_eq!(range.next(), None);
     }
 
     #[test]

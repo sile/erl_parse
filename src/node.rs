@@ -17,7 +17,8 @@ use crate::token_range::{TokenIndex, TokenRange};
 /// Lightweight navigation view anchored on a specific [`NodeId`].
 ///
 /// Kind, range, children, descendants, ancestors, and the tokens in
-/// this span. Build one with [`SyntaxTree::view`](crate::SyntaxTree::view),
+/// this span ([`NodeView::tokens`]). Build one with
+/// [`SyntaxTree::view`](crate::SyntaxTree::view),
 /// or take one from [`SyntaxTree::roots`](crate::SyntaxTree::roots) /
 /// an existing view. See [`docs::navigation`](crate::docs::navigation).
 #[derive(Debug, Clone, Copy)]
@@ -88,11 +89,24 @@ impl<'a> NodeView<'a> {
         }
     }
 
-    /// Returns an iterator over `(TokenIndex, Token)` pairs within this
-    /// entry's [`TokenRange`]. Hidden tokens appear in their original buffer
-    /// order.
-    pub fn tokens_in_range(self) -> impl Iterator<Item = (TokenIndex, erl_tokenize::Token)> {
-        self.tokens.iter_range(self.range())
+    /// Returns the tokens inside this entry's [`TokenRange`] as a
+    /// slice, in buffer order. Hidden tokens (whitespace and comments)
+    /// are included, so the slice is 1:1 with the range.
+    ///
+    /// This is the same buffer as
+    /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens): the node's
+    /// slice is `&tree.tokens()[self.range().as_slice_index()]`. The
+    /// first token sits at [`TokenRange::start`](TokenRange::start), so
+    /// a position in the buffer is
+    /// `TokenIndex::new(self.range().start().get() + i)` for the `i`-th
+    /// element. Read a token's spelling or decoded
+    /// value with [`erl_tokenize::Token::text`] /
+    /// [`erl_tokenize::Token::value`] and the original source string.
+    ///
+    /// An empty node (a missing token or a zero-width entry) yields an
+    /// empty slice; `range().start()` still names the anchor position.
+    pub fn tokens(self) -> &'a [erl_tokenize::Token] {
+        &self.tokens.as_slice()[self.range().as_slice_index()]
     }
 
     /// Returns an iterator over ancestors starting from the direct
@@ -394,20 +408,19 @@ mod tests {
     }
 
     #[test]
-    fn tokens_in_range_returns_hidden_and_lexical_in_order() {
+    fn tokens_returns_hidden_and_lexical_in_order() {
         let (tokens, index) = build_sample();
         let parent = NodeView::new(&tokens, &index, NodeId::new(0))
             .expect("node id refers to an existing entry");
-        let collected: Vec<(usize, erl_tokenize::TokenKind)> = parent
-            .tokens_in_range()
-            .map(|(idx, tok)| (idx.get(), tok.kind()))
-            .collect();
-        // 0: atom (foo), 1: whitespace, 2: atom (bar).
-        assert_eq!(collected.len(), 3);
-        assert_eq!(collected[0].0, 0);
-        assert_eq!(collected[1].0, 1);
-        assert!(collected[1].1.is_hidden(), "whitespace must be hidden");
-        assert_eq!(collected[2].0, 2);
+        let kinds: Vec<erl_tokenize::TokenKind> =
+            parent.tokens().iter().map(|t| t.kind()).collect();
+        // 0: atom (foo), 1: whitespace, 2: atom (bar). The slice is 1:1
+        // with the range and starts at its `start()`.
+        assert_eq!(parent.tokens().len(), 3);
+        assert_eq!(parent.range().start(), TokenIndex::new(0));
+        assert_eq!(kinds.len(), 3);
+        assert!(kinds[1].is_hidden(), "whitespace must be hidden");
+        assert!(parent.tokens().len() == parent.range().len());
     }
 
     #[test]
@@ -461,8 +474,10 @@ mod tests {
         let zero_view =
             NodeView::new(&tokens, &index, zero).expect("node id refers to an existing entry");
         assert!(zero_view.range().is_empty());
-        // The zero-width child yields no tokens through tokens_in_range.
-        assert_eq!(zero_view.tokens_in_range().count(), 0);
+        // The zero-width child yields no tokens; `range().start()` still
+        // names the anchor position.
+        assert!(zero_view.tokens().is_empty());
+        assert_eq!(zero_view.range().start(), TokenIndex::new(1));
 
         // `innermost_containing(1)` selects neither the zero-width child
         // (empty range) nor the parent (range 0..1 does not contain 1).

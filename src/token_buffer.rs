@@ -4,7 +4,7 @@
 //! append-only: a [`TokenIndex`] obtained earlier still names the same
 //! token after later feeds.
 
-use crate::token_range::{TokenIndex, TokenRange};
+use crate::token_range::TokenIndex;
 
 /// Append-only buffer of tokens the caller fed.
 ///
@@ -41,19 +41,6 @@ impl TokenBuffer {
         TokenIndex::new(self.tokens.len())
     }
 
-    /// Returns an iterator that yields `(TokenIndex, Token)` pairs inside
-    /// `range`.
-    pub(crate) fn iter_range(
-        &self,
-        range: TokenRange,
-    ) -> impl Iterator<Item = (TokenIndex, erl_tokenize::Token)> {
-        BufferRange {
-            tokens: &self.tokens,
-            cursor: range.start().get(),
-            end: range.end().get(),
-        }
-    }
-
     /// Appends a token to the end of the buffer and returns the
     /// [`TokenIndex`] at which the token now lives. The returned index
     /// can be passed to [`Self::get`] to recover the same token.
@@ -63,26 +50,6 @@ impl TokenBuffer {
         let index = TokenIndex::new(self.tokens.len());
         self.tokens.push(token);
         index
-    }
-}
-
-struct BufferRange<'a> {
-    tokens: &'a [erl_tokenize::Token],
-    cursor: usize,
-    end: usize,
-}
-
-impl Iterator for BufferRange<'_> {
-    type Item = (TokenIndex, erl_tokenize::Token);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.cursor >= self.end {
-            return None;
-        }
-        let idx = self.cursor;
-        let token = self.tokens[idx];
-        self.cursor += 1;
-        Some((TokenIndex::new(idx), token))
     }
 }
 
@@ -153,23 +120,5 @@ mod tests {
         assert_eq!(buffer.as_slice().len(), 1);
         assert!(buffer.get(TokenIndex::new(0)).is_some());
         assert!(buffer.get(TokenIndex::new(1)).is_none());
-    }
-
-    #[test]
-    fn hidden_tokens_stay_in_buffer_range() {
-        // A range containing comments and whitespace preserves the original
-        // token order.
-        let source = "foo % comment\n bar";
-        let scanned = scan_all(source);
-        let mut buffer = TokenBuffer::new();
-        for token in &scanned {
-            buffer.push(*token);
-        }
-
-        let collected: Vec<erl_tokenize::Token> = buffer
-            .iter_range(TokenRange::new(TokenIndex::new(0), buffer.end_index()))
-            .map(|(_idx, tok)| tok)
-            .collect();
-        assert_eq!(collected, scanned);
     }
 }
