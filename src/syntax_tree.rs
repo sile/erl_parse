@@ -5,8 +5,9 @@
 //! accumulated [`Diagnostic`]s. Tokens and nodes reference each
 //! other through [`TokenIndex`](crate::TokenIndex) and
 //! [`NodeId`](crate::NodeId). Forest-level walks
-//! ([`SyntaxTree::roots`], [`SyntaxTree::innermost_containing`]) and
-//! [`SyntaxTree::view`] keep the tokens and index paired. See
+//! ([`SyntaxTree::roots`], [`SyntaxTree::nodes`],
+//! [`SyntaxTree::innermost_containing`]) and [`SyntaxTree::view`] keep
+//! the tokens and index paired. See
 //! [`docs::navigation`](crate::docs::navigation).
 //!
 //! `SyntaxTree` is `Clone` (all sub-components are `Clone`).
@@ -72,6 +73,16 @@ impl SyntaxTree {
     /// unit in the preorder array).
     pub fn roots(&self) -> impl Iterator<Item = NodeView<'_>> {
         crate::node::root_views(&self.tokens, &self.syntax)
+    }
+
+    /// Returns an iterator over every node in the forest, preorder,
+    /// roots included: each root followed by its descendants.
+    ///
+    /// This is the same sequence as
+    /// `roots().flat_map(|root| std::iter::once(root).chain(root.descendants()))`.
+    pub fn nodes(&self) -> impl Iterator<Item = NodeView<'_>> {
+        self.roots()
+            .flat_map(|root| std::iter::once(root).chain(root.descendants()))
     }
 
     /// Returns the innermost node whose non-empty range contains

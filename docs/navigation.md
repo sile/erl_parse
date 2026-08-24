@@ -7,7 +7,9 @@ tree; [`NodeView`](crate::NodeView) answers questions about **one
 node**.
 
 - [`SyntaxTree::roots`](crate::SyntaxTree::roots) lists the
-  `.`-terminated units. [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing)
+  `.`-terminated units. [`SyntaxTree::nodes`](crate::SyntaxTree::nodes)
+  walks every node, roots included.
+  [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing)
   finds the tightest node around a token.
   [`SyntaxTree::view`](crate::SyntaxTree::view) wraps a
   [`NodeId`](crate::NodeId).
@@ -115,6 +117,7 @@ tree are always in range.
 | I want | Use |
 | --- | --- |
 | Each `.`-terminated unit | [`SyntaxTree::roots`](crate::SyntaxTree::roots) |
+| Every node, preorder, roots included | [`SyntaxTree::nodes`](crate::SyntaxTree::nodes) |
 | Direct children of one node | [`NodeView::children`](crate::NodeView::children) |
 | Every nested node, preorder, excluding self | [`NodeView::descendants`](crate::NodeView::descendants) |
 | Enclosing nodes, **outermost first** (root toward the parent) | [`NodeView::ancestors`](crate::NodeView::ancestors) |
@@ -122,7 +125,9 @@ tree are always in range.
 | Tightest node whose non-empty range contains this token | [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing) |
 
 A formatter or linter typically starts at `roots`, then
-`children` / `descendants` filtered by `kind()`. A hover or
+`children` / `descendants` filtered by `kind()`, or uses
+[`SyntaxTree::nodes`](crate::SyntaxTree::nodes) when it wants every
+node (roots included) in one pass. A hover or
 click-to-node starts at `innermost_containing`. Reprinting a span
 walks `tokens_in_range`, not `children`, so hidden tokens and
 punctuation are not dropped.

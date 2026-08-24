@@ -23,6 +23,38 @@ fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::Sy
     tree.view(id).expect("entry exists").kind()
 }
 
+fn hand_tied_ids(tree: &erl_parse::SyntaxTree) -> Vec<erl_parse::NodeId> {
+    tree.roots()
+        .flat_map(|root| std::iter::once(root).chain(root.descendants()))
+        .map(|v| v.node_id())
+        .collect()
+}
+
+fn node_ids(tree: &erl_parse::SyntaxTree) -> Vec<erl_parse::NodeId> {
+    tree.nodes().map(|v| v.node_id()).collect()
+}
+
+#[test]
+fn nodes_matches_hand_tied_walk_for_single_root() {
+    let (tree, _roots) = drive("{ok, 1}.");
+    assert_eq!(node_ids(&tree), hand_tied_ids(&tree));
+    assert!(!node_ids(&tree).is_empty());
+}
+
+#[test]
+fn nodes_matches_hand_tied_walk_for_multiple_roots() {
+    let (tree, _roots) = drive("{ok, 1}.\n{error, notfound}.\n[a, b, c].\n");
+    assert_eq!(node_ids(&tree), hand_tied_ids(&tree));
+    assert!(node_ids(&tree).len() > tree.roots().count());
+}
+
+#[test]
+fn nodes_is_empty_for_empty_tree() {
+    let (tree, _roots) = drive("");
+    assert_eq!(node_ids(&tree), hand_tied_ids(&tree));
+    assert!(node_ids(&tree).is_empty());
+}
+
 #[test]
 fn empty_term_list_emits_no_units_and_no_errors() {
     let (tree, roots) = drive("");

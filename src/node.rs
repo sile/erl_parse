@@ -1,7 +1,7 @@
 //! Lightweight navigation over the syntax index borrowed together with the
 //! tokens the caller fed.
 //!
-//! Forest-level questions (`roots`, `innermost_containing`) live on
+//! Forest-level questions (`roots`, `nodes`, `innermost_containing`) live on
 //! [`SyntaxTree`](crate::SyntaxTree). [`NodeView`] is one node. Neither
 //! is a zipper. See [`docs::navigation`](crate::docs::navigation) for a
 //! caller-facing walkthrough.
