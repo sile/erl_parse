@@ -7,7 +7,7 @@
 //!   Consumes exactly one lexical token, wraps it as a
 //!   [`SyntaxKind::Error`] node, and emits a
 //!   [`DiagnosticKind::SkippedToken`] diagnostic whose
-//!   [`Diagnostic::range`] matches the node's `TokenRange`.
+//!   [`Diagnostic::token_range`] matches the node's `TokenRange`.
 //! - [`skip_until_sync`] implements unbounded skipping up to a
 //!   caller-supplied sync token predicate. Wraps the whole skipped
 //!   span as a [`SyntaxKind::Error`] node with a matching
@@ -171,7 +171,7 @@ mod tests {
             .syntax()
             .entry(crate::NodeId::new(1))
             .expect("skip_one_token node");
-        assert_eq!(err.range(), node.range());
+        assert_eq!(err.token_range(), node.range());
     }
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
             .syntax()
             .entry(crate::NodeId::new(1))
             .expect("skip_until_sync node");
-        assert_eq!(err.range(), node.range());
+        assert_eq!(err.token_range(), node.range());
         // Cursor stopped at `.`, not past it.
         assert_matches!(
             p.peek_lexical(0).map(|(_, t)| t.kind()),
@@ -269,7 +269,10 @@ mod tests {
         assert_eq!(tree.diagnostics().len(), 1);
         let err = tree.diagnostics()[0];
         assert_eq!(err.kind(), DiagnosticKind::MissingToken);
-        assert!(err.range().is_empty(), "missing-token range is zero-width");
+        assert!(
+            err.token_range().is_empty(),
+            "missing-token range is zero-width"
+        );
     }
 
     #[test]

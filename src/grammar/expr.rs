@@ -239,7 +239,7 @@ pub(crate) fn parse_expr_max(p: &mut Parser) -> CompletedMarker {
             // position and hand the recovery site the fresh Start so
             // the emitted Error node covers exactly the one skipped
             // token and its `TokenRange` matches the
-            // `SkippedToken` diagnostic's `range()`.
+            // `SkippedToken` diagnostic's `token_range()`.
             m.abandon(p);
             crate::grammar::recovery::skip_one_token(p, "expression")
         }

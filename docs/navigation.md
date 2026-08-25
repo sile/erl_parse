@@ -152,23 +152,23 @@ let tokens = erl_tokenize::scan_tokens(source)?;
 let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Expression);
 let root = tree.roots().next().expect("one root");
 
-assert_eq!(root.tokens(), &tree.tokens()[root.range().as_slice_index()]);
-assert_eq!(root.tokens().len(), root.range().len());
+assert_eq!(root.tokens(), &tree.tokens()[root.token_range().as_slice_index()]);
+assert_eq!(root.tokens().len(), root.token_range().len());
 
 // Zip the slice with its indices: a `TokenRange` iterates the
 // `TokenIndex`es of the span.
 let pairs: Vec<(erl_tokenize::Token, erl_parse::TokenIndex)> =
-    root.tokens().iter().copied().zip(root.range()).collect();
-assert_eq!(pairs.len(), root.range().len());
+    root.tokens().iter().copied().zip(root.token_range()).collect();
+assert_eq!(pairs.len(), root.token_range().len());
 # Ok(())
 # }
 ```
 
-The first element sits at `range().start()`. When you keep a side
+The first element sits at `token_range().start()`. When you keep a side
 table parallel to [`SyntaxTree::tokens`](crate::SyntaxTree::tokens),
 map the `i`-th element of the slice back to the buffer with
-`TokenIndex::new(node.range().start().get() + i)`, or zip the slice
-with the range itself: `node.tokens().iter().copied().zip(node.range())`
+`TokenIndex::new(node.token_range().start().get() + i)`, or zip the slice
+with the range itself: `node.tokens().iter().copied().zip(node.token_range())`
 yields `(Token, TokenIndex)` pairs.
 
 An `erl_tokenize::Token` alone has no spelling: it records where it
@@ -184,7 +184,7 @@ documentation for the contract.
 A zero-width node is a real index entry: `children` can yield it,
 and you can wrap its [`NodeId`](crate::NodeId). Its
 [`NodeView::tokens`](crate::NodeView::tokens) slice is empty, while
-`range().start()` still names the anchor position.
+`token_range().start()` still names the anchor position.
 [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing)
 never selects it, because an empty `[start, start)` does not
 contain any [`TokenIndex`](crate::TokenIndex). Missing-token

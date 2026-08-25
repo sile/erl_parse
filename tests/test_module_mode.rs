@@ -67,7 +67,7 @@ fn single_bare_attribute_form() {
     // The payload node is zero-width because the form has no `(...)`
     // section.
     let payload = tree.view(children[1]).expect("payload");
-    assert!(payload.range().is_empty());
+    assert!(payload.token_range().is_empty());
     assert!(tree.diagnostics().is_empty());
 }
 
@@ -91,8 +91,8 @@ fn parenthesized_attribute_records_name_and_payload_ranges() {
     // `module`.
     let name_entry = tree.view(children[0]).expect("name");
     let payload_entry = tree.view(children[1]).expect("payload");
-    assert!(!name_entry.range().is_empty());
-    assert!(!payload_entry.range().is_empty());
+    assert!(!name_entry.token_range().is_empty());
+    assert!(!payload_entry.token_range().is_empty());
     assert!(tree.diagnostics().is_empty());
 }
 

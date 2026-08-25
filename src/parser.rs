@@ -249,7 +249,7 @@ impl Parser {
     ///
     /// If a top-level unit is still in progress an
     /// [`UnexpectedEof`][DiagnosticKind::UnexpectedEof] is appended to
-    /// the diagnostic list — its [`Diagnostic::range`] matches the
+    /// the diagnostic list — its [`Diagnostic::token_range`] matches the
     /// force-closed [`SyntaxKind::Error`] node's `TokenRange` (from
     /// the unterminated unit's start to the buffer's end) — and the
     /// unit is force-closed as [`SyntaxKind::Error`] so it survives
@@ -276,7 +276,7 @@ impl Parser {
             // The force-closed Error node covers the unterminated unit
             // from its outer Start's `start_at` to the buffer's end.
             // Anchor the diagnostic to the same range so
-            // `Diagnostic::range() == Error node's TokenRange` holds
+            // `Diagnostic::token_range() == Error node's TokenRange` holds
             // for this force-close path as well.
             let event_index = self
                 .unit_start_event
