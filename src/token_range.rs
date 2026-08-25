@@ -83,6 +83,21 @@ impl TokenRange {
         Self { start, end }
     }
 
+    /// Constructs a single-token [`TokenRange`] covering `[index, index + 1)`.
+    ///
+    /// This is the range that names one token in the buffer. The
+    /// argument is expected to refer to an existing token;
+    /// [`TokenRange`] holds no reference to the token buffer, so the
+    /// trailing boundary and out-of-range positions are not validated.
+    ///
+    /// Equivalent to `TokenRange::new(index, TokenIndex::new(index.get() + 1))`.
+    pub const fn single(index: TokenIndex) -> Self {
+        Self {
+            start: index,
+            end: TokenIndex::new(index.get() + 1),
+        }
+    }
+
     /// Returns an empty range anchored at `position`.
     // `pub(crate)`: missing-token / EOF shape. External empty spans use
     // `TokenRange::new(position, position)`.
@@ -198,6 +213,31 @@ mod tests {
         assert_eq!(range.end(), TokenIndex::new(5));
         assert_eq!(range.len(), 3);
         assert!(!range.is_empty());
+    }
+
+    #[test]
+    fn single_constructs_a_one_token_range() {
+        let range = TokenRange::single(TokenIndex::new(3));
+        assert_eq!(range.start(), TokenIndex::new(3));
+        assert_eq!(range.end(), TokenIndex::new(4));
+        assert_eq!(range.len(), 1);
+        assert!(!range.is_empty());
+    }
+
+    #[test]
+    fn single_at_the_first_index() {
+        let range = TokenRange::single(TokenIndex::new(0));
+        assert_eq!(range.start(), TokenIndex::new(0));
+        assert_eq!(range.end(), TokenIndex::new(1));
+        assert_eq!(range.len(), 1);
+    }
+
+    #[test]
+    fn single_span_iteration_yields_the_index() {
+        let range = TokenRange::single(TokenIndex::new(3));
+        let indices: Vec<TokenIndex> = range.collect();
+        assert_eq!(indices, vec![TokenIndex::new(3)]);
+        assert_eq!(indices.len(), range.len());
     }
 
     #[test]
