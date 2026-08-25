@@ -54,7 +54,7 @@ impl Diagnostic {
 
     /// Returns the primary range the diagnostic anchors on. Empty ranges
     /// are used for boundary reports (for example unexpected EOF).
-    pub const fn range(self) -> TokenRange {
+    pub const fn token_range(self) -> TokenRange {
         self.range
     }
 
@@ -82,13 +82,13 @@ pub enum DiagnosticKind {
     /// End of input was reached where more tokens were expected.
     UnexpectedEof,
     /// One or more tokens were skipped by error recovery. The
-    /// [`Diagnostic::range`] covers the skipped span and matches the
+    /// [`Diagnostic::token_range`] covers the skipped span and matches the
     /// [`SyntaxKind::Error`](crate::SyntaxKind::Error) node emitted for the same span so
     /// consumers can navigate from a diagnostic to the structural
     /// hole (and vice versa).
     SkippedToken,
     /// A required token was missing at the current cursor position.
-    /// The [`Diagnostic::range`] is zero-width (`start == end`) at
+    /// The [`Diagnostic::token_range`] is zero-width (`start == end`) at
     /// the boundary where the token would have appeared. The parser
     /// does not synthesize a fake token — no
     /// [`SyntaxKind::Error`](crate::SyntaxKind::Error) node is emitted for a missing
@@ -112,7 +112,7 @@ pub enum DiagnosticKind {
 pub(crate) fn push_unique_at_cursor(diagnostics: &mut Vec<Diagnostic>, diagnostic: Diagnostic) {
     if let Some(last) = diagnostics.last()
         && last.kind() == diagnostic.kind()
-        && last.range().start() == diagnostic.range().start()
+        && last.token_range().start() == diagnostic.token_range().start()
     {
         return;
     }

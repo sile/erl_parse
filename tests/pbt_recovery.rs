@@ -127,12 +127,13 @@ fn skipped_token_range_matches_error_node_range() -> noprop::TestResult {
             if err.kind() != erl_parse::DiagnosticKind::SkippedToken {
                 continue;
             }
-            let matched = pbt_harness::all_views(&tree)
-                .any(|v| v.kind() == erl_parse::SyntaxKind::Error && v.range() == err.range());
+            let matched = pbt_harness::all_views(&tree).any(|v| {
+                v.kind() == erl_parse::SyntaxKind::Error && v.token_range() == err.token_range()
+            });
             assert!(
                 matched,
                 "SkippedToken with range {:?} has no matching Error node in tree for {src:?}",
-                err.range()
+                err.token_range()
             );
             saw.bump();
         }
@@ -170,9 +171,9 @@ fn missing_token_does_not_fabricate_tokens() -> noprop::TestResult {
         for e in tree.diagnostics() {
             if e.kind() == erl_parse::DiagnosticKind::MissingToken {
                 assert!(
-                    e.range().is_empty(),
+                    e.token_range().is_empty(),
                     "MissingToken has non-empty range {:?} in {src:?}",
-                    e.range()
+                    e.token_range()
                 );
                 saw.bump();
             }
@@ -186,7 +187,7 @@ fn missing_token_does_not_fabricate_tokens() -> noprop::TestResult {
     Ok(())
 }
 
-/// Consecutive `erl_parse::Diagnostic`s never share `(kind, range().start())`.
+/// Consecutive `erl_parse::Diagnostic`s never share `(kind, token_range().start())`.
 /// Non-consecutive repetition is legal — this is the adjacent
 /// dedupe contract of `push_unique_at_cursor`.
 #[test]
@@ -206,7 +207,7 @@ fn adjacent_dedupe_holds_across_mutations() -> noprop::TestResult {
             let a = pair[0];
             let b = pair[1];
             assert!(
-                !(a.kind() == b.kind() && a.range().start() == b.range().start()),
+                !(a.kind() == b.kind() && a.token_range().start() == b.token_range().start()),
                 "adjacent duplicate error at index {i}: {a:?} then {b:?}; source {src:?}"
             );
         }
@@ -249,7 +250,7 @@ fn depth_cap_surfaces_as_structured_error() -> noprop::TestResult {
         // Sanity: the diagnostic anchors at a valid erl_parse::TokenIndex.
         for e in tree.diagnostics() {
             if e.kind() == erl_parse::DiagnosticKind::NestingDepthExceeded {
-                assert!(e.range().start().get() <= tree.tokens().len());
+                assert!(e.token_range().start().get() <= tree.tokens().len());
             }
         }
         Ok(())

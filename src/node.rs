@@ -59,7 +59,7 @@ impl<'a> NodeView<'a> {
     }
 
     /// Returns the entry's [`TokenRange`].
-    pub fn range(self) -> TokenRange {
+    pub fn token_range(self) -> TokenRange {
         self.entry_ref().range()
     }
 
@@ -94,18 +94,18 @@ impl<'a> NodeView<'a> {
     ///
     /// This is the same slice as
     /// [`SyntaxTree::tokens`](crate::SyntaxTree::tokens): the node's
-    /// slice is `&tree.tokens()[self.range().as_slice_index()]`. The
+    /// slice is `&tree.tokens()[self.token_range().as_slice_index()]`. The
     /// first token sits at [`TokenRange::start`](TokenRange::start), so
     /// a position in the slice is
-    /// `TokenIndex::new(self.range().start().get() + i)` for the `i`-th
+    /// `TokenIndex::new(self.token_range().start().get() + i)` for the `i`-th
     /// element. Read a token's spelling or decoded
     /// value with [`erl_tokenize::Token::text`] /
     /// [`erl_tokenize::Token::value`] and the original source string.
     ///
     /// An empty node (a missing token or a zero-width entry) yields an
-    /// empty slice; `range().start()` still names the anchor position.
+    /// empty slice; `token_range().start()` still names the anchor position.
     pub fn tokens(self) -> &'a [erl_tokenize::Token] {
-        &self.tokens[self.range().as_slice_index()]
+        &self.tokens[self.token_range().as_slice_index()]
     }
 
     /// Returns an iterator over ancestors starting from the direct
@@ -416,10 +416,10 @@ mod tests {
         // 0: atom (foo), 1: whitespace, 2: atom (bar). The slice is 1:1
         // with the range and starts at its `start()`.
         assert_eq!(parent.tokens().len(), 3);
-        assert_eq!(parent.range().start(), TokenIndex::new(0));
+        assert_eq!(parent.token_range().start(), TokenIndex::new(0));
         assert_eq!(kinds.len(), 3);
         assert!(kinds[1].is_hidden(), "whitespace must be hidden");
-        assert!(parent.tokens().len() == parent.range().len());
+        assert!(parent.tokens().len() == parent.token_range().len());
     }
 
     #[test]
@@ -472,11 +472,11 @@ mod tests {
 
         let zero_view =
             NodeView::new(&tokens, &index, zero).expect("node id refers to an existing entry");
-        assert!(zero_view.range().is_empty());
-        // The zero-width child yields no tokens; `range().start()` still
+        assert!(zero_view.token_range().is_empty());
+        // The zero-width child yields no tokens; `token_range().start()` still
         // names the anchor position.
         assert!(zero_view.tokens().is_empty());
-        assert_eq!(zero_view.range().start(), TokenIndex::new(1));
+        assert_eq!(zero_view.token_range().start(), TokenIndex::new(1));
 
         // `innermost_containing(1)` selects neither the zero-width child
         // (empty range) nor the parent (range 0..1 does not contain 1).

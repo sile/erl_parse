@@ -210,7 +210,7 @@ fn parse_type_max(p: &mut Parser) -> CompletedMarker {
             let _ = token;
             // Abandon the outer marker so the recovery site's Error
             // node covers only the one skipped token, giving
-            // `Diagnostic::range() == Error node's TokenRange`.
+            // `Diagnostic::token_range() == Error node's TokenRange`.
             m.abandon(p);
             crate::grammar::recovery::skip_one_token(p, "type expression")
         }

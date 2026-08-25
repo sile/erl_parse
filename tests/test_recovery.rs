@@ -94,8 +94,8 @@ fn skipped_token_diagnostic_range_matches_error_node_range() {
         .find(|v| v.kind() == erl_parse::SyntaxKind::Error)
         .expect("recovery emits an Error node");
     assert_eq!(
-        skipped.range(),
-        error_node.range(),
+        skipped.token_range(),
+        error_node.token_range(),
         "diagnostic range must match Error node range"
     );
 }
@@ -109,7 +109,10 @@ fn missing_token_diagnostic_is_zero_width_and_no_error_node_is_added() {
     let (tree, _roots) = drive(erl_parse::ParseMode::Expression, source);
     let missing = find_diagnostic_by_kind(&tree, erl_parse::DiagnosticKind::MissingToken)
         .expect("expect_symbol emits a MissingToken");
-    assert!(missing.range().is_empty(), "missing token is zero-width");
+    assert!(
+        missing.token_range().is_empty(),
+        "missing token is zero-width"
+    );
     assert!(tree.roots().next().is_some());
 }
 
@@ -119,7 +122,7 @@ fn recovery_dedupes_same_error_at_the_same_cursor() {
     let (tree, _roots) = drive(erl_parse::ParseMode::Module, source);
     let mut seen: Vec<(erl_parse::DiagnosticKind, erl_parse::TokenIndex)> = Vec::new();
     for e in tree.diagnostics() {
-        let key = (e.kind(), e.range().start());
+        let key = (e.kind(), e.token_range().start());
         assert!(
             !seen.contains(&key),
             "duplicate error at same cursor: {:?}",
@@ -144,9 +147,9 @@ fn top_level_recovery_produces_error_nodes_that_survive_in_the_syntax_index() {
         .expect("skip_until_sync emits a SkippedToken");
     let error_node_range = all_views(&tree)
         .find(|v| v.kind() == erl_parse::SyntaxKind::Error)
-        .map(|v| v.range())
+        .map(|v| v.token_range())
         .expect("Error node exists");
-    assert_eq!(skipped.range(), error_node_range);
+    assert_eq!(skipped.token_range(), error_node_range);
 }
 
 #[test]
@@ -184,7 +187,7 @@ fn deeply_nested_expression_hits_the_depth_cap_without_stack_overflow() {
     );
     let hit = hit.expect("checked above");
     assert!(
-        hit.range().is_empty(),
+        hit.token_range().is_empty(),
         "NestingDepthExceeded is a boundary-anchored diagnostic"
     );
 }
@@ -257,7 +260,7 @@ fn error_ranges_are_usable_as_keys_into_external_metadata() {
         .first()
         .copied()
         .expect("at least one error");
-    let start = err.range().start();
+    let start = err.token_range().start();
     assert!(start.get() <= tree.tokens().len());
 }
 

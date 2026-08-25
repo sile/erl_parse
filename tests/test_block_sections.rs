@@ -63,8 +63,8 @@ fn receive_with_only_after_wraps_the_after_section() {
     );
     // The section's range must start on the `after` keyword itself, so
     // it is strictly narrower than the enclosing erl_parse::ReceiveExpr range.
-    assert!(after.range().start() > receive.range().start());
-    assert!(after.range().end() <= receive.range().end());
+    assert!(after.token_range().start() > receive.token_range().start());
+    assert!(after.token_range().end() <= receive.token_range().end());
 }
 
 #[test]
@@ -127,7 +127,7 @@ fn try_of_clauses_and_pattern_only_catch_clauses_are_distinguishable() {
             .children()
             .any(|c| c.kind() == erl_parse::SyntaxKind::Clause)
     );
-    assert!(of_section.range().end() <= catch_section.range().start());
+    assert!(of_section.token_range().end() <= catch_section.token_range().start());
 }
 
 #[test]
@@ -193,7 +193,7 @@ fn maybe_with_else_wraps_the_else_section() {
             .children()
             .any(|c| c.kind() == erl_parse::SyntaxKind::Clause)
     );
-    assert!(else_section.range().end() <= maybe.range().end());
+    assert!(else_section.token_range().end() <= maybe.token_range().end());
 }
 
 // -----------------------------------------------------------------
@@ -208,7 +208,7 @@ fn section_ranges_do_not_include_the_enclosing_end_keyword() {
     // terminal.
     let tree = parse_expr("try foo() of X -> X catch Y -> Y after cleanup() end.");
     let try_node = root_view(&tree);
-    let parent_end = try_node.range().end();
+    let parent_end = try_node.token_range().end();
     for kind in [
         erl_parse::SyntaxKind::TryOfSection,
         erl_parse::SyntaxKind::TryCatchSection,
@@ -216,9 +216,9 @@ fn section_ranges_do_not_include_the_enclosing_end_keyword() {
     ] {
         let section = find_child(try_node, kind).expect("section present");
         assert!(
-            section.range().end() < parent_end,
+            section.token_range().end() < parent_end,
             "{kind:?} range should stop before the enclosing `end`: {:?} vs parent end {:?}",
-            section.range(),
+            section.token_range(),
             parent_end
         );
     }

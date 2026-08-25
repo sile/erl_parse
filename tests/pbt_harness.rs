@@ -471,7 +471,9 @@ pub fn node_count(tree: &erl_parse::SyntaxTree) -> usize {
 pub fn preorder_kind_and_range(
     tree: &erl_parse::SyntaxTree,
 ) -> Vec<(erl_parse::SyntaxKind, erl_parse::TokenRange)> {
-    all_views(tree).map(|v| (v.kind(), v.range())).collect()
+    all_views(tree)
+        .map(|v| (v.kind(), v.token_range()))
+        .collect()
 }
 
 /// Runs every whole-tree invariant against `tree`. Returns
@@ -485,7 +487,7 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
     // Range boundaries. Walked through the public forest rather than
     // the crate-internal index slice.
     for node in all_views(tree) {
-        let range = node.range();
+        let range = node.token_range();
         if range.end().get() > buffer_len {
             violations.push(InvariantViolation::RangeBeyondTokens {
                 end: range.end(),
@@ -503,9 +505,9 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
     // Child token ranges sit inside the parent. Walked through the
     // public `children` iterator rather than the preorder fence.
     for parent in all_views(tree) {
-        let pr = parent.range();
+        let pr = parent.token_range();
         for child in parent.children() {
-            let cr = child.range();
+            let cr = child.token_range();
             if cr.start().get() < pr.start().get() || cr.end().get() > pr.end().get() {
                 violations.push(InvariantViolation::ChildRangeOutsideParent {
                     parent: parent.node_id(),
@@ -536,11 +538,11 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
         let (i, pair) = w;
         let a = pair[0];
         let b = pair[1];
-        if a.kind() == b.kind() && a.range().start() == b.range().start() {
+        if a.kind() == b.kind() && a.token_range().start() == b.token_range().start() {
             violations.push(InvariantViolation::AdjacentDuplicateError {
                 first_idx: i,
                 kind: a.kind(),
-                start: a.range().start(),
+                start: a.token_range().start(),
             });
         }
     }
@@ -549,19 +551,20 @@ pub fn validate_tree(tree: &erl_parse::SyntaxTree) -> Result<(), Vec<InvariantVi
     for (idx, err) in errs.iter().enumerate() {
         match err.kind() {
             erl_parse::DiagnosticKind::SkippedToken => {
-                let matches_node = all_views(tree)
-                    .any(|v| v.kind() == erl_parse::SyntaxKind::Error && v.range() == err.range());
+                let matches_node = all_views(tree).any(|v| {
+                    v.kind() == erl_parse::SyntaxKind::Error && v.token_range() == err.token_range()
+                });
                 if !matches_node {
                     violations.push(InvariantViolation::SkippedTokenWithoutMatchingErrorNode {
                         error_idx: idx,
-                        range: err.range(),
+                        range: err.token_range(),
                     });
                 }
             }
-            erl_parse::DiagnosticKind::MissingToken if !err.range().is_empty() => {
+            erl_parse::DiagnosticKind::MissingToken if !err.token_range().is_empty() => {
                 violations.push(InvariantViolation::MissingTokenNotZeroWidth {
                     error_idx: idx,
-                    range: err.range(),
+                    range: err.token_range(),
                 });
             }
             _ => {}

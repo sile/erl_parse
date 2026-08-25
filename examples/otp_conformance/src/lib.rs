@@ -261,7 +261,7 @@ pub fn is_epp_consumed_feature_attribute(
     let Some(name_node) = child_of_kind(view, erl_parse::SyntaxKind::AttributeName) else {
         return false;
     };
-    for (t, i) in name_node.tokens().iter().zip(name_node.range()) {
+    for (t, i) in name_node.tokens().iter().zip(name_node.token_range()) {
         if t.kind().is_lexical()
             && let Some(text) = token_text(tree, token_sources, i)
         {
@@ -319,7 +319,7 @@ pub fn diagnostic_line(tree: &erl_parse::SyntaxTree, range: erl_parse::TokenRang
 pub fn first_diagnostic_line(tree: &erl_parse::SyntaxTree) -> Option<usize> {
     tree.diagnostics()
         .first()
-        .map(|e| diagnostic_line(tree, e.range()))
+        .map(|e| diagnostic_line(tree, e.token_range()))
 }
 
 fn empty_source(name: &str) -> erl_pp::Source {
@@ -558,8 +558,13 @@ fn shape_node(tree: &erl_parse::SyntaxTree, source: &str, node: erl_parse::NodeV
             let Some(right) = kids.next() else {
                 return "[]".to_string();
             };
-            let op = operator_between(tree, source, left.range().end(), right.range().start())
-                .unwrap_or_else(|| "_".to_string());
+            let op = operator_between(
+                tree,
+                source,
+                left.token_range().end(),
+                right.token_range().start(),
+            )
+            .unwrap_or_else(|| "_".to_string());
             format!(
                 "[\"binop\",\"{}\",{},{}]",
                 json_escape(&op),
@@ -571,8 +576,13 @@ fn shape_node(tree: &erl_parse::SyntaxTree, source: &str, node: erl_parse::NodeV
             let Some(child) = node.children().next() else {
                 return "[]".to_string();
             };
-            let op = operator_between(tree, source, node.range().start(), child.range().start())
-                .unwrap_or_else(|| "_".to_string());
+            let op = operator_between(
+                tree,
+                source,
+                node.token_range().start(),
+                child.token_range().start(),
+            )
+            .unwrap_or_else(|| "_".to_string());
             format!(
                 "[\"unary\",\"{}\",{}]",
                 json_escape(&op),
