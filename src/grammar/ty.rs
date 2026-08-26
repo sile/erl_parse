@@ -638,7 +638,7 @@ mod tests {
         // driver so `drive_type` can reset state and invoke
         // `parse_type` directly on the accumulated token list.
         let mut p = Parser::new(ParseMode::Module);
-        p.load_tokens(&scan_all(source));
+        p.load_tokens(scan_all(source));
         p.reset_for_test();
         let outer = p.start();
         parse_type(&mut p);
@@ -817,7 +817,7 @@ mod tests {
         // `when` clause.
         let source = "when X :: integer(), Y :: atom()";
         let mut p = Parser::new(ParseMode::Module);
-        p.load_tokens(&scan_all(source));
+        p.load_tokens(scan_all(source));
         p.reset_for_test();
         let outer = p.start();
         // Type guard runs under Type context like top-level type parse.

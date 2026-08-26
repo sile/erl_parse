@@ -148,7 +148,7 @@ mod tests {
 
     fn load(source: &str) -> Parser {
         let mut p = Parser::new(ParseMode::Module);
-        p.load_tokens(&scan_all(source));
+        p.load_tokens(scan_all(source));
         p.reset_for_test();
         p
     }

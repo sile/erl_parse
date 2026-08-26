@@ -183,7 +183,7 @@ pub fn parse_text(
         }
     }
 
-    let tree = erl_parse::parse(&tokens, mode);
+    let tree = erl_parse::parse(tokens, mode);
     let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
     let preprocess = if preprocess_reason.is_none() {
         Stage::Ok

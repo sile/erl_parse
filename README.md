@@ -28,7 +28,7 @@ call:
 fn main() -> Result<(), erl_tokenize::Error> {
     let source = "-module(foo).";
     let tokens = erl_tokenize::scan_tokens(source)?;
-    let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Module);
+    let tree = erl_parse::parse(tokens, erl_parse::ParseMode::Module);
     assert!(tree.diagnostics().is_empty());
     assert_eq!(tree.roots().count(), 1);
     Ok(())

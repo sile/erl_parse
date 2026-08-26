@@ -22,7 +22,7 @@ fn drive(
     source: &str,
 ) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
     let tokens = scan_all(source);
-    let tree = erl_parse::parse(&tokens, mode);
+    let tree = erl_parse::parse(tokens, mode);
     let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
     (tree, roots)
 }

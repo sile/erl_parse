@@ -17,7 +17,7 @@ fn kind_of(tree: &erl_parse::SyntaxTree, id: erl_parse::NodeId) -> erl_parse::Sy
 
 fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
     let tokens = scan_all(source);
-    let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Expression);
+    let tree = erl_parse::parse(tokens, erl_parse::ParseMode::Expression);
     let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
     (tree, roots)
 }
@@ -59,7 +59,7 @@ fn token_index_matches_input_order() {
     // stream on the same footing as lexical tokens.
     let source = "foo % note\n bar";
     let scanned = scan_all(source);
-    let tree = erl_parse::parse(&scanned, erl_parse::ParseMode::Module);
+    let tree = erl_parse::parse(scanned.as_slice(), erl_parse::ParseMode::Module);
     assert_eq!(tree.tokens().len(), scanned.len());
     for (i, expected) in scanned.iter().enumerate() {
         let index = erl_parse::TokenIndex::new(i);

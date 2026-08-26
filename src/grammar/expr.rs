@@ -1054,7 +1054,7 @@ mod tests {
         // eagerly invoke the real grammar on load; the drive() body
         // then resets state and drives the grammar under test directly.
         let mut p = Parser::new(ParseMode::Module);
-        p.load_tokens(&scan_all(source));
+        p.load_tokens(scan_all(source));
         // Reset stub-grammar state; the stub will have consumed the whole
         // buffer as a single Error unit ending at the first `.`.
         p.reset_for_test();

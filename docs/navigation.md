@@ -60,7 +60,7 @@ Roots are `NodeView`s borrowed from the tree.
 # fn main() -> Result<(), erl_tokenize::Error> {
 let source = "{1, 2}.";
 let tokens = erl_tokenize::scan_tokens(source)?;
-let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Expression);
+let tree = erl_parse::parse(tokens, erl_parse::ParseMode::Expression);
 
 let roots: Vec<_> = tree.roots().collect();
 assert_eq!(roots.len(), 1);
@@ -99,7 +99,7 @@ Several `.`-terminated units become several roots, in input order.
 # fn main() -> Result<(), erl_tokenize::Error> {
 let source = "{1}. {2}.";
 let tokens = erl_tokenize::scan_tokens(source)?;
-let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::TermList);
+let tree = erl_parse::parse(tokens, erl_parse::ParseMode::TermList);
 let roots: Vec<_> = tree.roots().collect();
 assert_eq!(roots.len(), 2);
 assert_eq!(roots[0].kind(), erl_parse::SyntaxKind::TupleExpr);
@@ -150,7 +150,7 @@ node's [`TokenRange`](crate::TokenRange). It is the same buffer as
 # fn main() -> Result<(), erl_tokenize::Error> {
 let source = "{1, 2}.";
 let tokens = erl_tokenize::scan_tokens(source)?;
-let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Expression);
+let tree = erl_parse::parse(tokens, erl_parse::ParseMode::Expression);
 let root = tree.roots().next().expect("one root");
 
 assert_eq!(root.tokens(), &tree.tokens()[root.token_range().as_slice_index()]);

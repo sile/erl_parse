@@ -84,7 +84,11 @@ pub const MAX_NESTING_DEPTH: usize = 256;
 /// To read an attribute payload as a type, term, or expression, slice
 /// [`SyntaxTree::tokens`] with the payload's [`TokenRange`] and call
 /// `parse` again with the matching [`ParseMode`].
-pub fn parse(tokens: &[erl_tokenize::Token], mode: ParseMode) -> SyntaxTree {
+pub fn parse<T>(tokens: T, mode: ParseMode) -> SyntaxTree
+where
+    T: Into<Vec<erl_tokenize::Token>>,
+{
+    let tokens = tokens.into();
     let mut parser = Parser::new(mode);
     parser.load_tokens(tokens);
     parser.finish()
@@ -215,13 +219,14 @@ impl Parser {
         }
     }
 
-    /// Loads the full token slice the caller fed, without running the
-    /// top-level grammar. [`parse`](crate::parse) loads the input and
+    /// Loads the full token buffer the caller fed, without running the
+    /// top-level grammar. The owned vector is moved into the tree, so
+    /// no copy happens. [`parse`](crate::parse) loads the input and
     /// then lets [`Self::finish`] drive the grammar over the whole
-    /// slice; grammar-module tests load tokens and then drive a
+    /// buffer; grammar-module tests load tokens and then drive a
     /// specific production manually.
-    pub(crate) fn load_tokens(&mut self, tokens: &[erl_tokenize::Token]) {
-        self.tree.tokens_mut().extend_from_slice(tokens);
+    pub(crate) fn load_tokens(&mut self, tokens: Vec<erl_tokenize::Token>) {
+        *self.tree.tokens_mut() = tokens;
     }
 
     /// Returns the [`NodeId`] of the next completed `.`-terminated
@@ -932,7 +937,17 @@ mod tests {
     }
 
     fn feed_all(parser: &mut Parser, source: &str) {
-        parser.load_tokens(&scan_all(source));
+        parser.load_tokens(scan_all(source));
+    }
+
+    #[test]
+    fn owned_token_vector_is_moved_into_the_tree_without_copying() {
+        let tokens = scan_all("1 2 3.");
+        assert!(!tokens.is_empty());
+        let expected_ptr = tokens.as_ptr();
+        let tree = parse(tokens, ParseMode::Expression);
+        assert_eq!(tree.tokens().len(), 6);
+        assert_eq!(tree.tokens().as_ptr(), expected_ptr);
     }
 
     #[test]
@@ -954,9 +969,12 @@ mod tests {
     #[test]
     fn pull_returns_none_before_boundary_and_node_id_after() {
         let mut p = Parser::new(ParseMode::Module);
+        // A buffer without a terminating `.` completes no unit. The
+        // second load replaces the buffer with the full input; an
+        // owning `load_tokens` does not append.
         feed_all(&mut p, "-foo");
         assert!(p.next_node().is_none(), "no dot yet");
-        feed_all(&mut p, " .");
+        feed_all(&mut p, "-foo .");
         let node = p.next_node().expect("unit completed at dot");
         assert_eq!(node, NodeId::new(0));
         assert!(p.next_node().is_none(), "one unit only");
