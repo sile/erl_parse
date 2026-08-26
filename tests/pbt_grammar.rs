@@ -17,8 +17,8 @@ fn determinism_across_two_parsers() -> noprop::TestResult {
         let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
-        let ta = erl_parse::parse(&tokens, mode);
-        let tb = erl_parse::parse(&tokens, mode);
+        let ta = erl_parse::parse(tokens.as_slice(), mode);
+        let tb = erl_parse::parse(tokens.as_slice(), mode);
         assert_eq!(
             pbt_harness::preorder_kind_and_range(&ta),
             pbt_harness::preorder_kind_and_range(&tb),
@@ -47,7 +47,7 @@ fn parser_always_terminates_across_modes() -> noprop::TestResult {
         let Some(tokens) = pbt_harness::scan_all(&src) else {
             return Ok(());
         };
-        let _tree = erl_parse::parse(&tokens, mode);
+        let _tree = erl_parse::parse(tokens, mode);
         touched.set();
         Ok(())
     })?;

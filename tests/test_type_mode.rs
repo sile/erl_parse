@@ -13,7 +13,7 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
 
 fn drive(source: &str) -> (erl_parse::SyntaxTree, Vec<erl_parse::NodeId>) {
     let tokens = scan_all(source);
-    let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Type);
+    let tree = erl_parse::parse(tokens, erl_parse::ParseMode::Type);
     let roots: Vec<_> = tree.roots().map(|v| v.node_id()).collect();
     (tree, roots)
 }

@@ -43,7 +43,7 @@ mod tests {
 
     fn drive_pattern(source: &str) -> Parser {
         let mut p = Parser::new(ParseMode::Module);
-        p.load_tokens(&scan_all(source));
+        p.load_tokens(scan_all(source));
         p.reset_for_test();
         let outer = p.start();
         parse_pattern(&mut p);

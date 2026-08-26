@@ -17,7 +17,7 @@ fn scan_all(source: &str) -> Vec<erl_tokenize::Token> {
 /// expression grammar) and returns the completed `erl_parse::SyntaxTree`.
 fn parse_expr(source: &str) -> erl_parse::SyntaxTree {
     let tokens = scan_all(source);
-    erl_parse::parse(&tokens, erl_parse::ParseMode::Expression)
+    erl_parse::parse(tokens, erl_parse::ParseMode::Expression)
 }
 
 /// Returns a `erl_parse::NodeView` for the tree's first root node.

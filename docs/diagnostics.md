@@ -145,7 +145,7 @@ second form still lands; the tree carries diagnostics for the first.
 # fn main() -> Result<(), erl_tokenize::Error> {
 let source = "1 2 3.\n-ok.";
 let tokens = erl_tokenize::scan_tokens(source)?;
-let tree = erl_parse::parse(&tokens, erl_parse::ParseMode::Module);
+let tree = erl_parse::parse(tokens, erl_parse::ParseMode::Module);
 let roots: Vec<_> = tree.roots().collect();
 
 assert!(roots.len() >= 2);
