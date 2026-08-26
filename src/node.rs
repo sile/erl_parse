@@ -108,6 +108,26 @@ impl<'a> NodeView<'a> {
         &self.tokens[self.token_range().as_slice_index()]
     }
 
+    /// Returns an iterator over `(TokenIndex, Token)` pairs inside this
+    /// entry's [`TokenRange`], in buffer order. Hidden tokens (whitespace
+    /// and comments) are included, so the iterator is 1:1 with the range.
+    ///
+    /// This is `self.token_range().zip(self.tokens().iter().copied())`.
+    /// The [`TokenIndex`] lets a caller look up a parallel side table —
+    /// source metadata kept beside [`SyntaxTree::tokens`](crate::SyntaxTree::tokens),
+    /// for example — while walking the node's tokens in one pass.
+    ///
+    /// The same pairs are available manually with
+    /// `self.tokens().iter().copied().zip(self.token_range())`; this
+    /// method names the operation. Use [`NodeView::tokens`] when a
+    /// contiguous slice is needed instead.
+    ///
+    /// An empty node (a missing token or a zero-width entry) yields an
+    /// empty iterator.
+    pub fn indexed_tokens(self) -> impl Iterator<Item = (TokenIndex, erl_tokenize::Token)> {
+        self.token_range().zip(self.tokens().iter().copied())
+    }
+
     /// Returns an iterator over ancestors starting from the direct
     /// parent, moving toward the root. The node itself is not
     /// included.
@@ -420,6 +440,43 @@ mod tests {
         assert_eq!(kinds.len(), 3);
         assert!(kinds[1].is_hidden(), "whitespace must be hidden");
         assert!(parent.tokens().len() == parent.token_range().len());
+    }
+
+    #[test]
+    fn indexed_tokens_yields_index_and_token_pairs_in_order() {
+        let (tokens, index) = build_sample();
+        let parent = NodeView::new(&tokens, &index, NodeId::new(0))
+            .expect("node id refers to an existing entry");
+        let pairs: Vec<(TokenIndex, erl_tokenize::Token)> = parent.indexed_tokens().collect();
+        assert_eq!(pairs.len(), 3);
+        for (i, (idx, token)) in pairs.iter().enumerate() {
+            assert_eq!(*idx, TokenIndex::new(i));
+            assert_eq!(*token, tokens[i], "index {i} must fetch the same token");
+        }
+        assert!(pairs[1].1.kind().is_hidden(), "whitespace must be hidden");
+    }
+
+    #[test]
+    fn indexed_tokens_is_empty_for_zero_width_node() {
+        let source = "foo";
+        let mut tokens = Vec::new();
+        let mut pos = erl_tokenize::Position::new();
+        while let Some(token) = erl_tokenize::scan_token(source, pos).expect("valid Erlang source")
+        {
+            tokens.push(token);
+            pos = token.end();
+        }
+
+        let mut index = SyntaxIndex::new();
+        let zero = index.push(SyntaxEntry::new(
+            SyntaxKind::Error,
+            TokenRange::empty_at(TokenIndex::new(1)),
+            EntryIndex::new(2),
+        ));
+
+        let zero_view =
+            NodeView::new(&tokens, &index, zero).expect("node id refers to an existing entry");
+        assert_eq!(zero_view.indexed_tokens().count(), 0);
     }
 
     #[test]
