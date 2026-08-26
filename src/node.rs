@@ -112,15 +112,11 @@ impl<'a> NodeView<'a> {
     /// entry's [`TokenRange`], in buffer order. Hidden tokens (whitespace
     /// and comments) are included, so the iterator is 1:1 with the range.
     ///
-    /// This is `self.token_range().zip(self.tokens().iter().copied())`.
     /// The [`TokenIndex`] lets a caller look up a parallel side table —
     /// source metadata kept beside [`SyntaxTree::tokens`](crate::SyntaxTree::tokens),
-    /// for example — while walking the node's tokens in one pass.
-    ///
-    /// The same pairs are available manually with
-    /// `self.tokens().iter().copied().zip(self.token_range())`; this
-    /// method names the operation. Use [`NodeView::tokens`] when a
-    /// contiguous slice is needed instead.
+    /// for example — while walking the node's tokens in one pass. This is
+    /// `self.token_range().zip(self.tokens().iter().copied())`; use
+    /// [`NodeView::tokens`] when a contiguous slice is needed instead.
     ///
     /// An empty node (a missing token or a zero-width entry) yields an
     /// empty iterator.
