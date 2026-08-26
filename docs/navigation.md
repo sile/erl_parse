@@ -122,6 +122,7 @@ tree are always in range.
 | Every nested node, preorder, excluding self | [`NodeView::descendants`](crate::NodeView::descendants) |
 | Enclosing nodes, **innermost first** (direct parent toward the root) | [`NodeView::ancestors`](crate::NodeView::ancestors) |
 | Tokens in this span, including whitespace and comments | [`NodeView::tokens`](crate::NodeView::tokens) |
+| Tokens with their absolute `TokenIndex`, in one pass | [`NodeView::indexed_tokens`](crate::NodeView::indexed_tokens) |
 | Tightest node whose non-empty range contains this token | [`SyntaxTree::innermost_containing`](crate::SyntaxTree::innermost_containing) |
 
 A formatter or linter typically starts at `roots`, then
@@ -160,6 +161,12 @@ assert_eq!(root.tokens().len(), root.token_range().len());
 let pairs: Vec<(erl_tokenize::Token, erl_parse::TokenIndex)> =
     root.tokens().iter().copied().zip(root.token_range()).collect();
 assert_eq!(pairs.len(), root.token_range().len());
+
+// Or use the dedicated iterator, which yields `(TokenIndex, Token)`
+// pairs in the same order.
+let pairs: Vec<(erl_parse::TokenIndex, erl_tokenize::Token)> =
+    root.indexed_tokens().collect();
+assert_eq!(pairs.len(), root.token_range().len());
 # Ok(())
 # }
 ```
@@ -170,6 +177,13 @@ map the `i`-th element of the slice back to the buffer with
 `TokenIndex::new(node.token_range().start().get() + i)`, or zip the slice
 with the range itself: `node.tokens().iter().copied().zip(node.token_range())`
 yields `(Token, TokenIndex)` pairs.
+
+[`NodeView::indexed_tokens`](crate::NodeView::indexed_tokens) is that
+zip under a name: it returns `(TokenIndex, Token)` pairs in buffer
+order, hidden tokens included, and is empty on a zero-width node.
+Use `tokens` when you need a contiguous slice; use `indexed_tokens`
+when each token must be joined with a side table keyed by
+`TokenIndex` in the same pass.
 
 An `erl_tokenize::Token` alone has no spelling: it records where it
 was scanned, not the source text. Pass the original source string to
